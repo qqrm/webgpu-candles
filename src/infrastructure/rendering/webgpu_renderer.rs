@@ -2,9 +2,10 @@ use wasm_bindgen::prelude::*;
 use crate::domain::{
     chart::Chart,
     logging::{LogComponent, get_logger},
+    market_data::services::MarketAnalysisService,
 };
 use wgpu::util::DeviceExt;
-use crate::infrastructure::rendering::gpu_structures::{CandleVertex, ChartUniforms, CandleGeometry};
+use crate::infrastructure::rendering::gpu_structures::{CandleVertex, ChartUniforms, CandleGeometry, IndicatorType};
 use gloo::utils::{document, window};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
@@ -94,7 +95,7 @@ impl WebGpuRenderer {
 
         // Get the adapter's supported limits to ensure compatibility
         let supported_limits = adapter.limits();
-        
+
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -185,7 +186,7 @@ impl WebGpuRenderer {
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
@@ -211,7 +212,7 @@ impl WebGpuRenderer {
         
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
-            size: (std::mem::size_of::<CandleVertex>() * 1000 * 18) as u64, // Pre-allocate for 1000 candles
+            size: (std::mem::size_of::<CandleVertex>() * 100000) as u64, // 100k вершин = 1.6MB буфер
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -282,6 +283,20 @@ impl WebGpuRenderer {
             "🎨 Starting WebGPU render..."
         );
 
+        let candle_count = chart.data.get_candles().len();
+        get_logger().info(
+            LogComponent::Infrastructure("WebGpuRenderer"),
+            &format!("📊 Chart has {} candles to render", candle_count)
+        );
+
+        if candle_count == 0 {
+            get_logger().info(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                "⚠️ No candles to render, skipping..."
+            );
+            return Ok(());
+        }
+
         // Update buffers
         let (vertices, uniforms) = self.create_geometry(chart);
         
@@ -346,7 +361,7 @@ impl WebGpuRenderer {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
+                            r: 0.1,  // Красивый синий фон
                             g: 0.2,
                             b: 0.4,
                             a: 1.0,
@@ -401,6 +416,18 @@ impl WebGpuRenderer {
             &format!("🔧 Creating geometry for {} candles", candles.len())
         );
 
+        // Логируем информацию о данных для отладки
+        if let (Some(first), Some(last)) = (candles.first(), candles.last()) {
+            get_logger().info(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                &format!("📅 Data span: {} to {} ({:.1} hours)", 
+                    first.timestamp.value(),
+                    last.timestamp.value(),
+                    (last.timestamp.value() - first.timestamp.value()) as f64 / 3600000.0
+                )
+            );
+        }
+
         let mut vertices = vec![];
         let candle_count = candles.len();
         let chart_width = 2.0; // NDC width (-1 to 1)
@@ -419,20 +446,27 @@ impl WebGpuRenderer {
         min_price -= price_range * 0.05;
         max_price += price_range * 0.05;
 
-        let candle_width = chart_width / candle_count as f64 * 0.8; // 80% of available space
+        // Calculate visible candle width and spacing
+        let spacing_ratio = 0.3; // 30% spacing between candles  
+        let step_size = chart_width / candle_count as f64;
+        let max_candle_width = step_size * (1.0 - spacing_ratio); // Width with proper spacing
+        let candle_width = max_candle_width.max(0.02).min(0.08); // Min 0.02, Max 0.08 NDC units for visibility
+
+        get_logger().info(
+            LogComponent::Infrastructure("WebGpuRenderer"),
+            &format!("📏 Candle width: {:.6}, step size: {:.6}", candle_width, step_size)
+        );
 
         // Create vertices for each candle
         for (i, candle) in candles.iter().enumerate() {
-            // Normalize position
-            let x = -1.0 + (i as f64 / candle_count as f64) * chart_width;
+            // Better X positioning with proper spacing
+            let x = -1.0 + (i as f64 + 0.5) * step_size; // Center each candle in its slot
 
             // Normalize prices to [-1, 1] range
             let open_y = -1.0 + ((candle.ohlcv.open.value() as f32 - min_price) / (max_price - min_price)) * chart_height as f32;
             let high_y = -1.0 + ((candle.ohlcv.high.value() as f32 - min_price) / (max_price - min_price)) * chart_height as f32;
             let low_y = -1.0 + ((candle.ohlcv.low.value() as f32 - min_price) / (max_price - min_price)) * chart_height as f32;
             let close_y = -1.0 + ((candle.ohlcv.close.value() as f32 - min_price) / (max_price - min_price)) * chart_height as f32;
-
-            let is_bullish = candle.ohlcv.close.value() > candle.ohlcv.open.value();
 
             // Create vertices using the CandleGeometry helper
             let candle_vertices = CandleGeometry::create_candle_vertices(
@@ -453,7 +487,83 @@ impl WebGpuRenderer {
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
-            &format!("✅ Generated {} vertices for rendering", vertices.len())
+            &format!("✅ Generated {} vertices for {} candles", vertices.len(), candle_count)
+        );
+
+        // Вычисляем и добавляем технические индикаторы
+        let analysis_service = MarketAnalysisService::new();
+        let mas = analysis_service.calculate_multiple_mas(candles);
+        
+        get_logger().info(
+            LogComponent::Infrastructure("WebGpuRenderer"),
+            &format!("🔍 Indicators calculated: SMA20({} pts), SMA50({} pts), EMA12({} pts)", 
+                mas.sma_20.len(), mas.sma_50.len(), mas.ema_12.len())
+        );
+        
+        // Добавляем SMA 20
+        if !mas.sma_20.is_empty() {
+            let sma20_points: Vec<(f32, f32)> = mas.sma_20.iter().enumerate().map(|(i, price)| {
+                let x = -1.0 + ((i + 20) as f64 + 0.5) * step_size; // Смещение на период SMA
+                let y = -1.0 + ((price.value() - min_price) / (max_price - min_price)) * chart_height as f32;
+                (x as f32, y)
+            }).collect();
+            
+            get_logger().info(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                &format!("📍 SMA20 sample points: start=({:.3}, {:.3}), end=({:.3}, {:.3})", 
+                    sma20_points[0].0, sma20_points[0].1,
+                    sma20_points[sma20_points.len()-1].0, sma20_points[sma20_points.len()-1].1)
+            );
+            
+            let sma20_vertices = CandleGeometry::create_indicator_line_vertices(
+                &sma20_points, IndicatorType::SMA20, 0.004  // Тонкие линии для индикаторов
+            );
+            vertices.extend_from_slice(&sma20_vertices);
+            
+            get_logger().info(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                &format!("📈 SMA20: added {} vertices (width: {:.4})", sma20_vertices.len(), candle_width)
+            );
+        }
+        
+        // Добавляем SMA 50
+        if !mas.sma_50.is_empty() {
+            let sma50_points: Vec<(f32, f32)> = mas.sma_50.iter().enumerate().map(|(i, price)| {
+                let x = -1.0 + ((i + 50) as f64 + 0.5) * step_size; // Смещение на период SMA
+                let y = -1.0 + ((price.value() - min_price) / (max_price - min_price)) * chart_height as f32;
+                (x as f32, y)
+            }).collect();
+            
+            let sma50_vertices = CandleGeometry::create_indicator_line_vertices(
+                &sma50_points, IndicatorType::SMA50, 0.004  // Тонкие линии для индикаторов
+            );
+            vertices.extend_from_slice(&sma50_vertices);
+        }
+        
+        // Добавляем EMA 12
+        if !mas.ema_12.is_empty() {
+            let ema12_points: Vec<(f32, f32)> = mas.ema_12.iter().enumerate().map(|(i, price)| {
+                let x = -1.0 + ((i + 12) as f64 + 0.5) * step_size; // Смещение на период EMA
+                let y = -1.0 + ((price.value() - min_price) / (max_price - min_price)) * chart_height as f32;
+                (x as f32, y)
+            }).collect();
+            
+            let ema12_vertices = CandleGeometry::create_indicator_line_vertices(
+                &ema12_points, IndicatorType::EMA12, 0.004  // Тонкие линии для индикаторов
+            );
+            vertices.extend_from_slice(&ema12_vertices);
+        }
+        
+        // Добавляем сетку цен
+        let grid_vertices = CandleGeometry::create_price_grid(
+            min_price, max_price, chart_width as f32, chart_height as f32, 8, 5
+        );
+        vertices.extend_from_slice(&grid_vertices);
+        
+        get_logger().info(
+            LogComponent::Infrastructure("WebGpuRenderer"),
+            &format!("📈 Added: SMA20({} pts), SMA50({} pts), EMA12({} pts), Grid({} lines)", 
+                mas.sma_20.len(), mas.sma_50.len(), mas.ema_12.len(), grid_vertices.len() / 6)
         );
 
         // Create uniforms
@@ -466,9 +576,14 @@ impl WebGpuRenderer {
             ],
             viewport: [self.width as f32, self.height as f32, min_price as f32, max_price as f32],
             time_range: [0.0, candle_count as f32, candle_count as f32, 0.0],
-            bullish_color: [0.0, 0.8, 0.0, 1.0],  // Green
-            bearish_color: [0.8, 0.0, 0.0, 1.0],  // Red
-            wick_color: [0.5, 0.5, 0.5, 0.8],     // Gray
+            bullish_color: [0.447, 0.776, 0.522, 1.0],   // #72c685 - ваш зеленый
+            bearish_color: [0.882, 0.420, 0.282, 1.0],   // #e16b48 - ваш красный
+            wick_color: [0.5, 0.5, 0.5, 0.8],            // Gray
+            sma20_color: [1.0, 0.0, 0.0, 1.0],           // Bright Red
+            sma50_color: [1.0, 0.8, 0.0, 1.0],           // Yellow
+            sma200_color: [0.2, 0.4, 0.8, 1.0],          // Blue
+            ema12_color: [0.8, 0.2, 0.8, 1.0],           // Purple
+            ema26_color: [0.0, 0.8, 0.8, 1.0],           // Cyan
             render_params: [candle_width as f32, 1.0, 1.0, 0.0],
         };
 
@@ -489,6 +604,81 @@ impl WebGpuRenderer {
     pub fn check_legend_checkbox_click(&self, mouse_x: f32, mouse_y: f32) -> Option<String> {
         // Implementation needed
         None
+    }
+
+    /// Базовый тест рендеринга - рисует красный треугольник
+    pub fn test_basic_triangle(&self) -> Result<(), JsValue> {
+        get_logger().info(
+            LogComponent::Infrastructure("WebGpuRenderer"),
+            "🔴 TESTING: Drawing basic red triangle..."
+        );
+
+        // Создаем простейшие вершины треугольника
+        let test_vertices = vec![
+            CandleVertex::body_vertex(0.0, 0.5, true),   // Верх (зеленый)
+            CandleVertex::body_vertex(-0.5, -0.5, false), // Лево-низ (красный)
+            CandleVertex::body_vertex(0.5, -0.5, true),  // Право-низ (зеленый)
+        ];
+
+        get_logger().info(
+            LogComponent::Infrastructure("WebGpuRenderer"),
+            &format!("🔺 Created {} test vertices", test_vertices.len())
+        );
+
+        // Записываем в буфер
+        self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
+        
+        // Создаем тестовые uniforms
+        let test_uniforms = ChartUniforms::default();
+        self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[test_uniforms]));
+
+        let output = self.surface
+            .get_current_texture()
+            .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
+            
+        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Test Triangle Encoder"),
+        });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Test Triangle Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.0, g: 0.0, b: 0.3, a: 1.0, // Темно-синий фон
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.draw(0..3, 0..1); // Рисуем 3 вершины треугольника
+
+            get_logger().info(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                "🎨 Drew test triangle with 3 vertices"
+            );
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        output.present();
+
+        get_logger().info(
+            LogComponent::Infrastructure("WebGpuRenderer"),
+            "✅ TEST TRIANGLE RENDERED SUCCESSFULLY!"
+        );
+
+        Ok(())
     }
 }
 

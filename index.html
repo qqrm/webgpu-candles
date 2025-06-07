@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📊 Bitcoin Price Chart</title>
+    <title>🌐 Bitcoin WebSocket Chart</title>
     <style>
         :root {
             --bg-dark: #2c3e50;
@@ -134,16 +134,19 @@
 
         .debug-controls {
             display: flex;
-            gap: 10px;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
         .debug-controls button {
             border: none;
-            padding: 5px 10px;
-            border-radius: 5px;
+            padding: 4px 8px;
+            border-radius: 4px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
+            transition: opacity 0.2s;
         }
 
         #pauseDebug {
@@ -160,8 +163,31 @@
             color: white;
         }
 
+        .filter-btn {
+            background: #333;
+            color: #ccc;
+            border: 1px solid #555;
+        }
+
+        .filter-btn.active {
+            color: white;
+            border-color: currentColor;
+        }
+
+        .filter-btn.error.active { background: #ff4444; }
+        .filter-btn.warn.active { background: #ffaa00; }
+        .filter-btn.info.active { background: #4488ff; }
+        .filter-btn.debug.active { background: #888888; }
+        .filter-btn.log.active { background: #00ff88; }
+
         .debug-controls button:hover {
             opacity: 0.8;
+        }
+
+        .debug-stats {
+            color: #888;
+            font-size: 10px;
+            margin-left: auto;
         }
 
         .debug-log {
@@ -192,8 +218,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Bitcoin Live Chart</h1>
-            <p>BTC/USDT • Real-time Price Data</p>
+            <h1>🌐 Bitcoin WebSocket Chart</h1>
+            <p>BTC/USDT • Real-time WebSocket Stream</p>
             
             <div class="price-info">
                 <div class="price-item">
@@ -226,6 +252,13 @@
                 <div class="debug-controls">
                     <button id="pauseDebug">⏸️ Pause</button>
                     <button id="clearDebug">🗑️ Clear</button>
+                    |
+                    <button class="filter-btn error active" id="filterError">❌ ERR</button>
+                    <button class="filter-btn warn active" id="filterWarn">⚠️ WARN</button>
+                    <button class="filter-btn info active" id="filterInfo">ℹ️ INFO</button>
+                    <button class="filter-btn log active" id="filterLog">📝 LOG</button>
+                    <button class="filter-btn debug" id="filterDebug">🐛 DBG</button>
+                    <span class="debug-stats" id="debugStats">0 logs</span>
                 </div>
             </div>
             <div class="debug-log" id="debugLog"></div>
@@ -236,35 +269,141 @@
         import init, { createUnifiedChart } from './pkg/price_chart_wasm.js';
 
         let unifiedChartApi = null;
-        let originalConsoleLog = console.log;
         let debugPaused = false;
+        let logCount = 0;
+        
+        // Фильтры логов (включены по умолчанию, кроме DEBUG)
+        let logFilters = {
+            ERROR: true,
+            WARN: true,
+            INFO: true,
+            LOG: true,
+            DEBUG: false
+        };
 
-        // Отладочная консоль на странице
-        function debugLog(message) {
+        // Сохраняем оригинальные методы консоли
+        const originalConsole = {
+            log: console.log,
+            info: console.info,
+            warn: console.warn,
+            error: console.error,
+            debug: console.debug
+        };
+
+        // Универсальная функция для debug консоли
+        function debugLog(level, message, color = '#00ff88') {
+            // Проверяем фильтр
+            if (!logFilters[level]) {
+                return;
+            }
+            
             const debugElement = document.getElementById('debugLog');
             if (debugElement) {
                 const timestamp = new Date().toLocaleTimeString();
                 const logLine = document.createElement('div');
-                logLine.innerHTML = `[${timestamp}] ${message}`;
+                logLine.style.color = color;
+                logLine.setAttribute('data-level', level);
+                logLine.style.display = logFilters[level] ? 'block' : 'none';
+                
+                // Добавляем иконки для разных уровней
+                let icon = '';
+                switch(level) {
+                    case 'ERROR': icon = '❌'; color = '#ff4444'; break;
+                    case 'WARN': icon = '⚠️'; color = '#ffaa00'; break;
+                    case 'INFO': icon = 'ℹ️'; color = '#4488ff'; break;
+                    case 'DEBUG': icon = '🐛'; color = '#888888'; break;
+                    default: icon = '📝'; break;
+                }
+                
+                logLine.innerHTML = `<span style="color: ${color}">[${timestamp}] ${icon} ${message}</span>`;
                 debugElement.appendChild(logLine);
+                
+                // Обновляем счетчик
+                logCount++;
+                updateDebugStats();
                 
                 // Автопрокрутка только если не на паузе
                 if (!debugPaused) {
                     debugElement.scrollTop = debugElement.scrollHeight;
                 }
             }
-            // Также выводим в браузерную консоль
-            originalConsoleLog(message);
+        }
+        
+        // Обновление статистики
+        function updateDebugStats() {
+            const statsElement = document.getElementById('debugStats');
+            if (statsElement) {
+                const visibleLogs = document.querySelectorAll('#debugLog div[data-level]:not([style*="display: none"])').length;
+                statsElement.textContent = `${visibleLogs}/${logCount} logs`;
+            }
+        }
+        
+        // Применение фильтров к существующим логам
+        function applyLogFilters() {
+            const allLogs = document.querySelectorAll('#debugLog div[data-level]');
+            allLogs.forEach(log => {
+                const level = log.getAttribute('data-level');
+                log.style.display = logFilters[level] ? 'block' : 'none';
+            });
+            updateDebugStats();
+        }
+        
+        // Переключение фильтра
+        function toggleLogFilter(level) {
+            logFilters[level] = !logFilters[level];
+            
+            // Обновляем внешний вид кнопки
+            const button = document.getElementById(`filter${level.charAt(0) + level.slice(1).toLowerCase()}`);
+            if (button) {
+                if (logFilters[level]) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            }
+            
+            // Применяем фильтры
+            applyLogFilters();
         }
 
-        // Переопределяем console.log для отображения в нашей консоли
-        console.log = debugLog;
+        // Перехватываем ВСЕ методы консоли
+        console.log = function(...args) {
+            const message = args.join(' ');
+            debugLog('LOG', message, '#00ff88');
+            originalConsole.log.apply(console, args);
+        };
+
+        console.info = function(...args) {
+            const message = args.join(' ');
+            debugLog('INFO', message, '#4488ff');
+            originalConsole.info.apply(console, args);
+        };
+
+        console.warn = function(...args) {
+            const message = args.join(' ');
+            debugLog('WARN', message, '#ffaa00');
+            originalConsole.warn.apply(console, args);
+        };
+
+        console.error = function(...args) {
+            const message = args.join(' ');
+            debugLog('ERROR', message, '#ff4444');
+            originalConsole.error.apply(console, args);
+        };
+
+        console.debug = function(...args) {
+            const message = args.join(' ');
+            debugLog('DEBUG', message, '#888888');
+            originalConsole.debug.apply(console, args);
+        };
 
         // Функция очистки консоли
         function clearDebugLog() {
             const debugElement = document.getElementById('debugLog');
             if (debugElement) {
                 debugElement.innerHTML = '';
+                logCount = 0;
+                updateDebugStats();
             }
         }
 
@@ -307,12 +446,12 @@
                 statusEl.innerHTML = '<div class="loading-spinner"></div>Initializing WebGPU renderer...';
                 await unifiedChartApi.initialize();
                 
-                // Инициализация unified chart с историческими + реал-тайм данными
-                statusEl.innerHTML = '<div class="loading-spinner"></div>Loading unified data stream...';
+                // Инициализация unified chart с WebSocket стримом
+                statusEl.innerHTML = '<div class="loading-spinner"></div>Starting WebSocket stream...';
                 const result = await unifiedChartApi.initializeUnifiedChart(
                     "BTCUSDT", 
-                    "1m", 
-                    300,  // исторические свечи
+                    "1m", // WebSocket поддерживает 1m интервал 
+                    200,  // исторические свечи
                     800,  // ширина
                     500   // высота
                 );
@@ -324,60 +463,68 @@
                 // Обновление UI
                 updateUnifiedPriceInfo(result);
                 const now = new Date().toLocaleTimeString();
-                statusEl.innerHTML = `🟢 Unified Stream • Last updated: ${now}`;
+                statusEl.innerHTML = `🌐 WebSocket Stream Active • Connected: ${now}`;
                 statusEl.className = 'status';
                 
                 // Запуск автообновления
                 startUnifiedAutoRefresh();
                 
             } catch (error) {
-                console.error('UNIFIED: Initialization failed:', error);
-                statusEl.innerHTML = '❌ Failed to load unified chart: ' + error;
+                console.error('WebSocket: Initialization failed:', error);
+                statusEl.innerHTML = '❌ Failed to load WebSocket chart: ' + error;
                 statusEl.className = 'status';
             }
         }
 
-        // Обновление информации о ценах для unified API
+        // Обновление информации о ценах для WebSocket API
         function updateUnifiedPriceInfo(result) {
-            if (result && result.includes('unified_chart_ready:')) {
+            if (result && result.includes('websocket_chart_ready:')) {
                 const parts = result.split(':');
                 const candleCount = parts[1];
-                const isStreaming = parts[2] === 'true';
+                const status = parts[2]; // 'streaming'
                 
                 document.getElementById('candleCount').textContent = candleCount;
-                document.getElementById('currentPrice').textContent = '$105,500';
-                document.getElementById('priceRange').textContent = '$105K - $106K';
                 
-                console.log(`📊 UNIFIED: ${candleCount} candles, streaming: ${isStreaming}`);
+                console.log(`🌐 WebSocket: ${candleCount} candles loaded, stream: ${status}`);
             }
         }
 
-        // Автообновление для unified API (данные обновляются автоматически через стрим)
+        // Автообновление для WebSocket API (данные поступают в реальном времени)
         function startUnifiedAutoRefresh() {
             setInterval(async () => {
                 if (unifiedChartApi) {
                     try {
-                        // Только рендеринг - данные обновляются автоматически через unified stream
+                        // Рендеринг WebSocket данных + обновление статистики
                         unifiedChartApi.renderUnifiedChart();
                         
-                        // Получаем актуальную статистику
-                        const stats = unifiedChartApi.getUnifiedStats();
-                        const statsObj = JSON.parse(stats);
+                        // Получаем актуальную статистику WebSocket
+                        const stats = JSON.parse(unifiedChartApi.getUnifiedStats());
                         
-                        document.getElementById('candleCount').textContent = statsObj.totalCandles;
+                        // Обновляем UI с реальными данными
+                        if (stats.totalCandles > 0) {
+                            document.getElementById('candleCount').textContent = stats.totalCandles;
+                            if (stats.lastPrice > 0) {
+                                document.getElementById('currentPrice').textContent = `$${stats.lastPrice.toFixed(2)}`;
+                            }
+                        }
                         
-                        // Обновляем только время без мигания
-                        const now = new Date().toLocaleTimeString();
+                        // Обновляем статус
                         const statusEl = document.getElementById('status');
-                        const streamStatus = statsObj.isStreaming ? 'Streaming' : 'Historical';
-                        statusEl.innerHTML = `🟢 ${streamStatus} • Last updated: ${now}`;
+                        if (stats.streamActive) {
+                            const now = new Date().toLocaleTimeString();
+                            statusEl.innerHTML = `🌐 WebSocket Active • ${stats.totalCandles} candles • ${now}`;
+                            statusEl.className = 'status';
+                        } else {
+                            statusEl.innerHTML = `⚠️ WebSocket Disconnected • ${stats.totalCandles} candles`;
+                            statusEl.className = 'status';
+                        }
                         
                     } catch (error) {
-                        console.error('UNIFIED: Auto-refresh failed:', error);
-                        document.getElementById('status').innerHTML = '🔴 Stream error, retrying...';
+                        console.error('WebSocket: Auto-refresh failed:', error);
+                        document.getElementById('status').innerHTML = '🔴 WebSocket error, retrying...';
                     }
                 }
-            }, 5000); // 5 секунд - реже, так как данные стримятся автоматически
+            }, 3000); // 3 секунды - данные стримятся через WebSocket
         }
 
         // Настройка интерактивности для unified API
@@ -526,7 +673,26 @@
                 pauseButton.addEventListener('click', toggleDebugPause);
             }
             
-            console.log('🐛 Debug console initialized with pause/resume functionality');
+            // Добавляем обработчики для фильтров
+            const filterButtons = [
+                { id: 'filterError', level: 'ERROR' },
+                { id: 'filterWarn', level: 'WARN' },
+                { id: 'filterInfo', level: 'INFO' },
+                { id: 'filterLog', level: 'LOG' },
+                { id: 'filterDebug', level: 'DEBUG' }
+            ];
+            
+            filterButtons.forEach(({ id, level }) => {
+                const button = document.getElementById(id);
+                if (button) {
+                    button.addEventListener('click', () => toggleLogFilter(level));
+                }
+            });
+            
+            // Инициализируем счетчик
+            updateDebugStats();
+            
+            console.log('🐛 Debug console initialized with filters and pause/resume functionality');
         }
 
         // Запуск автоинициализации

@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 
-use crate::domain::market_data::{Symbol, TimeInterval, Candle};
+use crate::domain::market_data::{Symbol, TimeInterval};
 use crate::infrastructure::http::BinanceHttpClient;
 use crate::domain::logging::{LogComponent, get_logger};
 
@@ -31,12 +31,14 @@ pub fn initialize() {
 pub async fn test_historical_data() -> Result<(), JsValue> {
     get_logger().info(
         LogComponent::Infrastructure("Test"),
-        "🧪 Testing historical data loading..."
+        "🧪 Testing stable historical data loading..."
     );
     
     let http_client = BinanceHttpClient::new();
     let symbol = Symbol::from("BTCUSDT");
-    let interval = TimeInterval::OneMinute;
+    let interval = TimeInterval::OneSecond;
+    
+    // Загружаем последние 200 тиков
     let limit = 200;
     
     match http_client.get_recent_candles(&symbol, interval, limit).await {

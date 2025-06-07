@@ -74,14 +74,96 @@ impl BinanceHttpClient {
             )))?;
 
         // Парсим свечи
-        let candles = self.parse_klines_response(data)?;
+        let mut candles = self.parse_klines_response(data)?;
+
+        // Сортируем по времени для стабильности
+        candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
 
         get_logger().info(
             LogComponent::Infrastructure("BinanceHttpClient"),
-            &format!("✅ Successfully fetched {} candles", candles.len())
+            &format!("✅ Successfully fetched {} candles (sorted by time)", candles.len())
+        );
+
+        // Логируем временной диапазон для отладки
+        if let (Some(first), Some(last)) = (candles.first(), candles.last()) {
+            get_logger().info(
+                LogComponent::Infrastructure("BinanceHttpClient"),
+                &format!("📅 Time range: {} to {} (span: {} minutes)", 
+                    first.timestamp.value(),
+                    last.timestamp.value(),
+                    (last.timestamp.value() - first.timestamp.value()) / 60000
+                )
+            );
+        }
+
+        Ok(candles)
+    }
+
+    /// Получить исторические свечи за конкретный временной период
+    pub async fn get_candles_for_period(
+        &self,
+        symbol: &Symbol,
+        interval: TimeInterval,
+        start_time: u64, // timestamp в миллисекундах
+        end_time: u64,   // timestamp в миллисекундах
+    ) -> Result<Vec<Candle>, InfrastructureError> {
+        get_logger().info(
+            LogComponent::Infrastructure("BinanceHttpClient"),
+            &format!("📡 Fetching candles for {} from {} to {}", 
+                symbol.value(), start_time, end_time)
+        );
+
+        let interval_str = Self::interval_to_binance_string(interval);
+        let url = format!(
+            "{}/api/v3/klines?symbol={}&interval={}&startTime={}&endTime={}&limit=1000",
+            self.base_url,
+            symbol.value(),
+            interval_str,
+            start_time,
+            end_time
+        );
+
+        let response = Request::get(&url)
+            .send()
+            .await
+            .map_err(|e| InfrastructureError::Network(NetworkError::HttpRequestFailed(
+                format!("Failed to send request: {:?}", e)
+            )))?;
+
+        if !response.ok() {
+            return Err(InfrastructureError::Network(NetworkError::HttpRequestFailed(
+                format!("HTTP error: {} - {}", response.status(), response.status_text())
+            )));
+        }
+
+        let data: Value = response
+            .json()
+            .await
+            .map_err(|e| InfrastructureError::Network(NetworkError::HttpRequestFailed(
+                format!("Failed to parse JSON: {:?}", e)
+            )))?;
+
+        let mut candles = self.parse_klines_response(data)?;
+        candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
+
+        get_logger().info(
+            LogComponent::Infrastructure("BinanceHttpClient"),
+            &format!("✅ Fetched {} candles for fixed period", candles.len())
         );
 
         Ok(candles)
+    }
+
+    /// Получить последние 24 часа данных (стабильный метод)
+    pub async fn get_last_24h_candles(
+        &self,
+        symbol: &Symbol,
+        interval: TimeInterval,
+    ) -> Result<Vec<Candle>, InfrastructureError> {
+        let end_time = js_sys::Date::now() as u64;
+        let start_time = end_time - (24 * 60 * 60 * 1000); // 24 часа назад
+
+        self.get_candles_for_period(symbol, interval, start_time, end_time).await
     }
 
     /// Парсинг ответа Binance API
@@ -173,6 +255,7 @@ impl BinanceHttpClient {
     /// Конвертирует TimeInterval в строку Binance API
     fn interval_to_binance_string(interval: TimeInterval) -> &'static str {
         match interval {
+            TimeInterval::OneSecond => "1s",
             TimeInterval::OneMinute => "1m",
             TimeInterval::FiveMinutes => "5m",
             TimeInterval::FifteenMinutes => "15m",

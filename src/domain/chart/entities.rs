@@ -29,11 +29,14 @@ impl Chart {
     }
 
     /// Добавить исторические данные (замещает существующие)
-    pub fn set_historical_data(&mut self, candles: Vec<Candle>) {
+    pub fn set_historical_data(&mut self, mut candles: Vec<Candle>) {
+        // Сортируем по времени для стабильности
+        candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
+        
         // Создаем новую серию с тем же размером
         self.data = CandleSeries::new(1000); // Максимум 1000 свечей
         
-        // Добавляем исторические свечи
+        // Добавляем исторические свечи (уже отсортированные)
         for candle in candles {
             self.data.add_candle(candle);
         }

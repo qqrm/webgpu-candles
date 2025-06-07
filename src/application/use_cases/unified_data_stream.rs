@@ -179,6 +179,7 @@ where
     // Вспомогательные методы
     fn interval_to_binance_string(interval: TimeInterval) -> &'static str {
         match interval {
+            TimeInterval::OneSecond => "1s", // Binance не поддерживает, но fallback
             TimeInterval::OneMinute => "1m",
             TimeInterval::FiveMinutes => "5m",
             TimeInterval::FifteenMinutes => "15m",

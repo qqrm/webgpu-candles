@@ -97,6 +97,10 @@ impl From<&str> for Symbol {
 /// Value Object - Временной интервал с полной автогенерацией
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, StrumDisplay, EnumIter, EnumString, AsRefStr, Serialize, Deserialize)]
 pub enum TimeInterval {
+    #[strum(serialize = "1s")]
+    #[serde(rename = "1s")]
+    OneSecond,
+    
     #[strum(serialize = "1m")]
     #[serde(rename = "1m")]
     OneMinute,
@@ -141,6 +145,7 @@ impl TimeInterval {
 
     pub fn duration_ms(&self) -> u64 {
         match self {
+            Self::OneSecond => 1000,
             Self::OneMinute => 60 * 1000,
             Self::FiveMinutes => 5 * 60 * 1000,
             Self::FifteenMinutes => 15 * 60 * 1000,

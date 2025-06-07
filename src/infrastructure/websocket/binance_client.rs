@@ -1,10 +1,9 @@
 use wasm_bindgen::prelude::*;
 use gloo::console;
 use gloo_net::websocket::futures::WebSocket;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
 use futures::{StreamExt, SinkExt};
-use wasm_bindgen_futures::spawn_local;
 use crate::domain::{
     market_data::{
         entities::{Candle, OHLCV},

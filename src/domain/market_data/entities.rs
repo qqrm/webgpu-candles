@@ -56,11 +56,39 @@ impl CandleSeries {
                 *last_candle = candle;
                 return;
             }
+            
+            // Проверяем хронологический порядок
+            if candle.timestamp.value() < last_candle.timestamp.value() {
+                // Если новая свеча старше последней, нужна вставка с сортировкой
+                self.insert_candle_sorted(candle);
+                return;
+            }
         }
 
         self.candles.push(candle);
         
         // Ограничиваем размер для производительности
+        if self.candles.len() > self.max_size {
+            self.candles.remove(0);
+        }
+    }
+
+    /// Вставка свечи с сохранением сортировки по времени
+    fn insert_candle_sorted(&mut self, candle: Candle) {
+        // Находим правильную позицию для вставки
+        let insert_pos = self.candles
+            .binary_search_by(|c| c.timestamp.value().cmp(&candle.timestamp.value()))
+            .unwrap_or_else(|pos| pos);
+        
+        // Если свеча с таким timestamp уже существует, заменяем её
+        if insert_pos < self.candles.len() && 
+           self.candles[insert_pos].timestamp == candle.timestamp {
+            self.candles[insert_pos] = candle;
+        } else {
+            self.candles.insert(insert_pos, candle);
+        }
+        
+        // Ограничиваем размер
         if self.candles.len() > self.max_size {
             self.candles.remove(0);
         }

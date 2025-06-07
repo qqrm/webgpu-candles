@@ -6,6 +6,11 @@ struct ChartUniforms {
     bullish_color: vec4<f32>,     // Цвет бычьих свечей (зеленый)
     bearish_color: vec4<f32>,     // Цвет медвежьих свечей (красный)
     wick_color: vec4<f32>,        // Цвет фитилей (серый)
+    sma20_color: vec4<f32>,       // Цвет SMA 20 (красный)
+    sma50_color: vec4<f32>,       // Цвет SMA 50 (желтый)
+    sma200_color: vec4<f32>,      // Цвет SMA 200 (синий)
+    ema12_color: vec4<f32>,       // Цвет EMA 12 (фиолетовый)
+    ema26_color: vec4<f32>,       // Цвет EMA 26 (голубой)
     render_params: vec4<f32>,     // candle_width, spacing, line_width, _padding
 }
 
@@ -42,9 +47,25 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         } else {
             out.color = uniforms.bearish_color; // Медвежья свеча - красная
         }
-    } else {
+    } else if (vertex.element_type < 1.5) {
         // Фитиль
         out.color = uniforms.wick_color; // Серый цвет для фитилей
+    } else if (vertex.element_type < 2.5) {
+        // Линии индикаторов
+        if (vertex.color_type < 2.5) {
+            out.color = uniforms.sma20_color; // SMA 20 - красный
+        } else if (vertex.color_type < 3.5) {
+            out.color = uniforms.sma50_color; // SMA 50 - желтый
+        } else if (vertex.color_type < 4.5) {
+            out.color = uniforms.sma200_color; // SMA 200 - синий
+        } else if (vertex.color_type < 5.5) {
+            out.color = uniforms.ema12_color; // EMA 12 - фиолетовый
+        } else {
+            out.color = uniforms.ema26_color; // EMA 26 - голубой
+        }
+    } else {
+        // Сетка графика
+        out.color = vec4<f32>(0.3, 0.3, 0.3, 0.3); // Очень светло-серый, полупрозрачный
     }
     
     out.element_type = vertex.element_type;
@@ -57,9 +78,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Можно добавить дополнительные эффекты на основе element_type
     var final_color = in.color;
     
-    // Легкое затемнение для фитилей
-    if (in.element_type > 0.5) {
-        final_color.a = 0.8; // Фитили чуть прозрачнее
+    // Разная прозрачность для разных элементов
+    if (in.element_type < 0.5) {
+        // Тело свечи - полностью непрозрачное
+        final_color.a = 1.0;
+    } else if (in.element_type < 1.5) {
+        // Фитиль - чуть прозрачнее
+        final_color.a = 0.8;
+    } else if (in.element_type < 2.5) {
+        // Индикаторы - яркие
+        final_color.a = 0.9;
+    } else {
+        // Сетка - очень прозрачная
+        final_color.a = 0.2;
     }
     
     return final_color;

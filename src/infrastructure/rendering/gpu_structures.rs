@@ -1,5 +1,15 @@
 use bytemuck::{Pod, Zeroable};
 
+/// Типы индикаторов для GPU рендеринга
+#[derive(Debug, Clone, Copy)]
+pub enum IndicatorType {
+    SMA20,
+    SMA50,
+    SMA200,
+    EMA12,
+    EMA26,
+}
+
 /// GPU представление свечи для вершинного буфера
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
@@ -8,9 +18,9 @@ pub struct CandleVertex {
     pub position_x: f32,
     /// Позиция Y (цена в нормализованных координатах)  
     pub position_y: f32,
-    /// Тип элемента свечи: 0 = тело, 1 = фитиль
+    /// Тип элемента: 0 = тело свечи, 1 = фитиль, 2 = линия индикатора
     pub element_type: f32,
-    /// Цвет: 0 = медвежья (красная), 1 = бычья (зеленая)
+    /// Цвет/индикатор: для свечей 0/1, для индикаторов: 2=SMA20, 3=SMA50, 4=SMA200, 5=EMA12, 6=EMA26  
     pub color_type: f32,
 }
 
@@ -32,6 +42,34 @@ impl CandleVertex {
             position_y: y,
             element_type: 1.0, // фитиль
             color_type: 0.5,   // нейтральный цвет для фитиля
+        }
+    }
+    
+    /// Создать vertex для линии индикатора
+    pub fn indicator_vertex(x: f32, y: f32, indicator_type: IndicatorType) -> Self {
+        let color_type = match indicator_type {
+            IndicatorType::SMA20 => 2.0,
+            IndicatorType::SMA50 => 3.0,
+            IndicatorType::SMA200 => 4.0,
+            IndicatorType::EMA12 => 5.0,
+            IndicatorType::EMA26 => 6.0,
+        };
+        
+        Self {
+            position_x: x,
+            position_y: y,
+            element_type: 2.0, // линия индикатора
+            color_type,
+        }
+    }
+    
+    /// Создать vertex для сетки графика
+    pub fn grid_vertex(x: f32, y: f32) -> Self {
+        Self {
+            position_x: x,
+            position_y: y,
+            element_type: 3.0, // сетка
+            color_type: 0.2,   // очень светлый серый цвет
         }
     }
     
@@ -86,8 +124,24 @@ pub struct ChartUniforms {
     pub bearish_color: [f32; 4],
     /// Цвет фитиля (wick_r, wick_g, wick_b, wick_a)
     pub wick_color: [f32; 4],
+    /// Цвет SMA 20 (sma20_r, sma20_g, sma20_b, sma20_a)
+    pub sma20_color: [f32; 4],
+    /// Цвет SMA 50 (sma50_r, sma50_g, sma50_b, sma50_a)
+    pub sma50_color: [f32; 4],
+    /// Цвет SMA 200 (sma200_r, sma200_g, sma200_b, sma200_a)
+    pub sma200_color: [f32; 4],
+    /// Цвет EMA 12 (ema12_r, ema12_g, ema12_b, ema12_a)
+    pub ema12_color: [f32; 4],
+    /// Цвет EMA 26 (ema26_r, ema26_g, ema26_b, ema26_a)
+    pub ema26_color: [f32; 4],
     /// Параметры рендеринга (candle_width, spacing, line_width, _padding)
     pub render_params: [f32; 4],
+}
+
+impl Default for ChartUniforms {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ChartUniforms {
@@ -101,10 +155,15 @@ impl ChartUniforms {
             ],
             viewport: [800.0, 600.0, 0.0, 100.0],
             time_range: [0.0, 0.0, 0.0, 0.0],
-            bullish_color: [0.0, 0.8, 0.0, 1.0],   // Зеленый
-            bearish_color: [0.8, 0.0, 0.0, 1.0],   // Красный
-            wick_color: [0.6, 0.6, 0.6, 1.0],      // Серый
-            render_params: [8.0, 2.0, 1.0, 0.0],   // width, spacing, line_width, padding
+            bullish_color: [0.447, 0.776, 0.522, 1.0],   // #72c685 - buy 
+            bearish_color: [0.882, 0.420, 0.282, 1.0],   // #e16b48 - sell
+            wick_color: [0.6, 0.6, 0.6, 1.0],            // Серый
+            sma20_color: [1.0, 0.0, 0.0, 1.0],           // Ярко-красный
+            sma50_color: [1.0, 0.8, 0.0, 1.0],           // Желтый
+            sma200_color: [0.2, 0.4, 0.8, 1.0],          // Синий
+            ema12_color: [0.8, 0.2, 0.8, 1.0],           // Фиолетовый
+            ema26_color: [0.0, 0.8, 0.8, 1.0],           // Голубой
+            render_params: [8.0, 2.0, 1.0, 0.0],         // width, spacing, line_width, padding
         }
     }
 }
@@ -185,6 +244,55 @@ impl CandleGeometry {
         vertices
     }
     
+    /// Создать vertices для линии индикатора - улучшенный алгоритм для сплошных линий
+    pub fn create_indicator_line_vertices(
+        points: &[(f32, f32)], // (x_normalized, y_normalized) точки
+        indicator_type: IndicatorType,
+        line_width: f32,
+    ) -> Vec<CandleVertex> {
+        if points.len() < 2 {
+            return Vec::new();
+        }
+        
+        let mut vertices = Vec::new();
+        let half_width = (line_width * 0.3).max(0.001); // Тоньше линии для лучшего вида
+        
+        // Создаем непрерывную линию как triangle strip
+        for i in 0..(points.len() - 1) {
+            let (x1, y1) = points[i];
+            let (x2, y2) = points[i + 1];
+            
+            // Вычисляем перпендикулярный вектор для правильной толщины линии
+            let dx = x2 - x1;
+            let dy = y2 - y1;
+            let length = (dx * dx + dy * dy).sqrt();
+            
+            // Нормализованный перпендикулярный вектор
+            let (perp_x, perp_y) = if length > 0.0001 {
+                (-dy / length * half_width, dx / length * half_width)
+            } else {
+                (0.0, half_width) // Вертикальная линия
+            };
+            
+            // Создаем прямоугольник как два треугольника без зазоров
+            let segment_vertices = [
+                // Первый треугольник
+                CandleVertex::indicator_vertex(x1 - perp_x, y1 - perp_y, indicator_type),
+                CandleVertex::indicator_vertex(x1 + perp_x, y1 + perp_y, indicator_type),
+                CandleVertex::indicator_vertex(x2 - perp_x, y2 - perp_y, indicator_type),
+                
+                // Второй треугольник
+                CandleVertex::indicator_vertex(x1 + perp_x, y1 + perp_y, indicator_type),
+                CandleVertex::indicator_vertex(x2 + perp_x, y2 + perp_y, indicator_type),
+                CandleVertex::indicator_vertex(x2 - perp_x, y2 - perp_y, indicator_type),
+            ];
+            
+            vertices.extend_from_slice(&segment_vertices);
+        }
+        
+        vertices
+    }
+    
     /// Создать vertices для сетки графика
     pub fn create_grid_vertices(
         _viewport_width: f32,
@@ -230,5 +338,87 @@ impl CandleGeometry {
         }
         
         vertices
+    }
+
+    /// Создать умную ценовую сетку с красивыми уровнями
+    pub fn create_price_grid(
+        min_price: f32,
+        max_price: f32,
+        chart_width: f32,
+        chart_height: f32,
+        time_lines: u32,
+        price_lines: u32,
+    ) -> Vec<CandleVertex> {
+        let mut vertices = Vec::new();
+        let grid_line_width = 0.001; // Очень тонкие линии сетки
+        let half_width = grid_line_width * 0.5;
+        
+        // Вертикальные линии (временная сетка)
+        for i in 1..time_lines { // Пропускаем крайние линии
+            let x = (i as f32 / time_lines as f32) * chart_width - 1.0;
+            
+            // Вертикальная линия
+            vertices.extend_from_slice(&[
+                CandleVertex::grid_vertex(x - half_width, -1.0),
+                CandleVertex::grid_vertex(x + half_width, -1.0),
+                CandleVertex::grid_vertex(x - half_width, 1.0),
+                
+                CandleVertex::grid_vertex(x + half_width, -1.0),
+                CandleVertex::grid_vertex(x + half_width, 1.0),
+                CandleVertex::grid_vertex(x - half_width, 1.0),
+            ]);
+        }
+        
+        // Горизонтальные линии (ценовая сетка)
+        let price_range = max_price - min_price;
+        let nice_step = Self::calculate_nice_price_step(price_range, price_lines);
+        
+        // Находим первый красивый уровень цены
+        let first_price = ((min_price / nice_step).ceil() * nice_step).max(min_price);
+        
+        let mut current_price = first_price;
+        while current_price <= max_price {
+            // Преобразуем цену в координату Y
+            let y = -1.0 + ((current_price - min_price) / price_range) * chart_height;
+            
+            // Горизонтальная линия
+            vertices.extend_from_slice(&[
+                CandleVertex::grid_vertex(-1.0, y - half_width),
+                CandleVertex::grid_vertex(1.0, y - half_width),
+                CandleVertex::grid_vertex(-1.0, y + half_width),
+                
+                CandleVertex::grid_vertex(1.0, y - half_width),
+                CandleVertex::grid_vertex(1.0, y + half_width),
+                CandleVertex::grid_vertex(-1.0, y + half_width),
+            ]);
+            
+            current_price += nice_step;
+        }
+        
+        vertices
+    }
+
+    /// Вычисляет красивый шаг для ценовой сетки
+    fn calculate_nice_price_step(price_range: f32, target_lines: u32) -> f32 {
+        let raw_step = price_range / target_lines as f32;
+        
+        // Находим порядок величины
+        let magnitude = 10.0_f32.powf(raw_step.log10().floor());
+        
+        // Нормализуем к диапазону [1, 10)
+        let normalized = raw_step / magnitude;
+        
+        // Выбираем красивое значение
+        let nice_normalized = if normalized <= 1.0 {
+            1.0
+        } else if normalized <= 2.0 {
+            2.0
+        } else if normalized <= 5.0 {
+            5.0
+        } else {
+            10.0
+        };
+        
+        nice_normalized * magnitude
     }
 } 

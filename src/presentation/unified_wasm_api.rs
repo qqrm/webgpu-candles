@@ -9,7 +9,10 @@ use crate::{
         market_data::entities::Candle,
         logging::{LogComponent, get_logger},
     },
-    infrastructure::rendering::WebGpuRenderer,
+    infrastructure::{
+        rendering::WebGpuRenderer,
+        websocket::BinanceWebSocketClient,
+    },
     application::coordinator::{
         self, initialize_global_coordinator, with_global_coordinator, with_global_coordinator_mut,
     },
@@ -19,12 +22,17 @@ use crate::{
     },
 };
 
-// Глобальное состояние для простого графика
+// Глобальное состояние для простого графика с WebSocket поддержкой
 thread_local! {
     static SIMPLE_CHART_DATA: RefCell<Option<Vec<Candle>>> = RefCell::new(None);
+    static CHART_SYMBOL: RefCell<String> = RefCell::new("BTCUSDT".to_string());
+    static CHART_INTERVAL: RefCell<String> = RefCell::new("1s".to_string());
+    static WEBSOCKET_CLIENT: RefCell<Option<BinanceWebSocketClient>> = RefCell::new(None);
+    static IS_STREAMING: RefCell<bool> = RefCell::new(false);
+    static LAST_CANDLE_COUNT: RefCell<usize> = RefCell::new(0);
 }
 
-/// WebGPU WASM API для рендеринга графиков
+/// WebGPU WASM API для рендеринга графиков с WebSocket поддержкой
 #[wasm_bindgen]
 pub struct UnifiedPriceChartApi {
     canvas_id: String,
@@ -48,16 +56,26 @@ impl UnifiedPriceChartApi {
 
     #[wasm_bindgen(js_name = initialize)]
     pub async fn initialize(&mut self) -> Result<(), JsValue> {
+        log_simple("🚀 Initializing WebGPU renderer with WebSocket support...");
         self.renderer = Some(WebGpuRenderer::new(&self.canvas_id, self.chart_width, self.chart_height).await?);
+        log_simple("✅ WebGPU renderer created successfully");
+        
+        // Тестовый рендер треугольника сразу после инициализации
+        if let Some(ref renderer) = self.renderer {
+            log_simple("🔴 Running basic triangle test...");
+            renderer.test_basic_triangle()?;
+            log_simple("✅ Basic triangle test completed");
+        }
+        
         Ok(())
     }
 
-    /// Инициализировать chart с тестовыми данными
+    /// Инициализировать chart с WebSocket stream от Binance
     #[wasm_bindgen(js_name = initializeUnifiedChart)]
     pub fn initialize_unified_chart(
         &mut self,
-        _symbol: String,
-        _interval: String,
+        symbol: String,
+        interval: String,
         historical_limit: Option<usize>,
         width: Option<u32>,
         height: Option<u32>,
@@ -66,41 +84,179 @@ impl UnifiedPriceChartApi {
         if let Some(w) = width { self.chart_width = w; }
         if let Some(h) = height { self.chart_height = h; }
         
-        let limit = historical_limit.unwrap_or(100);
+        let limit = historical_limit.unwrap_or(200);
 
         future_to_promise(async move {
-            log_simple(&format!("🚀 WebGPU: Generating {} test candles", limit));
-
-            // Генерируем тестовые данные
-            let test_candles = generate_test_candles(limit);
+            use crate::infrastructure::http::BinanceHttpClient;
+            use crate::domain::market_data::{Symbol, TimeInterval};
             
-            SIMPLE_CHART_DATA.with(|data| {
-                *data.borrow_mut() = Some(test_candles);
-            });
+            log_simple(&format!("🌐 WebSocket: Loading initial {} data and starting stream", symbol));
 
-            log_simple(&format!("✅ WebGPU: Generated {} test candles successfully", limit));
+            // Сохраняем параметры
+            CHART_SYMBOL.with(|s| *s.borrow_mut() = symbol.clone());
+            CHART_INTERVAL.with(|i| *i.borrow_mut() = interval.clone());
 
-            Ok(JsValue::from_str(&format!(
-                "webgpu_chart_ready:{}:true",
-                limit
-            )))
+            let btc_symbol = Symbol::from(symbol.as_str());
+            let time_interval = match interval.as_str() {
+                "1s" => TimeInterval::OneSecond,
+                "1m" => TimeInterval::OneMinute,
+                "5m" => TimeInterval::FiveMinutes,
+                "15m" => TimeInterval::FifteenMinutes,
+                "1h" => TimeInterval::OneHour,
+                _ => TimeInterval::OneSecond,
+            };
+
+            // 1. Загружаем исторические данные через HTTP
+            let http_client = BinanceHttpClient::new();
+            match http_client.get_recent_candles(&btc_symbol, time_interval, limit).await {
+                Ok(historical_candles) => {
+                    SIMPLE_CHART_DATA.with(|data| {
+                        *data.borrow_mut() = Some(historical_candles.clone());
+                    });
+                    
+                    LAST_CANDLE_COUNT.with(|count| {
+                        *count.borrow_mut() = historical_candles.len();
+                    });
+
+                    log_simple(&format!("✅ Loaded {} historical candles", historical_candles.len()));
+
+                    // 2. Запускаем WebSocket stream  
+                    log_simple("🔍 DEBUG: About to call start_websocket_stream...");
+                    Self::start_websocket_stream(symbol.clone(), interval.clone()).await;
+                    log_simple("🔍 DEBUG: start_websocket_stream call completed");
+
+                    Ok(JsValue::from_str(&format!(
+                        "websocket_chart_ready:{}:streaming",
+                        historical_candles.len()
+                    )))
+                },
+                Err(e) => {
+                    log_simple(&format!("❌ Failed to load historical data: {:?}", e));
+                    Err(JsValue::from_str(&format!("Failed to load historical data: {:?}", e)))
+                }
+            }
         })
     }
 
-    /// Рендерить график через WebGPU
+    /// Запуск WebSocket stream
+    async fn start_websocket_stream(symbol: String, interval: String) {
+        log_simple(&format!("🔌 Starting WebSocket stream for {}@{}", symbol, interval));
+        log_simple("🔍 DEBUG: WebSocket function called");
+
+        let btc_symbol = Symbol::from(symbol.as_str());
+        let time_interval = match interval.as_str() {
+            "1s" => TimeInterval::OneSecond,  // Binance не поддерживает 1s, но попробуем
+            "1m" => TimeInterval::OneMinute,
+            "5m" => TimeInterval::FiveMinutes,
+            "15m" => TimeInterval::FifteenMinutes,
+            "1h" => TimeInterval::OneHour,
+            _ => TimeInterval::OneMinute, // Fallback to 1m
+        };
+
+        // Создаем WebSocket клиент
+        log_simple("🔍 DEBUG: Creating WebSocket client...");
+        let mut ws_client = BinanceWebSocketClient::new(btc_symbol, time_interval);
+        log_simple("🔍 DEBUG: WebSocket client created");
+        
+        // Сохраняем клиент в глобальном состоянии
+        WEBSOCKET_CLIENT.with(|client| {
+            *client.borrow_mut() = Some(ws_client.clone());
+        });
+        log_simple("🔍 DEBUG: WebSocket client saved to global state");
+
+        IS_STREAMING.with(|streaming| {
+            *streaming.borrow_mut() = true;
+        });
+        log_simple("🔍 DEBUG: Streaming flag set to true");
+
+        // Запускаем обработчик в фоне
+        log_simple("🔍 DEBUG: Starting spawn_local for WebSocket handler...");
+        wasm_bindgen_futures::spawn_local(async move {
+            log_simple("🔍 DEBUG: Inside spawn_local - handler starting...");
+            let handler = |candle: Candle| {
+                log_simple(&format!("📊 WebSocket: Received candle ${:.2}", candle.ohlcv.close.value()));
+                
+                // Добавляем новую свечу в данные
+                SIMPLE_CHART_DATA.with(|data| {
+                    if let Some(candles) = data.borrow_mut().as_mut() {
+                        // Проверяем, новая ли это свеча или обновление существующей
+                        let new_timestamp = candle.timestamp.value();
+                        
+                        if let Some(last_candle) = candles.last_mut() {
+                            if last_candle.timestamp.value() == new_timestamp {
+                                // Обновляем последнюю свечу
+                                *last_candle = candle;
+                                log_simple("🔄 Updated existing candle");
+                            } else if new_timestamp > last_candle.timestamp.value() {
+                                // Добавляем новую свечу
+                                candles.push(candle);
+                                log_simple("✅ Added new candle to stream");
+                                
+                                // Ограничиваем до 300 свечей
+                                while candles.len() > 300 {
+                                    candles.remove(0);
+                                }
+                            }
+                        } else {
+                            // Первая свеча
+                            candles.push(candle);
+                            log_simple("🎉 Added first WebSocket candle");
+                        }
+                        
+                        // Обновляем счетчик
+                        LAST_CANDLE_COUNT.with(|count| {
+                            *count.borrow_mut() = candles.len();
+                        });
+                    }
+                });
+            };
+
+            // Запуск stream с обработчиком
+            log_simple("🔍 DEBUG: About to call ws_client.start_stream()...");
+            match ws_client.start_stream(handler).await {
+                Ok(_) => {
+                    log_simple("✅ WebSocket stream completed successfully");
+                },
+                Err(e) => {
+                    log_simple(&format!("❌ WebSocket stream error: {}", e));
+                    IS_STREAMING.with(|streaming| {
+                        *streaming.borrow_mut() = false;
+                    });
+                }
+            }
+            log_simple("🔍 DEBUG: spawn_local task ending");
+        });
+
+        log_simple("✅ WebSocket stream started successfully (spawn_local launched)");
+    }
+
+    /// Рендерить график через WebGPU с WebSocket данными
     #[wasm_bindgen(js_name = renderUnifiedChart)]
     pub fn render_unified_chart(&mut self) -> Result<JsValue, JsValue> {
+        self.render_chart_internal()
+    }
+
+    /// Внутренняя функция рендеринга
+    fn render_chart_internal(&mut self) -> Result<JsValue, JsValue> {
         SIMPLE_CHART_DATA.with(|data| {
             if let Some(candles) = data.borrow().as_ref() {
-                log_simple(&format!("🎨 WebGPU: Rendering {} candles", candles.len()));
+                let current_count = candles.len();
+                let is_streaming = IS_STREAMING.with(|s| *s.borrow());
+                
+                log_simple(&format!("🎨 WebSocket Render: {} candles (streaming: {})", current_count, is_streaming));
+                
+                if candles.is_empty() {
+                    log_simple("⚠️ No candles to render from WebSocket!");
+                    return Err(JsValue::from_str("No WebSocket candles to render"));
+                }
 
-                // Инициализируем WebGPU рендерер если нужно
+                // Проверяем WebGPU рендерер
                 if let Some(ref mut renderer) = self.renderer {
                     renderer.resize(self.chart_width, self.chart_height);
                     
-                    // Создаем простой Chart объект для рендеринга
+                    // Создаем Chart объект для рендеринга
                     let symbol = Symbol::from("BTCUSDT");
-                    let mut candle_series = CandleSeries::new(1000); // Max 1000 candles
+                    let mut candle_series = CandleSeries::new(1000);
                     
                     // Добавляем данные
                     for candle in candles {
@@ -108,120 +264,133 @@ impl UnifiedPriceChartApi {
                     }
                     
                     let mut chart = Chart::new(
-                        format!("webgpu-chart-{}", symbol.value()),
+                        format!("websocket-chart-{}", symbol.value()),
                         crate::domain::chart::ChartType::Candlestick,
                         1000
                     );
                     chart.data = candle_series;
                     
+                    // Показываем последнюю цену
+                    if let Some(last_candle) = candles.last() {
+                        log_simple(&format!("💰 Current price: ${:.2}", last_candle.ohlcv.close.value()));
+                    }
+                    
                     // Рендерим через WebGPU
                     match renderer.render(&chart) {
                         Ok(_) => {
-                            log_simple("✅ WebGPU rendering successful");
-                            Ok(JsValue::from_str("webgpu_chart_rendered"))
+                            Ok(JsValue::from_str("websocket_chart_rendered"))
                         },
                         Err(e) => {
-                            log_simple(&format!("❌ WebGPU rendering failed: {:?}", e));
+                            log_simple(&format!("❌ WebSocket rendering failed: {:?}", e));
                             Err(e)
                         }
                     }
                 } else {
-                    let error_msg = "WebGPU renderer not initialized";
+                    let error_msg = "❌ WebGPU renderer not initialized!";
                     log_simple(error_msg);
                     Err(JsValue::from_str(error_msg))
                 }
                 
             } else {
-                let error_msg = "No chart data available";
-                log_simple(error_msg);
-                Err(JsValue::from_str(error_msg))
+                Err(JsValue::from_str("No WebSocket data available"))
             }
         })
     }
 
-    /// Получить статистику данных
+    /// Получить статистику WebSocket данных
     #[wasm_bindgen(js_name = getUnifiedStats)]
     pub fn get_unified_stats(&self) -> String {
+        let is_streaming = IS_STREAMING.with(|s| *s.borrow());
+        let candle_count = LAST_CANDLE_COUNT.with(|c| *c.borrow());
+        
         SIMPLE_CHART_DATA.with(|data| {
             if let Some(candles) = data.borrow().as_ref() {
+                let last_timestamp = candles.last().map(|c| c.timestamp.value()).unwrap_or(0);
+                let last_price = candles.last().map(|c| c.ohlcv.close.value()).unwrap_or(0.0);
+                
                 format!(
-                    "{{\"totalCandles\":{},\"hasData\":true,\"isStreaming\":false,\"width\":{},\"height\":{},\"backend\":\"WebGPU\"}}",
+                    "{{\"totalCandles\":{},\"hasData\":true,\"isStreaming\":{},\"width\":{},\"height\":{},\"backend\":\"WebSocket+WebGPU\",\"lastTimestamp\":{},\"lastPrice\":{:.2},\"streamActive\":{}}}",
                     candles.len(),
+                    is_streaming,
                     self.chart_width,
-                    self.chart_height
+                    self.chart_height,
+                    last_timestamp,
+                    last_price,
+                    is_streaming
                 )
             } else {
                 format!(
-                    "{{\"totalCandles\":0,\"hasData\":false,\"isStreaming\":false,\"width\":{},\"height\":{},\"backend\":\"WebGPU\"}}",
+                    "{{\"totalCandles\":{},\"hasData\":false,\"isStreaming\":{},\"width\":{},\"height\":{},\"backend\":\"WebSocket+WebGPU\",\"lastTimestamp\":0,\"lastPrice\":0,\"streamActive\":{}}}",
+                    candle_count,
+                    is_streaming,
                     self.chart_width,
-                    self.chart_height
+                    self.chart_height,
+                    is_streaming
                 )
             }
         })
     }
 
-    /// Остановить поток данных
+    /// Остановить WebSocket поток
     #[wasm_bindgen(js_name = stopUnifiedStream)]
     pub fn stop_unified_stream(&self) -> Promise {
         future_to_promise(async move {
-            log_simple("🛑 WebGPU: Stopping stream");
-            Ok(JsValue::from_str("webgpu_stream_stopped"))
+            log_simple("🛑 Stopping WebSocket stream...");
+            
+            IS_STREAMING.with(|streaming| {
+                *streaming.borrow_mut() = false;
+            });
+            
+            WEBSOCKET_CLIENT.with(|client| {
+                *client.borrow_mut() = None;
+            });
+            
+            log_simple("✅ WebSocket stream stopped");
+            Ok(JsValue::from_str("websocket_stream_stopped"))
+        })
+    }
+
+    /// Проверить статус WebSocket соединения
+    #[wasm_bindgen(js_name = getStreamStatus)]
+    pub fn get_stream_status(&self) -> String {
+        let is_streaming = IS_STREAMING.with(|s| *s.borrow());
+        let candle_count = LAST_CANDLE_COUNT.with(|c| *c.borrow());
+        let symbol = CHART_SYMBOL.with(|s| s.borrow().clone());
+        let interval = CHART_INTERVAL.with(|i| i.borrow().clone());
+        
+        format!(
+            "{{\"streaming\":{},\"candles\":{},\"symbol\":\"{}\",\"interval\":\"{}\"}}",
+            is_streaming, candle_count, symbol, interval
+        )
+    }
+
+    /// Принудительно переподключить WebSocket
+    #[wasm_bindgen(js_name = reconnectWebSocket)]
+    pub fn reconnect_websocket(&self) -> Promise {
+        let symbol = CHART_SYMBOL.with(|s| s.borrow().clone());
+        let interval = CHART_INTERVAL.with(|i| i.borrow().clone());
+        
+        future_to_promise(async move {
+            log_simple("🔄 Reconnecting WebSocket stream...");
+            
+            // Остановить текущий stream
+            IS_STREAMING.with(|streaming| {
+                *streaming.borrow_mut() = false;
+            });
+            
+            // Запустить заново
+            Self::start_websocket_stream(symbol, interval).await;
+            
+            Ok(JsValue::from_str("websocket_reconnected"))
         })
     }
 
     /// Обработка зума через WebGPU
     #[wasm_bindgen(js_name = handleUnifiedZoom)]
     pub fn handle_unified_zoom(&self, delta: f32, center_x: f32, _center_y: f32) -> Result<(), JsValue> {
-        log_simple(&format!("🔍 WebGPU: Zoom event delta={:.1} at x={:.1}", delta, center_x));
+        log_simple(&format!("🔍 WebSocket Zoom: delta={:.1} at x={:.1}", delta, center_x));
         Ok(())
     }
-}
-
-/// Генерация тестовых данных свечей
-fn generate_test_candles(count: usize) -> Vec<Candle> {
-    use crate::domain::market_data::{
-        entities::OHLCV,
-        value_objects::{Price, Volume, Timestamp},
-    };
-
-    let mut candles = Vec::new();
-    let mut current_price = 100000.0; // Начальная цена BTC
-    let base_time = 1700000000; // Базовое время
-
-    for i in 0..count {
-        let open = current_price;
-        let change = (rand() - 0.5) * 2000.0; // Случайное изменение ±1000
-        let close = open + change;
-        
-        let high = open.max(close) + rand() * 500.0;
-        let low = open.min(close) - rand() * 500.0;
-        let volume = 50.0 + rand() * 100.0;
-
-        let ohlcv = OHLCV::new(
-            Price::new(open as f32),
-            Price::new(high as f32),
-            Price::new(low as f32),
-            Price::new(close as f32),
-            Volume::new(volume as f32),
-        );
-
-        let candle = Candle::new(
-            Timestamp::new((base_time + i as i64 * 60) as u64),
-            ohlcv,
-        );
-
-        candles.push(candle);
-        current_price = close;
-    }
-
-    candles
-}
-
-/// Простая функция для генерации случайных чисел
-fn rand() -> f64 {
-    use js_sys::Math;
-    #[allow(unused_unsafe)]
-    unsafe { Math::random() }
 }
 
 /// Логирование через gloo
