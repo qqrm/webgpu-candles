@@ -140,11 +140,11 @@ struct RenderState {
 
 impl RenderState {
     fn render(&mut self) -> Result<(), JsValue> {
-        // Обновляем рендерер свечей из текущего состояния графика
+        // Обновляем рендерер свечей из текущего состояния графика с double buffering
         {
             let app_state = self.app_state.borrow();
             let chart = app_state.chart.borrow();
-            self.candle_renderer.update_from_chart(&chart, &self.device, &self.queue);
+            self.candle_renderer.update_with_double_buffering(&chart, &self.device, &self.queue);
         }
         
         let frame = self.surface.get_current_texture()
@@ -178,7 +178,7 @@ impl RenderState {
             // Используем новый pipeline для рендеринга свечей
             render_pass.set_pipeline(&self.render_pipeline);
             
-            // Рендерим свечи через CandleRenderer
+            // Рендерим свечи через CandleRenderer с double buffering
             self.candle_renderer.render(&mut render_pass);
         }
         
@@ -188,6 +188,7 @@ impl RenderState {
         // Получаем данные для рендеринга через Application Layer
         let render_data = self.app_state.borrow().get_render_data();
         let candle_stats = self.candle_renderer.get_stats();
+        let buffer_info = self.candle_renderer.get_buffer_info();
         
         // Логируем статистику только периодически
         self.frame_count += 1;
@@ -198,14 +199,38 @@ impl RenderState {
                 if let Some(latest_price) = self.app_state.borrow().get_latest_price() {
                     #[allow(unused_unsafe)]
                     unsafe {
+                        // Проверяем приближение к лимиту буфера
+                        let warning_emoji = if candle_stats.buffer_usage_percent > 80.0 {
+                            "⚠️"
+                        } else if candle_stats.buffer_usage_percent > 95.0 {
+                            "🚨"
+                        } else {
+                            "🎨"
+                        };
+                        
                         web_sys::console::log_1(&format!(
-                            "🎨 GPU Rendering: {} candles, {} vertices ({:.1}% buffer), latest: ${:.2} (frame: {})",
+                            "{} GPU Rendering [Double Buffer]: {} candles, {} vertices ({:.1}% buffer), latest: ${:.2} | Updates: {} | Viewport: {} | Buffer: {}/{} ({})",
+                            warning_emoji,
                             render_data.candle_count,
                             candle_stats.vertex_count,
                             candle_stats.buffer_usage_percent,
                             latest_price,
-                            self.frame_count
+                            candle_stats.uniform_updates,
+                            candle_stats.viewport_changes,
+                            buffer_info.current_buffer,
+                            buffer_info.vertex_counts[0] + buffer_info.vertex_counts[1],
+                            if buffer_info.swap_ready { "ready" } else { "preparing" }
                         ).into());
+                        
+                        // Предупреждение о приближении к лимиту
+                        if candle_stats.buffer_usage_percent > 90.0 {
+                            web_sys::console::warn_1(&format!(
+                                "🚨 Buffer capacity warning: {:.1}% used ({}/{} vertices). Consider optimizing candle count or increasing buffer size.",
+                                candle_stats.buffer_usage_percent,
+                                candle_stats.vertex_count,
+                                candle_stats.max_vertices
+                            ).into());
+                        }
                     }
                 }
             } else {
@@ -213,7 +238,8 @@ impl RenderState {
                     #[allow(unused_unsafe)]
                     unsafe {
                         web_sys::console::log_1(&format!(
-                            "🎨 GPU Rendering: No candles yet, waiting for WebSocket data... (frame: {})",
+                            "🎨 GPU Rendering [Double Buffer]: No candles yet, waiting for WebSocket data... | Buffer: {} (frame: {})",
+                            buffer_info.current_buffer,
                             self.frame_count
                         ).into());
                     }
