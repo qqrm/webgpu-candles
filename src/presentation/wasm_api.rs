@@ -147,7 +147,7 @@ impl PriceChartApi {
             let websocket_client = BinanceWebSocketClient::new();
             let mut coordinator = ChartApplicationCoordinator::initialize_with_webgpu_renderer(
                 websocket_client,
-                "chart-canvas".to_string(),
+                "priceChart".to_string(),
                 800,
                 400
             ).await;
