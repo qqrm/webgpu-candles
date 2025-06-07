@@ -27,21 +27,66 @@ impl<T: MarketDataRepository> ConnectToMarketDataUseCase<T> {
         let chart_clone = self.chart.clone();
         let validation_service = self.validation_service.clone();
         
+        #[allow(unused_unsafe)]
+        unsafe {
+            web_sys::console::log_1(&format!(
+                "🔗 Use Case: Setting up WebSocket subscription for {} {}",
+                symbol.value(),
+                interval.to_binance_str()
+            ).into());
+        }
+        
         self.repository.subscribe_to_updates(
             &symbol,
             interval,
             Box::new(move |candle| {
+                #[allow(unused_unsafe)]
+                unsafe {
+                    web_sys::console::log_1(&format!(
+                        "📨 Use Case: Received candle data - {} O:{} H:{} L:{} C:{} V:{}",
+                        candle.timestamp.value(),
+                        candle.ohlcv.open.value(),
+                        candle.ohlcv.high.value(),
+                        candle.ohlcv.low.value(),
+                        candle.ohlcv.close.value(),
+                        candle.ohlcv.volume.value()
+                    ).into());
+                }
+
                 // Валидация данных
                 if let Err(e) = validation_service.validate_candle(&candle) {
                     #[allow(unused_unsafe)]
                     unsafe {
-                        web_sys::console::error_1(&format!("Invalid candle data: {}", e).into());
+                        web_sys::console::error_1(&format!("❌ Invalid candle data: {}", e).into());
                     }
                     return;
                 }
 
+                #[allow(unused_unsafe)]
+                unsafe {
+                    web_sys::console::log_1(&"✅ Candle validation passed, adding to chart...".into());
+                }
+
                 // Добавление в график
+                let candle_for_log = candle.clone();
                 chart_clone.borrow_mut().add_candle(candle);
+                
+                // Логируем состояние графика после добавления
+                let chart_borrowed = chart_clone.borrow();
+                let total_candles = chart_borrowed.data.count();
+                
+                #[allow(unused_unsafe)]
+                unsafe {
+                    web_sys::console::log_1(&format!(
+                        "📊 ChartState updated: Total candles: {}, Latest: O:{} H:{} L:{} C:{} V:{}",
+                        total_candles,
+                        candle_for_log.ohlcv.open.value(),
+                        candle_for_log.ohlcv.high.value(),
+                        candle_for_log.ohlcv.low.value(),
+                        candle_for_log.ohlcv.close.value(),
+                        candle_for_log.ohlcv.volume.value()
+                    ).into());
+                }
             })
         )
     }

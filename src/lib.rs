@@ -132,6 +132,8 @@ struct RenderState {
     queue: wgpu::Queue,
     render_pipeline: wgpu::RenderPipeline,
     app_state: Rc<RefCell<ApplicationState>>,
+    frame_count: u32,
+    last_logged_count: usize,
 }
 
 impl RenderState {
@@ -168,18 +170,35 @@ impl RenderState {
         // Получаем данные для рендеринга через Application Layer
         let render_data = self.app_state.borrow().get_render_data();
         
-        // Логируем статистику (временно)
-        if render_data.candle_count > 0 {
-            if let Some(latest_price) = self.app_state.borrow().get_latest_price() {
-                #[allow(unused_unsafe)]
-                unsafe {
-                    web_sys::console::log_1(&format!(
-                        "Render: {} candles, latest price: ${:.2}",
-                        render_data.candle_count,
-                        latest_price
-                    ).into());
+        // Логируем статистику только периодически
+        self.frame_count += 1;
+        
+        // Логируем только если количество свечей изменилось или каждые 300 кадров (~5 сек при 60fps)
+        if render_data.candle_count != self.last_logged_count || self.frame_count % 300 == 0 {
+            if render_data.candle_count > 0 {
+                if let Some(latest_price) = self.app_state.borrow().get_latest_price() {
+                    #[allow(unused_unsafe)]
+                    unsafe {
+                        web_sys::console::log_1(&format!(
+                            "🎨 Render Loop: {} candles in ChartState, latest price: ${:.2} (frame: {})",
+                            render_data.candle_count,
+                            latest_price,
+                            self.frame_count
+                        ).into());
+                    }
+                }
+            } else {
+                if self.frame_count % 300 == 0 {
+                    #[allow(unused_unsafe)]
+                    unsafe {
+                        web_sys::console::log_1(&format!(
+                            "🎨 Render Loop: No candles yet, waiting for WebSocket data... (frame: {})",
+                            self.frame_count
+                        ).into());
+                    }
                 }
             }
+            self.last_logged_count = render_data.candle_count;
         }
 
         Ok(())
@@ -300,6 +319,8 @@ pub async fn start() -> Result<(), JsValue> {
         queue,
         render_pipeline,
         app_state,
+        frame_count: 0,
+        last_logged_count: 0,
     }));
 
     // Start the render loop

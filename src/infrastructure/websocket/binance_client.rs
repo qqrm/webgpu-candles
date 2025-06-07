@@ -38,7 +38,7 @@ fn update_ws_status(status: &str, is_connected: bool) {
 pub struct BinanceWebSocketClient {
     websocket: Option<WebSocket>,
     url: String,
-    on_candle_callback: Option<Box<dyn Fn(Candle)>>,
+    on_candle_callback: Rc<RefCell<Option<Box<dyn Fn(Candle)>>>>,
     connected: Rc<RefCell<bool>>,
 }
 
@@ -47,7 +47,7 @@ impl Default for BinanceWebSocketClient {
         Self {
             websocket: None,
             url: "wss://stream.binance.com:9443/ws".to_string(),
-            on_candle_callback: None,
+            on_candle_callback: Rc::new(RefCell::new(None)),
             connected: Rc::new(RefCell::new(false)),
         }
     }
@@ -62,7 +62,7 @@ impl BinanceWebSocketClient {
         Self {
             websocket: None,
             url: "wss://testnet.binance.vision/ws".to_string(),
-            on_candle_callback: None,
+            on_candle_callback: Rc::new(RefCell::new(None)),
             connected: Rc::new(RefCell::new(false)),
         }
     }
@@ -79,7 +79,7 @@ impl BinanceWebSocketClient {
             interval.to_binance_str()
         );
 
-        log(&format!("Connecting to: {}", ws_url));
+        log(&format!("🔌 Infrastructure: Connecting to: {}", ws_url));
         update_ws_status("Connecting...", false);
 
         let ws = WebSocket::new(&ws_url)?;
@@ -95,7 +95,9 @@ impl BinanceWebSocketClient {
     where
         F: Fn(Candle) + 'static,
     {
-        self.on_candle_callback = Some(Box::new(callback));
+        *self.on_candle_callback.borrow_mut() = Some(Box::new(callback));
+        
+        log("🔧 Infrastructure: Candle callback set");
     }
 
     fn setup_handlers(&mut self, ws: &WebSocket) -> Result<(), JsValue> {
@@ -103,7 +105,7 @@ impl BinanceWebSocketClient {
         
         // Open handler
         let onopen_callback = Closure::wrap(Box::new(move |_| {
-            log("WebSocket connected successfully!");
+            log("🔗 Infrastructure: WebSocket connected successfully!");
             *connected_clone.borrow_mut() = true;
             update_ws_status("Connected ✅", true);
         }) as Box<dyn FnMut(JsValue)>);
@@ -111,7 +113,8 @@ impl BinanceWebSocketClient {
         ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
         onopen_callback.forget();
 
-        // Message handler
+        // Message handler с правильным callback
+        let callback_clone = self.on_candle_callback.clone();
         let onmessage_callback = Closure::wrap(Box::new(move |e: MessageEvent| {
             if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
                 let data_str: String = txt.into();
@@ -121,7 +124,7 @@ impl BinanceWebSocketClient {
                         match kline_data.kline.to_domain_candle() {
                             Ok(candle) => {
                                 log(&format!(
-                                    "Received candle: {} O:{} H:{} L:{} C:{} V:{}",
+                                    "📡 Infrastructure: Received candle - {} O:{} H:{} L:{} C:{} V:{}",
                                     candle.timestamp.value(),
                                     candle.ohlcv.open.value(),
                                     candle.ohlcv.high.value(),
@@ -129,15 +132,22 @@ impl BinanceWebSocketClient {
                                     candle.ohlcv.close.value(),
                                     candle.ohlcv.volume.value()
                                 ));
-                                // TODO: Call callback when ownership issue is resolved
+                                
+                                // Вызываем callback правильно
+                                if let Some(callback) = callback_clone.borrow().as_ref() {
+                                    log("🚀 Infrastructure: Calling Application Layer callback");
+                                    callback(candle);
+                                } else {
+                                    log("⚠️ Infrastructure: No callback set, data will be lost");
+                                }
                             }
                             Err(e) => {
-                                log(&format!("Failed to convert kline: {:?}", e));
+                                log(&format!("❌ Infrastructure: Failed to convert kline: {:?}", e));
                             },
                         }
                     }
                     Err(e) => {
-                        log(&format!("Failed to parse JSON: {}", e));
+                        log(&format!("❌ Infrastructure: Failed to parse JSON: {}", e));
                     },
                 }
             }
@@ -149,7 +159,7 @@ impl BinanceWebSocketClient {
         // Error handler
         let connected_clone_error = self.connected.clone();
         let onerror_callback = Closure::wrap(Box::new(move |e: ErrorEvent| {
-            log(&format!("WebSocket error: {:?}", e));
+            log(&format!("❌ Infrastructure: WebSocket error: {:?}", e));
             *connected_clone_error.borrow_mut() = false;
             update_ws_status("Error ❌", false);
         }) as Box<dyn FnMut(ErrorEvent)>);
@@ -160,7 +170,7 @@ impl BinanceWebSocketClient {
         // Close handler
         let connected_clone_close = self.connected.clone();
         let onclose_callback = Closure::wrap(Box::new(move |e: CloseEvent| {
-            log(&format!("WebSocket closed: {} - {}", e.code(), e.reason()));
+            log(&format!("🔌 Infrastructure: WebSocket closed: {} - {}", e.code(), e.reason()));
             *connected_clone_close.borrow_mut() = false;
             update_ws_status("Disconnected", false);
         }) as Box<dyn FnMut(CloseEvent)>);
