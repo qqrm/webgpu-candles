@@ -7,22 +7,24 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-wgpu = { version = "25.0.2", features = ["webgpu", "webgl", "wgsl"] }
-wasm-bindgen = "0.2.100"
-wasm-bindgen-futures = "0.4.50"
-js-sys = "0.3.77"
+wgpu = "25.0.2"
+wasm-bindgen = "0.2.92"
+wasm-bindgen-futures = "0.4.42"
+js-sys = "0.3.69"
+web-sys = { version = "0.3.69", features = ["HtmlCanvasElement", "Window", "Document"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-bytemuck = { version = "1.14", features = ["derive"] }
+bytemuck = { version = "1.14.0", features = ["derive"] }
 rayon = "1.8"
 
 # Reduce boilerplate
-thiserror = "2.0"              # Auto-generate Display for errors
-gloo = { version = "0.11", features = ["console", "timers", "events", "net", "utils"] }  # Better web APIs
-gloo-net = { version = "0.6", features = ["websocket"] }  # WebSocket support
+thiserror = "1.0"
+gloo = { version = "0.11", features = ["console", "timers", "events", "net", "utils"] }
+gloo-net = { version = "0.5", features = ["websocket"] }
 futures = "0.3"
-derive_more = { version = "2.0.1", features = ["display", "from", "error", "into", "try_into", "constructor", "deref", "deref_mut"] }    # Auto-generate trait implementations
-strum = { version = "0.27", features = ["derive"] }  # Enum utilities
+derive_more = "0.99"
+strum = { version = "0.26", features = ["derive"] }
+serde-wasm-bindgen = "0.6.5"
 
 # 🚀 BENCHMARKS
 [dev-dependencies]

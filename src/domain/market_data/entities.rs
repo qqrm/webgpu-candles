@@ -1,5 +1,8 @@
+pub use super::value_objects::{Timestamp, OHLCV, Price, Volume};
+use serde::{Deserialize, Serialize};
+
 /// Доменная сущность - Свеча
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Candle {
     pub timestamp: Timestamp,
     pub ohlcv: OHLCV,
@@ -101,6 +104,3 @@ impl CandleSeries {
         Some((min_price, max_price))
     }
 }
-
-// Реэкспорт value objects
-pub use super::value_objects::{Timestamp, OHLCV, Price, Volume}; 

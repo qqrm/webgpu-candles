@@ -3,28 +3,28 @@ use derive_more::Display;
 /// Log levels with automatic Display implementation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Display)]
 pub enum LogLevel {
-    #[display("TRACE")]
+    #[display(fmt = "TRACE")]
     Trace = 0,
-    #[display("DEBUG")]
+    #[display(fmt = "DEBUG")]
     Debug = 1,
-    #[display(" INFO")]  
+    #[display(fmt = " INFO")]  
     Info = 2,
-    #[display(" WARN")]
+    #[display(fmt = " WARN")]
     Warn = 3,
-    #[display("ERROR")]
+    #[display(fmt = "ERROR")]
     Error = 4,
 }
 
 /// Log components with automatic Display implementation
 #[derive(Debug, Clone, Display)]
 pub enum LogComponent {
-    #[display("DOM:{}", _0)]
+    #[display(fmt = "DOM:{}", _0)]
     Domain(&'static str),
-    #[display("APP:{}", _0)]
+    #[display(fmt = "APP:{}", _0)]
     Application(&'static str),
-    #[display("INF:{}", _0)]
+    #[display(fmt = "INF:{}", _0)]
     Infrastructure(&'static str),
-    #[display("PRE:{}", _0)]
+    #[display(fmt = "PRE:{}", _0)]
     Presentation(&'static str),
 }
 

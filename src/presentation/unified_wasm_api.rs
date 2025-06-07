@@ -10,6 +10,13 @@ use crate::{
         logging::{LogComponent, get_logger},
     },
     infrastructure::rendering::WebGpuRenderer,
+    application::coordinator::{
+        self, initialize_global_coordinator, with_global_coordinator, with_global_coordinator_mut,
+    },
+    domain::{
+        chart::Chart,
+        market_data::{entities::CandleSeries, value_objects::Symbol, TimeInterval},
+    },
 };
 
 // Глобальное состояние для простого графика
@@ -32,11 +39,17 @@ impl UnifiedPriceChartApi {
     #[wasm_bindgen(constructor)]
     pub fn new(canvas_id: String) -> Self {
         Self {
-            canvas_id: canvas_id.clone(),
+            canvas_id,
             chart_width: 800,
             chart_height: 500,
-            renderer: Some(WebGpuRenderer::new(canvas_id, 800, 500)),
+            renderer: None,
         }
+    }
+
+    #[wasm_bindgen(js_name = initialize)]
+    pub async fn initialize(&mut self) -> Result<(), JsValue> {
+        self.renderer = Some(WebGpuRenderer::new(&self.canvas_id, self.chart_width, self.chart_height).await?);
+        Ok(())
     }
 
     /// Инициализировать chart с тестовыми данными
@@ -83,14 +96,9 @@ impl UnifiedPriceChartApi {
 
                 // Инициализируем WebGPU рендерер если нужно
                 if let Some(ref mut renderer) = self.renderer {
-                    renderer.set_dimensions(self.chart_width, self.chart_height);
+                    renderer.resize(self.chart_width, self.chart_height);
                     
                     // Создаем простой Chart объект для рендеринга
-                    use crate::domain::{
-                        chart::{Chart, value_objects::ChartType},
-                        market_data::{entities::CandleSeries, value_objects::Symbol},
-                    };
-                    
                     let symbol = Symbol::from("BTCUSDT");
                     let mut candle_series = CandleSeries::new(1000); // Max 1000 candles
                     
@@ -101,13 +109,13 @@ impl UnifiedPriceChartApi {
                     
                     let mut chart = Chart::new(
                         format!("webgpu-chart-{}", symbol.value()),
-                        ChartType::Candlestick,
+                        crate::domain::chart::ChartType::Candlestick,
                         1000
                     );
                     chart.data = candle_series;
                     
                     // Рендерим через WebGPU
-                    match renderer.render_chart_parallel(&chart) {
+                    match renderer.render(&chart) {
                         Ok(_) => {
                             log_simple("✅ WebGPU rendering successful");
                             Ok(JsValue::from_str("webgpu_chart_rendered"))
@@ -166,29 +174,6 @@ impl UnifiedPriceChartApi {
     pub fn handle_unified_zoom(&self, delta: f32, center_x: f32, _center_y: f32) -> Result<(), JsValue> {
         log_simple(&format!("🔍 WebGPU: Zoom event delta={:.1} at x={:.1}", delta, center_x));
         Ok(())
-    }
-
-    /// Инициализация WebGPU асинхронно
-    #[wasm_bindgen(js_name = initializeWebGPU)]
-    pub fn initialize_webgpu(&mut self) -> Promise {
-        let _canvas_id = self.canvas_id.clone();
-        let _width = self.chart_width;
-        let _height = self.chart_height;
-        
-        future_to_promise(async move {
-            log_simple("🚀 Initializing WebGPU...");
-            
-            // Проверяем поддержку WebGPU
-            let supported = WebGpuRenderer::is_webgpu_supported().await;
-            if !supported {
-                let error_msg = "WebGPU not supported in this browser";
-                log_simple(error_msg);
-                return Err(JsValue::from_str(error_msg));
-            }
-            
-            log_simple("✅ WebGPU supported, initialization complete");
-            Ok(JsValue::from_str("webgpu_initialized"))
-        })
     }
 }
 
@@ -259,4 +244,58 @@ pub fn get_unified_canvas_stats() -> String {
             "WebGPU Chart: No data".to_string()
         }
     })
+}
+
+#[wasm_bindgen]
+pub struct PriceChartApi;
+
+#[wasm_bindgen]
+impl PriceChartApi {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        // Логирование инициализации
+        get_logger().info(
+            LogComponent::Presentation("WASM_API"),
+            "PriceChartApi created",
+        );
+        Self
+    }
+
+    #[wasm_bindgen(js_name = initialize)]
+    pub fn initialize(canvas_id: String, width: u32, height: u32) -> Promise {
+        future_to_promise(async move {
+            // Передаем владение canvas_id в координатор
+            initialize_global_coordinator(canvas_id.clone(), width, height);
+            
+            match WebGpuRenderer::new(&canvas_id, width, height).await {
+                Ok(renderer) => {
+                    with_global_coordinator_mut(|coord| coord.initialize_renderer(renderer));
+                    Ok(JsValue::from_str("initialized"))
+                }
+                Err(e) => {
+                    get_logger().error(
+                        LogComponent::Application("ChartCoordinator"),
+                        &format!("⚠️ Failed to initialize WebGPU renderer from API: {:?}", e)
+                    );
+                    Err(e)
+                }
+            }
+        })
+    }
+
+    #[wasm_bindgen(js_name = render)]
+    pub fn render() -> Result<(), JsValue> {
+        with_global_coordinator(|coord| coord.render_chart())
+            .unwrap_or_else(|| Err(JsValue::from_str("Coordinator not found")))
+    }
+
+    #[wasm_bindgen(js_name = setCandles)]
+    pub fn set_candles(candles: JsValue) -> Result<(), JsValue> {
+        let candles: Vec<Candle> = serde_wasm_bindgen::from_value(candles)?;
+        let mut chart = Chart::new("main".to_string(), crate::domain::chart::ChartType::Candlestick, 1000);
+        chart.set_historical_data(candles);
+        
+        with_global_coordinator_mut(|coord| coord.set_chart(chart));
+        Ok(())
+    }
 } 

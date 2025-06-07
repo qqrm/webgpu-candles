@@ -303,6 +303,10 @@
                 statusEl.innerHTML = '<div class="loading-spinner"></div>Creating unified chart API...';
                 unifiedChartApi = createUnifiedChart("priceChart");
                 
+                // Инициализация WebGPU рендерера
+                statusEl.innerHTML = '<div class="loading-spinner"></div>Initializing WebGPU renderer...';
+                await unifiedChartApi.initialize();
+                
                 // Инициализация unified chart с историческими + реал-тайм данными
                 statusEl.innerHTML = '<div class="loading-spinner"></div>Loading unified data stream...';
                 const result = await unifiedChartApi.initializeUnifiedChart(

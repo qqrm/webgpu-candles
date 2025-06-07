@@ -35,19 +35,20 @@ impl RenderChartUseCase {
         };
 
         if webgpu_supported {
-            let mut webgpu_renderer = WebGpuRenderer::new(canvas_id, width, height);
-            if webgpu_renderer.initialize().await.is_ok() {
-                use_case.webgpu_renderer = Some(webgpu_renderer);
-                
-                get_logger().info(
-                    LogComponent::Application("RenderChartUseCase"),
-                    "✅ WebGPU renderer initialized successfully"
-                );
-            } else {
-                get_logger().warn(
-                    LogComponent::Application("RenderChartUseCase"),
-                    "⚠️ WebGPU renderer initialization failed"
-                );
+            match WebGpuRenderer::new(&canvas_id, width, height).await {
+                Ok(renderer) => {
+                    use_case.webgpu_renderer = Some(renderer);
+                    get_logger().info(
+                        LogComponent::Application("RenderChartUseCase"),
+                        "✅ WebGPU renderer initialized successfully"
+                    );
+                }
+                Err(_) => {
+                    get_logger().warn(
+                        LogComponent::Application("RenderChartUseCase"),
+                        "⚠️ WebGPU renderer initialization failed"
+                    );
+                }
             }
         } else {
             get_logger().warn(
@@ -72,7 +73,7 @@ impl RenderChartUseCase {
                 "🔥 Rendering chart via WebGPU parallel processing"
             );
             
-            webgpu_renderer.render_chart_parallel(chart)
+            webgpu_renderer.render(chart)
         } else {
             let error_msg = if !self.webgpu_supported {
                 "WebGPU not supported or not initialized"

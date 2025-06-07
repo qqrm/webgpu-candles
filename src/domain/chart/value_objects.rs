@@ -4,25 +4,25 @@ use strum::{EnumIter, EnumString, AsRefStr};
 /// Value Object - Тип графика
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display, EnumIter, EnumString, AsRefStr)]
 pub enum ChartType {
-    #[display("Candlestick")]
+    #[display(fmt = "Candlestick")]
     #[strum(serialize = "candlestick")]
     Candlestick,
-    #[display("Line")]
+    #[display(fmt = "Line")]
     #[strum(serialize = "line")]
     Line,
-    #[display("Area")]
+    #[display(fmt = "Area")]
     #[strum(serialize = "area")]
     Area,
-    #[display("OHLC")]
+    #[display(fmt = "OHLC")]
     #[strum(serialize = "ohlc")]
     OHLC,
-    #[display("Heikin")]
+    #[display(fmt = "Heikin")]
     #[strum(serialize = "heikin")]
     Heikin,
-    #[display("Renko")]
+    #[display(fmt = "Renko")]
     #[strum(serialize = "renko")]
     Renko,
-    #[display("Point and Figure")]
+    #[display(fmt = "Point and Figure")]
     #[strum(serialize = "point-and-figure")]
     PointAndFigure,
 }

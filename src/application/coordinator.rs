@@ -34,44 +34,17 @@ impl ChartCoordinator {
     }
 
     /// Асинхронная инициализация с WebGPU рендерером (согласно ARCHITECTURE.md)
-    pub async fn initialize_webgpu_renderer(&mut self) -> Result<(), JsValue> {
+    pub fn initialize_renderer(&mut self, renderer: WebGpuRenderer) {
         get_logger().info(
             LogComponent::Application("ChartCoordinator"),
-            "🚀 Initializing WebGPU coordinator..."
+            "🚀 Initializing WebGPU renderer..."
         );
-
-        // Проверяем поддержку WebGPU
-        let webgpu_supported = WebGpuRenderer::is_webgpu_supported().await;
-        
-        if webgpu_supported {
-            let mut webgpu_renderer = WebGpuRenderer::new(
-                self.canvas_id.clone(), 
-                self.width, 
-                self.height
-            );
-
-            if webgpu_renderer.initialize().await.is_ok() {
-                self.webgpu_renderer = Some(webgpu_renderer);
-                self.is_initialized = true;
-                
-                get_logger().info(
-                    LogComponent::Application("ChartCoordinator"),
-                    "✅ WebGPU coordinator initialized successfully"
-                );
-            } else {
-                get_logger().warn(
-                    LogComponent::Application("ChartCoordinator"),
-                    "⚠️ WebGPU initialization failed, falling back to CPU rendering"
-                );
-            }
-        } else {
-            get_logger().warn(
-                LogComponent::Application("ChartCoordinator"),
-                "⚠️ WebGPU not supported in this browser"
-            );
-        }
-
-        Ok(())
+        self.webgpu_renderer = Some(renderer);
+        self.is_initialized = true;
+        get_logger().info(
+            LogComponent::Application("ChartCoordinator"),
+            "✅ WebGPU renderer initialized successfully"
+        );
     }
 
     /// Рендеринг графика через WebGPU (согласно ARCHITECTURE.md)
@@ -80,19 +53,10 @@ impl ChartCoordinator {
             return Err(JsValue::from_str("Chart coordinator not initialized"));
         }
 
-        if let Some(chart) = &self.chart {
-            if let Some(webgpu_renderer) = &self.webgpu_renderer {
-                get_logger().info(
-                    LogComponent::Application("ChartCoordinator"),
-                    "🔥 Rendering chart via WebGPU coordinator"
-                );
-                
-                webgpu_renderer.render_chart_parallel(chart)
-            } else {
-                Err(JsValue::from_str("WebGPU renderer not available"))
-            }
+        if let (Some(chart), Some(renderer)) = (&self.chart, &self.webgpu_renderer) {
+            renderer.render(chart)
         } else {
-            Err(JsValue::from_str("No chart data available for rendering"))
+            Err(JsValue::from_str("Chart or renderer not available"))
         }
     }
 
@@ -121,7 +85,7 @@ impl ChartCoordinator {
         self.height = height;
         
         if let Some(renderer) = &mut self.webgpu_renderer {
-            renderer.set_dimensions(width, height);
+            renderer.resize(width, height);
         }
 
         get_logger().info(

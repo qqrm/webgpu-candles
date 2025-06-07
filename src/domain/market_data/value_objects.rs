@@ -72,7 +72,7 @@ impl OHLCV {
 
 /// Value Object - Торговый символ с автогенерацией
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deref, DerefMut, Display, Serialize, Deserialize)]
-#[display("Symbol({})", _0)]
+#[display(fmt = "Symbol({})", _0)]
 pub struct Symbol(String);
 
 impl Symbol {
