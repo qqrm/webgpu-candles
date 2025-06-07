@@ -3,10 +3,10 @@ use wasm_bindgen::prelude::*;
 use crate::domain::market_data::{Symbol, TimeInterval, Candle};
 use crate::infrastructure::websocket::{BinanceWebSocketClientWithCallback, BinanceHttpClient};
 
-mod domain;
-mod infrastructure;
-mod application;  // Production-ready application layer
-mod presentation;
+pub mod domain;
+pub mod infrastructure;
+pub mod application;  // Production-ready application layer
+pub mod presentation;
 
 /// Initialize the application with proper DDD architecture
 #[wasm_bindgen(start)]

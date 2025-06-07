@@ -84,35 +84,22 @@ impl AnalyzeMarketDataUseCase {
     }
 }
 
-/// Use Case для рендеринга графика с адаптивным выбором рендерера
+/// Use Case для рендеринга графика - чистый WebGPU! 🚀
 pub struct RenderChartUseCase {
-    canvas_renderer: Option<crate::infrastructure::rendering::CanvasRenderer>,
     webgpu_renderer: Option<crate::infrastructure::rendering::WebGpuRenderer>,
     webgpu_supported: bool,
-    webgpu_threshold: usize, // Минимум свечей для WebGPU
 }
 
 impl RenderChartUseCase {
     pub fn new() -> Self {
         Self {
-            canvas_renderer: None,
             webgpu_renderer: None,
             webgpu_supported: false,
-            webgpu_threshold: 500, // WebGPU для больших объемов данных
         }
     }
 
-    pub fn with_canvas_renderer(canvas_id: String, width: u32, height: u32) -> Self {
-        Self {
-            canvas_renderer: Some(crate::infrastructure::rendering::CanvasRenderer::new(canvas_id, width, height)),
-            webgpu_renderer: None,
-            webgpu_supported: false,
-            webgpu_threshold: 500,
-        }
-    }
-
-    /// Асинхронная инициализация с проверкой WebGPU поддержки
-    pub async fn initialize_adaptive_renderer(canvas_id: String, width: u32, height: u32) -> Self {
+    /// Асинхронная инициализация с WebGPU рендерером 🚀
+    pub async fn initialize_webgpu_renderer(canvas_id: String, width: u32, height: u32) -> Self {
         use crate::domain::logging::{LogComponent, get_logger};
         
         // Проверяем поддержку WebGPU
@@ -124,15 +111,11 @@ impl RenderChartUseCase {
         );
 
         let mut renderer = Self {
-            canvas_renderer: Some(crate::infrastructure::rendering::CanvasRenderer::new(
-                canvas_id.clone(), width, height
-            )),
             webgpu_renderer: None,
             webgpu_supported,
-            webgpu_threshold: 500,
         };
 
-        // Если WebGPU поддерживается, инициализируем его
+        // Инициализируем WebGPU рендерер
         if webgpu_supported {
             let mut webgpu_renderer = crate::infrastructure::rendering::WebGpuRenderer::new(
                 canvas_id, width, height
@@ -147,20 +130,26 @@ impl RenderChartUseCase {
                     renderer.webgpu_renderer = Some(webgpu_renderer);
                 }
                 Err(e) => {
-                    get_logger().warn(
+                    get_logger().error(
                         LogComponent::Application("RenderUseCase"),
-                        &format!("⚠️ WebGPU initialization failed: {:?}, falling back to Canvas 2D", e)
+                        &format!("❌ WebGPU initialization failed: {:?}", e)
                     );
                     renderer.webgpu_supported = false;
                 }
             }
+        } else {
+            get_logger().error(
+                LogComponent::Application("RenderUseCase"),
+                "❌ WebGPU not supported in this browser"
+            );
         }
 
         renderer
     }
 
-    pub fn set_renderer(&mut self, renderer: crate::infrastructure::rendering::CanvasRenderer) {
-        self.canvas_renderer = Some(renderer);
+    pub fn set_webgpu_renderer(&mut self, renderer: crate::infrastructure::rendering::WebGpuRenderer) {
+        self.webgpu_renderer = Some(renderer);
+        self.webgpu_supported = true;
     }
 
     pub fn prepare_chart_for_rendering(&self, chart: &Chart) -> Result<(), JsValue> {
@@ -170,36 +159,22 @@ impl RenderChartUseCase {
         Ok(())
     }
 
-    /// 🚀 Адаптивный рендеринг с автоматическим выбором backend'а
+    /// 🚀 Чистый WebGPU рендеринг для максимальной производительности
     pub fn render_chart(&self, chart: &Chart) -> Result<(), JsValue> {
         use crate::domain::logging::{LogComponent, get_logger};
         
         let candle_count = chart.data.count();
         
-        // Выбираем оптимальный рендерер на основе количества данных и поддержки
-        if self.webgpu_supported && candle_count >= self.webgpu_threshold {
-            // 🔥 WebGPU для больших объемов данных (истинный параллелизм)
-            if let Some(webgpu_renderer) = &self.webgpu_renderer {
-                get_logger().info(
-                    LogComponent::Application("RenderUseCase"),
-                    &format!("🚀 Using WebGPU renderer for {} candles (GPU parallel)", candle_count)
-                );
-                return webgpu_renderer.render_chart_parallel(chart);
-            }
-        }
-        
-        // 📊 Canvas 2D с параллельными вычислениями для обычных объемов
-        if let Some(canvas_renderer) = &self.canvas_renderer {
+        // WebGPU-only рендеринг
+        if let Some(webgpu_renderer) = &self.webgpu_renderer {
             get_logger().info(
                 LogComponent::Application("RenderUseCase"),
-                &format!("📊 Using Canvas 2D renderer for {} candles (CPU parallel)", candle_count)
+                &format!("🚀 WebGPU rendering {} candles (GPU parallel)", candle_count)
             );
-            canvas_renderer.render_chart(chart)?;
-            log("🎨 Chart rendered successfully via Infrastructure layer");
-            return Ok(());
+            return webgpu_renderer.render_chart_parallel(chart);
         }
         
-        let error_msg = "No renderer configured";
+        let error_msg = "WebGPU renderer not configured or not supported";
         get_logger().error(
             LogComponent::Application("RenderUseCase"),
             error_msg
@@ -207,30 +182,20 @@ impl RenderChartUseCase {
         Err(JsValue::from_str(error_msg))
     }
 
-    /// Получить информацию о текущем рендерере
+    /// Получить информацию о WebGPU рендерере
     pub fn get_renderer_info(&self) -> String {
-        let canvas_available = self.canvas_renderer.is_some();
         let webgpu_available = self.webgpu_renderer.is_some();
         
         format!(
-            "{{\"canvas_2d\":{},\"webgpu\":{},\"webgpu_supported\":{},\"threshold\":{},\"adaptive\":true}}",
-            canvas_available,
+            "{{\"backend\":\"WebGPU\",\"available\":{},\"supported\":{},\"gpu_parallel\":true}}",
             webgpu_available,
-            self.webgpu_supported,
-            self.webgpu_threshold
+            self.webgpu_supported
         )
     }
 
-    /// Принудительно переключиться на WebGPU (если доступен)
-    pub fn force_webgpu(&mut self) {
-        if self.webgpu_supported {
-            self.webgpu_threshold = 0; // Всегда использовать WebGPU
-        }
-    }
-
-    /// Принудительно переключиться на Canvas 2D
-    pub fn force_canvas(&mut self) {
-        self.webgpu_threshold = usize::MAX; // Никогда не использовать WebGPU
+    /// Проверить готовность WebGPU рендерера
+    pub fn is_webgpu_ready(&self) -> bool {
+        self.webgpu_supported && self.webgpu_renderer.is_some()
     }
 }
 
@@ -349,22 +314,8 @@ impl<T> ChartApplicationCoordinator<T> {
         }
     }
 
-    pub fn with_canvas_renderer(repository: T, canvas_id: String, width: u32, height: u32) -> Self {
-        Self {
-            connect_use_case: ConnectToMarketDataUseCase::new(repository),
-            analyze_use_case: AnalyzeMarketDataUseCase::new(),
-            render_use_case: RenderChartUseCase::with_canvas_renderer(canvas_id, width, height),
-            historical_use_case: LoadHistoricalDataUseCase::new(),
-            chart: Chart::new("main-chart".to_string(), ChartType::Candlestick, 1000),
-        }
-    }
-
-    pub fn set_canvas_renderer(&mut self, canvas_id: String, width: u32, height: u32) {
-        self.render_use_case = RenderChartUseCase::with_canvas_renderer(canvas_id, width, height);
-    }
-
-    /// Асинхронная инициализация с адаптивным рендерером
-    pub async fn initialize_with_adaptive_renderer(
+    /// Асинхронная инициализация с WebGPU рендерером 🚀
+    pub async fn initialize_with_webgpu_renderer(
         repository: T,
         canvas_id: String,
         width: u32,
@@ -373,7 +324,7 @@ impl<T> ChartApplicationCoordinator<T> {
         Self {
             connect_use_case: ConnectToMarketDataUseCase::new(repository),
             analyze_use_case: AnalyzeMarketDataUseCase::new(),
-            render_use_case: RenderChartUseCase::initialize_adaptive_renderer(canvas_id, width, height).await,
+            render_use_case: RenderChartUseCase::initialize_webgpu_renderer(canvas_id, width, height).await,
             historical_use_case: LoadHistoricalDataUseCase::new(),
             chart: Chart::new("main-chart".to_string(), ChartType::Candlestick, 1000),
         }

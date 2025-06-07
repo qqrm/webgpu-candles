@@ -143,9 +143,14 @@ impl PriceChartApi {
                 symbol_clone, interval_clone, limit
             ));
 
-            // 1. Создаем production components
+            // 1. Создаем production components с WebGPU рендерером 🚀
             let websocket_client = BinanceWebSocketClient::new();
-            let mut coordinator = ChartApplicationCoordinator::new(websocket_client);
+            let mut coordinator = ChartApplicationCoordinator::initialize_with_webgpu_renderer(
+                websocket_client,
+                "chart-canvas".to_string(),
+                800,
+                400
+            ).await;
 
             // 2. Парсим параметры через Domain Layer
             let symbol = Symbol::from(symbol_clone.as_str());
@@ -203,8 +208,7 @@ impl PriceChartApi {
                         ));
                     }
 
-                    // 6. Настраиваем рендерер для coordinator
-                    coordinator.set_canvas_renderer("chart-canvas".to_string(), 800, 400);
+                    // 6. WebGPU coordinator уже настроен при инициализации
 
                     // 7. Сохраняем coordinator в глобальном состоянии
                     GLOBAL_COORDINATOR.with(|global| {
