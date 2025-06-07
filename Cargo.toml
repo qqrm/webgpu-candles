@@ -7,7 +7,7 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-wgpu = { version = "25.0.2", features = ["webgpu", "webgl"] }
+wgpu = { version = "25.0.2", features = ["webgpu", "webgl", "wgsl"] }
 wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"
 web-sys = { version = "0.3.77", features = [
@@ -27,3 +27,4 @@ raw-window-handle = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 gloo-utils = "0.2"
+bytemuck = { version = "1.14", features = ["derive"] }

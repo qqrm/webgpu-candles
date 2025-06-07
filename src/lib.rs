@@ -18,6 +18,7 @@ use std::cell::RefCell;
 use crate::domain::market_data::{Symbol, TimeInterval};
 use crate::domain::chart::{Chart, ChartType};
 use crate::infrastructure::websocket::BinanceWebSocketClient;
+use crate::infrastructure::rendering::{CandleRenderer, CandleVertex};
 use crate::application::{ChartApplicationCoordinator, ChartRenderData};
 
 // Legacy types для обратной совместимости с WebGPU (временно)
@@ -132,12 +133,20 @@ struct RenderState {
     queue: wgpu::Queue,
     render_pipeline: wgpu::RenderPipeline,
     app_state: Rc<RefCell<ApplicationState>>,
+    candle_renderer: CandleRenderer,
     frame_count: u32,
     last_logged_count: usize,
 }
 
 impl RenderState {
     fn render(&mut self) -> Result<(), JsValue> {
+        // Обновляем рендерер свечей из текущего состояния графика
+        {
+            let app_state = self.app_state.borrow();
+            let chart = app_state.chart.borrow();
+            self.candle_renderer.update_from_chart(&chart, &self.device, &self.queue);
+        }
+        
         let frame = self.surface.get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
         let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -152,7 +161,12 @@ impl RenderState {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.1,
+                            b: 0.15,
+                            a: 1.0,
+                        }),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -160,8 +174,12 @@ impl RenderState {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
+            
+            // Используем новый pipeline для рендеринга свечей
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.draw(0..3, 0..1);
+            
+            // Рендерим свечи через CandleRenderer
+            self.candle_renderer.render(&mut render_pass);
         }
         
         self.queue.submit(Some(encoder.finish()));
@@ -169,6 +187,7 @@ impl RenderState {
 
         // Получаем данные для рендеринга через Application Layer
         let render_data = self.app_state.borrow().get_render_data();
+        let candle_stats = self.candle_renderer.get_stats();
         
         // Логируем статистику только периодически
         self.frame_count += 1;
@@ -180,8 +199,10 @@ impl RenderState {
                     #[allow(unused_unsafe)]
                     unsafe {
                         web_sys::console::log_1(&format!(
-                            "🎨 Render Loop: {} candles in ChartState, latest price: ${:.2} (frame: {})",
+                            "🎨 GPU Rendering: {} candles, {} vertices ({:.1}% buffer), latest: ${:.2} (frame: {})",
                             render_data.candle_count,
+                            candle_stats.vertex_count,
+                            candle_stats.buffer_usage_percent,
                             latest_price,
                             self.frame_count
                         ).into());
@@ -192,7 +213,7 @@ impl RenderState {
                     #[allow(unused_unsafe)]
                     unsafe {
                         web_sys::console::log_1(&format!(
-                            "🎨 Render Loop: No candles yet, waiting for WebSocket data... (frame: {})",
+                            "🎨 GPU Rendering: No candles yet, waiting for WebSocket data... (frame: {})",
                             self.frame_count
                         ).into());
                     }
@@ -259,24 +280,27 @@ pub async fn start() -> Result<(), JsValue> {
     surface.configure(&device, &config);
 
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("Shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        label: Some("Candle Shader"),
+        source: wgpu::ShaderSource::Wgsl(include_str!("candle_shader.wgsl").into()),
     });
 
+    // Создаем CandleRenderer сначала, чтобы получить bind group layout
+    let candle_renderer = CandleRenderer::new(&device, &queue, surface_format);
+
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("Pipeline Layout"),
-        bind_group_layouts: &[],
+        label: Some("Render Pipeline Layout"),
+        bind_group_layouts: &[candle_renderer.get_bind_group_layout()],
         push_constant_ranges: &[],
     });
 
     let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Render Pipeline"),
+        label: Some("Candle Render Pipeline"),
         layout: Some(&pipeline_layout),
         cache: None,
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[],
+            buffers: &[CandleVertex::desc()],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -284,7 +308,7 @@ pub async fn start() -> Result<(), JsValue> {
             entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: surface_format,
-                blend: Some(wgpu::BlendState::REPLACE),
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
@@ -319,6 +343,7 @@ pub async fn start() -> Result<(), JsValue> {
         queue,
         render_pipeline,
         app_state,
+        candle_renderer,
         frame_count: 0,
         last_logged_count: 0,
     }));
