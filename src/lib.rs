@@ -7,19 +7,20 @@ pub mod presentation;
 // Re-exports
 pub use presentation::*;
 
-// Legacy code - временно оставляем для совместимости
+// WASM and WebGPU imports
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlCanvasElement, window};
 use std::rc::Rc;
 use std::cell::RefCell;
 
-// Используем новые доменные типы
-use crate::domain::market_data::Candle;
+// DDD imports - правильный поток через Application Layer
+use crate::domain::market_data::{Symbol, TimeInterval};
 use crate::domain::chart::{Chart, ChartType};
-use crate::infrastructure::websocket::BinanceWebSocketClientWithCallback;
+use crate::infrastructure::websocket::BinanceWebSocketClient;
+use crate::application::{ChartApplicationCoordinator, ChartRenderData};
 
-// Legacy types для обратной совместимости
+// Legacy types для обратной совместимости с WebGPU (временно)
 #[derive(Debug, Clone)]
 pub struct CandleData {
     pub timestamp: f64,
@@ -30,8 +31,8 @@ pub struct CandleData {
     pub volume: f32,
 }
 
-impl From<Candle> for CandleData {
-    fn from(candle: Candle) -> Self {
+impl From<crate::domain::market_data::Candle> for CandleData {
+    fn from(candle: crate::domain::market_data::Candle) -> Self {
         Self {
             timestamp: candle.timestamp.as_f64(),
             open: candle.ohlcv.open.value(),
@@ -43,52 +44,55 @@ impl From<Candle> for CandleData {
     }
 }
 
-// Legacy структура состояния
-struct ChartState {
-    chart: Chart,
-    #[allow(dead_code)]
+/// Состояние приложения - теперь использует Application Layer
+struct ApplicationState {
+    coordinator: ChartApplicationCoordinator<BinanceWebSocketClient>,
+    chart: Rc<RefCell<Chart>>,
     canvas_width: u32,
-    #[allow(dead_code)]
     canvas_height: u32,
-    #[allow(dead_code)]
     needs_resize: bool,
 }
 
-impl ChartState {
+impl ApplicationState {
     fn new(width: u32, height: u32) -> Self {
+        let chart = Rc::new(RefCell::new(Chart::new(
+            "main".to_string(), 
+            ChartType::Candlestick, 
+            1000
+        )));
+        
+        let ws_client = BinanceWebSocketClient::new();
+        let coordinator = ChartApplicationCoordinator::new(ws_client, chart.clone());
+        
         Self {
-            chart: Chart::new("main".to_string(), ChartType::Candlestick, 1000),
+            coordinator,
+            chart,
             canvas_width: width,
             canvas_height: height,
             needs_resize: false,
         }
     }
     
-    #[allow(dead_code)]
-    fn update_candles(&mut self, new_candles: Vec<CandleData>) {
-        for candle_data in new_candles {
-            let candle = self.convert_legacy_candle(candle_data);
-            self.chart.add_candle(candle);
-        }
+    fn start_live_data(&mut self, symbol: &str, interval: &str) -> Result<(), JsValue> {
+        let symbol = Symbol::from(symbol);
+        let interval = match interval {
+            "1m" => TimeInterval::OneMinute,
+            "5m" => TimeInterval::FiveMinutes,
+            "15m" => TimeInterval::FifteenMinutes,
+            "1h" => TimeInterval::OneHour,
+            "1d" => TimeInterval::OneDay,
+            _ => return Err(JsValue::from_str("Unsupported interval")),
+        };
+        
+        // Используем Application Layer правильно
+        self.coordinator.start_live_chart(symbol, interval)
     }
     
-    #[allow(dead_code)]
-    fn convert_legacy_candle(&self, data: CandleData) -> Candle {
-        use crate::domain::market_data::{Timestamp, OHLCV, Price, Volume};
-        
-        let timestamp = Timestamp::from(data.timestamp as u64);
-        let ohlcv = OHLCV::new(
-            Price::from(data.open),
-            Price::from(data.high),
-            Price::from(data.low),
-            Price::from(data.close),
-            Volume::from(data.volume),
-        );
-        
-        Candle::new(timestamp, ohlcv)
+    fn get_render_data(&self) -> ChartRenderData {
+        let chart = self.chart.borrow();
+        self.coordinator.prepare_chart_render(&chart)
     }
     
-    #[allow(dead_code)]
     fn check_resize(&mut self, canvas: &HtmlCanvasElement) -> bool {
         let new_width = canvas.width();
         let new_height = canvas.height();
@@ -96,13 +100,29 @@ impl ChartState {
         if new_width != self.canvas_width || new_height != self.canvas_height {
             self.canvas_width = new_width;
             self.canvas_height = new_height;
-            self.chart.viewport.width = new_width;
-            self.chart.viewport.height = new_height;
+            
+            // Обновляем viewport через chart
+            {
+                let mut chart = self.chart.borrow_mut();
+                chart.viewport.width = new_width;
+                chart.viewport.height = new_height;
+            }
+            
             self.needs_resize = true;
             true
         } else {
             false
         }
+    }
+    
+    fn get_candle_count(&self) -> usize {
+        self.chart.borrow().data.count()
+    }
+    
+    fn get_latest_price(&self) -> Option<f32> {
+        let chart = self.chart.borrow();
+        let candles = chart.data.get_candles();
+        candles.last().map(|candle| candle.ohlcv.close.value())
     }
 }
 
@@ -111,10 +131,7 @@ struct RenderState {
     device: wgpu::Device,
     queue: wgpu::Queue,
     render_pipeline: wgpu::RenderPipeline,
-    #[allow(dead_code)]
-    chart_state: Rc<RefCell<ChartState>>,
-    #[allow(dead_code)]
-    ws_client: BinanceWebSocketClientWithCallback,
+    app_state: Rc<RefCell<ApplicationState>>,
 }
 
 impl RenderState {
@@ -147,6 +164,23 @@ impl RenderState {
         
         self.queue.submit(Some(encoder.finish()));
         frame.present();
+
+        // Получаем данные для рендеринга через Application Layer
+        let render_data = self.app_state.borrow().get_render_data();
+        
+        // Логируем статистику (временно)
+        if render_data.candle_count > 0 {
+            if let Some(latest_price) = self.app_state.borrow().get_latest_price() {
+                #[allow(unused_unsafe)]
+                unsafe {
+                    web_sys::console::log_1(&format!(
+                        "Render: {} candles, latest price: ${:.2}",
+                        render_data.candle_count,
+                        latest_price
+                    ).into());
+                }
+            }
+        }
 
         Ok(())
     }
@@ -242,40 +276,21 @@ pub async fn start() -> Result<(), JsValue> {
         multiview: None,
     });
 
-    let chart_state = Rc::new(RefCell::new(ChartState::new(size.0, size.1)));
+    // Создаем состояние приложения с правильной DDD архитектурой
+    let app_state = Rc::new(RefCell::new(ApplicationState::new(size.0, size.1)));
     
-    // Log that we're about to create WebSocket client
     #[allow(unused_unsafe)] 
-    unsafe { web_sys::console::log_1(&"Creating WebSocket client...".into()); }
+    unsafe { web_sys::console::log_1(&"🏗️ DDD Application initialized".into()); }
     
-    // Create and connect WebSocket client with error handling
-    let mut ws_client = BinanceWebSocketClientWithCallback::new();
-    let chart_state_clone = chart_state.clone();
-    
-    match ws_client.connect_with_callback("btcusdt", "1m", move |candle| {
-        let mut state = chart_state_clone.borrow_mut();
-        let candle_clone = candle.clone();
-        state.chart.add_candle(candle);
-        
-        #[allow(unused_unsafe)] 
-        unsafe {
-            web_sys::console::log_1(&format!(
-                "Added candle to chart: O:{} H:{} L:{} C:{} V:{}",
-                candle_clone.ohlcv.open.value(),
-                candle_clone.ohlcv.high.value(),
-                candle_clone.ohlcv.low.value(),
-                candle_clone.ohlcv.close.value(),
-                candle_clone.ohlcv.volume.value()
-            ).into());
-        }
-    }) {
+    // Запускаем live данные через Application Layer
+    match app_state.borrow_mut().start_live_data("btcusdt", "1m") {
         Ok(_) => {
             #[allow(unused_unsafe)] 
-            unsafe { web_sys::console::log_1(&"WebSocket client setup completed".into()); }
+            unsafe { web_sys::console::log_1(&"📊 Live chart started via Application Layer".into()); }
         }
         Err(e) => {
             #[allow(unused_unsafe)]
-            unsafe { web_sys::console::error_1(&format!("Failed to setup WebSocket: {:?}", e).into()); }
+            unsafe { web_sys::console::error_1(&format!("❌ Failed to start live chart: {:?}", e).into()); }
         }
     }
     
@@ -284,8 +299,7 @@ pub async fn start() -> Result<(), JsValue> {
         device,
         queue,
         render_pipeline,
-        chart_state,
-        ws_client,
+        app_state,
     }));
 
     // Start the render loop
