@@ -234,7 +234,8 @@ impl PriceChartApi {
                 
                 // Вычисляем масштаб
                 let padding = 50.0;
-                let chart_width = self.chart_width as f64 - (padding * 2.0);
+                let text_space = 80.0; // Место для цены справа
+                let chart_width = self.chart_width as f64 - (padding * 2.0) - text_space;
                 let chart_height = self.chart_height as f64 - (padding * 2.0);
                 
                 // Находим ценовой диапазон
@@ -316,9 +317,6 @@ impl PriceChartApi {
                     let current_y = padding + ((max_price - current_price as f64) / price_range) * chart_height;
                     let current_text = format!("${:.2}", current_price);
                     
-                    context.set_fill_style(&JsValue::from_str("#00ff88"));
-                    context.fill_text(&current_text, self.chart_width as f64 - 80.0, current_y + 5.0)?;
-                    
                     // Горизонтальная линия текущей цены
                     context.set_stroke_style(&JsValue::from_str("#00ff88"));
                     context.set_line_width(1.0);
@@ -326,6 +324,12 @@ impl PriceChartApi {
                     context.move_to(padding, current_y);
                     context.line_to(padding + chart_width, current_y);
                     context.stroke();
+                    
+                    // Цена справа от линии с отступом
+                    let line_end = padding + chart_width; // Конец линии
+                    let text_offset = 10.0; // Отступ от линии
+                    context.set_fill_style(&JsValue::from_str("#00ff88"));
+                    context.fill_text(&current_text, line_end + text_offset, current_y + 5.0)?;
                 }
                 
                 log(&format!("✅ PRODUCTION: Rendered {} candles successfully", candles.len()));
