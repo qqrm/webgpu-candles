@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦀 Leptos Bitcoin Chart</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #2c3e50;
+            color: #ffffff;
+        }
+        
+        #loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #4ade80;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #34495e;
+            border-top: 4px solid #4ade80;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading screen показывается пока загружается WASM -->
+    <div id="loading">
+        <div class="spinner"></div>
+        <div>
+            <h2>🦀 Loading Leptos Bitcoin Chart...</h2>
+            <p>Initializing WebGPU + WebSocket</p>
+        </div>
+    </div>
+
+    <!-- Leptos приложение монтируется в body автоматически -->
+    
+    <script type="module">
+        import init, { hydrate } from './pkg/price_chart_wasm.js';
+
+        async function run() {
+            // Инициализация WASM
+            await init();
+            
+            // Скрываем loading screen
+            document.getElementById('loading').style.display = 'none';
+            
+            // Запускаем Leptos приложение
+            hydrate();
+        }
+        
+        run().catch(console.error);
+    </script>
+</body>
+</html> 

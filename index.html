@@ -489,12 +489,12 @@
             }
         }
 
-        // Автообновление для WebSocket API (данные поступают в реальном времени)
+        // 📊 Простое автообновление WebSocket графика
         function startUnifiedAutoRefresh() {
             setInterval(async () => {
                 if (unifiedChartApi) {
                     try {
-                        // Рендеринг WebSocket данных + обновление статистики
+                        // Рендерим график каждые 3 секунды
                         unifiedChartApi.renderUnifiedChart();
                         
                         // Получаем актуальную статистику WebSocket
@@ -512,7 +512,7 @@
                         const statusEl = document.getElementById('status');
                         if (stats.streamActive) {
                             const now = new Date().toLocaleTimeString();
-                            statusEl.innerHTML = `🌐 WebSocket Active • ${stats.totalCandles} candles • ${now}`;
+                            statusEl.innerHTML = `🌐 WebSocket LIVE • ${stats.totalCandles} candles • ${now}`;
                             statusEl.className = 'status';
                         } else {
                             statusEl.innerHTML = `⚠️ WebSocket Disconnected • ${stats.totalCandles} candles`;
@@ -524,7 +524,7 @@
                         document.getElementById('status').innerHTML = '🔴 WebSocket error, retrying...';
                     }
                 }
-            }, 3000); // 3 секунды - данные стримятся через WebSocket
+            }, 3000); // 3 секунды - WebSocket данные обновляются автоматически
         }
 
         // Настройка интерактивности для unified API

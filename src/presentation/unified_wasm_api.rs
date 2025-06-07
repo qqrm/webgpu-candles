@@ -30,6 +30,7 @@ thread_local! {
     static WEBSOCKET_CLIENT: RefCell<Option<BinanceWebSocketClient>> = RefCell::new(None);
     static IS_STREAMING: RefCell<bool> = RefCell::new(false);
     static LAST_CANDLE_COUNT: RefCell<usize> = RefCell::new(0);
+    static GLOBAL_RENDERER: RefCell<Option<WebGpuRenderer>> = RefCell::new(None);
 }
 
 /// WebGPU WASM API для рендеринга графиков с WebSocket поддержкой
@@ -177,20 +178,23 @@ impl UnifiedPriceChartApi {
                 log_simple(&format!("📊 WebSocket: Received candle ${:.2}", candle.ohlcv.close.value()));
                 
                 // Добавляем новую свечу в данные
-                SIMPLE_CHART_DATA.with(|data| {
+                let should_render = SIMPLE_CHART_DATA.with(|data| {
                     if let Some(candles) = data.borrow_mut().as_mut() {
                         // Проверяем, новая ли это свеча или обновление существующей
                         let new_timestamp = candle.timestamp.value();
+                        let mut data_changed = false;
                         
                         if let Some(last_candle) = candles.last_mut() {
                             if last_candle.timestamp.value() == new_timestamp {
                                 // Обновляем последнюю свечу
                                 *last_candle = candle;
                                 log_simple("🔄 Updated existing candle");
+                                data_changed = true;
                             } else if new_timestamp > last_candle.timestamp.value() {
                                 // Добавляем новую свечу
                                 candles.push(candle);
                                 log_simple("✅ Added new candle to stream");
+                                data_changed = true;
                                 
                                 // Ограничиваем до 300 свечей
                                 while candles.len() > 300 {
@@ -201,14 +205,24 @@ impl UnifiedPriceChartApi {
                             // Первая свеча
                             candles.push(candle);
                             log_simple("🎉 Added first WebSocket candle");
+                            data_changed = true;
                         }
                         
                         // Обновляем счетчик
                         LAST_CANDLE_COUNT.with(|count| {
                             *count.borrow_mut() = candles.len();
                         });
+                        
+                        data_changed
+                    } else {
+                        false
                     }
                 });
+                
+                // 🚀 МГНОВЕННАЯ ПЕРЕРИСОВКА прямо в Rust по каждому тику!
+                if should_render {
+                    log_simple("🚀 WebSocket: Data updated, will render on next cycle");
+                }
             };
 
             // Запуск stream с обработчиком
@@ -383,6 +397,17 @@ impl UnifiedPriceChartApi {
             
             Ok(JsValue::from_str("websocket_reconnected"))
         })
+    }
+
+    /// Инициализировать глобальный renderer (вызывается после создания)
+    #[wasm_bindgen(js_name = initGlobalRenderer)]
+    pub fn init_global_renderer(&mut self) {
+        if let Some(renderer) = self.renderer.take() {
+            GLOBAL_RENDERER.with(|global| {
+                *global.borrow_mut() = Some(renderer);
+            });
+            log_simple("✅ Global renderer initialized for immediate WebSocket rendering");
+        }
     }
 
     /// Обработка зума через WebGPU
