@@ -7,12 +7,39 @@ use std::cell::RefCell;
 use crate::domain::market_data::{repositories::MarketDataRepository, Candle, Symbol, TimeInterval};
 use super::dto::{BinanceKlineData, BinanceSubscription};
 
+// Helper function for logging
+fn log(s: &str) {
+    #[allow(unused_unsafe)]
+    unsafe {
+        web_sys::console::log_1(&s.into());
+    }
+}
+
+/// Helper function to update WebSocket status in UI
+fn update_ws_status(status: &str, is_connected: bool) {
+    if let Some(window) = web_sys::window() {
+        if let Some(document) = window.document() {
+            if let Some(element) = document.get_element_by_id("ws-status") {
+                element.set_text_content(Some(&format!("WebSocket: {}", status)));
+                
+                let style_value = if is_connected {
+                    "text-align: center; margin: 10px; padding: 10px; background: #006600; border-radius: 5px;"
+                } else {
+                    "text-align: center; margin: 10px; padding: 10px; background: #660000; border-radius: 5px;"
+                };
+                
+                let _ = element.set_attribute("style", style_value);
+            }
+        }
+    }
+}
+
 /// Binance WebSocket клиент - инфраструктурная реализация
 pub struct BinanceWebSocketClient {
     websocket: Option<WebSocket>,
     url: String,
     on_candle_callback: Option<Box<dyn Fn(Candle)>>,
-    connected: bool,
+    connected: Rc<RefCell<bool>>,
 }
 
 impl Default for BinanceWebSocketClient {
@@ -21,7 +48,7 @@ impl Default for BinanceWebSocketClient {
             websocket: None,
             url: "wss://stream.binance.com:9443/ws".to_string(),
             on_candle_callback: None,
-            connected: false,
+            connected: Rc::new(RefCell::new(false)),
         }
     }
 }
@@ -36,12 +63,12 @@ impl BinanceWebSocketClient {
             websocket: None,
             url: "wss://testnet.binance.vision/ws".to_string(),
             on_candle_callback: None,
-            connected: false,
+            connected: Rc::new(RefCell::new(false)),
         }
     }
 
     pub fn is_connected(&self) -> bool {
-        self.connected
+        *self.connected.borrow()
     }
 
     pub fn connect(&mut self, symbol: &Symbol, interval: TimeInterval) -> Result<(), JsValue> {
@@ -52,8 +79,8 @@ impl BinanceWebSocketClient {
             interval.to_binance_str()
         );
 
-        #[allow(unused_unsafe)] 
-        unsafe { web_sys::console::log_1(&format!("Connecting to: {}", ws_url).into()); }
+        log(&format!("Connecting to: {}", ws_url));
+        update_ws_status("Connecting...", false);
 
         let ws = WebSocket::new(&ws_url)?;
 
@@ -72,17 +99,17 @@ impl BinanceWebSocketClient {
     }
 
     fn setup_handlers(&mut self, ws: &WebSocket) -> Result<(), JsValue> {
+        let connected_clone = self.connected.clone();
+        
         // Open handler
         let onopen_callback = Closure::wrap(Box::new(move |_| {
-            #[allow(unused_unsafe)] 
-            unsafe { web_sys::console::log_1(&"WebSocket connected successfully!".into()) };
+            log("WebSocket connected successfully!");
+            *connected_clone.borrow_mut() = true;
+            update_ws_status("Connected ✅", true);
         }) as Box<dyn FnMut(JsValue)>);
 
-        #[allow(unused_unsafe)] 
-        unsafe {
-            ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
-            onopen_callback.forget();
-        }
+        ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
+        onopen_callback.forget();
 
         // Message handler
         let onmessage_callback = Closure::wrap(Box::new(move |e: MessageEvent| {
@@ -93,8 +120,7 @@ impl BinanceWebSocketClient {
                     Ok(kline_data) => {
                         match kline_data.kline.to_domain_candle() {
                             Ok(candle) => {
-                                #[allow(unused_unsafe)] 
-                                unsafe { web_sys::console::log_1(&format!(
+                                log(&format!(
                                     "Received candle: {} O:{} H:{} L:{} C:{} V:{}",
                                     candle.timestamp.value(),
                                     candle.ohlcv.open.value(),
@@ -102,54 +128,45 @@ impl BinanceWebSocketClient {
                                     candle.ohlcv.low.value(),
                                     candle.ohlcv.close.value(),
                                     candle.ohlcv.volume.value()
-                                ).into()) };
-
-                                // TODO: Здесь нужно вызвать callback, но у нас есть проблема с ownership
-                                // В реальной реализации можно использовать Rc<RefCell<>> или другие паттерны
+                                ));
+                                // TODO: Call callback when ownership issue is resolved
                             }
                             Err(e) => {
-                                #[allow(unused_unsafe)] 
-                                unsafe { web_sys::console::error_1(&format!("Failed to convert kline: {:?}", e).into()); }
+                                log(&format!("Failed to convert kline: {:?}", e));
                             },
                         }
                     }
                     Err(e) => {
-                        #[allow(unused_unsafe)] 
-                        unsafe { web_sys::console::error_1(&format!("Failed to parse JSON: {}", e).into()); }
+                        log(&format!("Failed to parse JSON: {}", e));
                     },
                 }
             }
         }) as Box<dyn FnMut(MessageEvent)>);
 
-        #[allow(unused_unsafe)] 
-        unsafe {
-            ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
-            onmessage_callback.forget();
-        }
+        ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
+        onmessage_callback.forget();
 
         // Error handler
+        let connected_clone_error = self.connected.clone();
         let onerror_callback = Closure::wrap(Box::new(move |e: ErrorEvent| {
-            #[allow(unused_unsafe)] 
-            unsafe { web_sys::console::error_1(&format!("WebSocket error: {:?}", e).into()); }
+            log(&format!("WebSocket error: {:?}", e));
+            *connected_clone_error.borrow_mut() = false;
+            update_ws_status("Error ❌", false);
         }) as Box<dyn FnMut(ErrorEvent)>);
 
-        #[allow(unused_unsafe)] 
-        unsafe {
-            ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
-            onerror_callback.forget();
-        }
+        ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
+        onerror_callback.forget();
 
         // Close handler
+        let connected_clone_close = self.connected.clone();
         let onclose_callback = Closure::wrap(Box::new(move |e: CloseEvent| {
-            #[allow(unused_unsafe)] 
-            unsafe { web_sys::console::log_1(&format!("WebSocket closed: {} - {}", e.code(), e.reason()).into()) };
+            log(&format!("WebSocket closed: {} - {}", e.code(), e.reason()));
+            *connected_clone_close.borrow_mut() = false;
+            update_ws_status("Disconnected", false);
         }) as Box<dyn FnMut(CloseEvent)>);
 
-        #[allow(unused_unsafe)] 
-        unsafe {
-            ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
-            onclose_callback.forget();
-        }
+        ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
+        onclose_callback.forget();
 
         Ok(())
     }
@@ -158,7 +175,8 @@ impl BinanceWebSocketClient {
         if let Some(ws) = &self.websocket {
             ws.close()?;
             self.websocket = None;
-            self.connected = false;
+            *self.connected.borrow_mut() = false;
+            update_ws_status("Disconnected", false);
         }
         Ok(())
     }
@@ -203,8 +221,6 @@ impl MarketDataRepository for BinanceWebSocketClient {
         _interval: TimeInterval,
         _limit: Option<usize>,
     ) -> Result<Vec<Candle>, JsValue> {
-        // Для WebSocket клиента исторические данные не реализованы
-        // В реальном приложении это должно быть в отдельном REST API клиенте
         Err(JsValue::from_str("Historical data not available via WebSocket"))
     }
 
@@ -227,6 +243,7 @@ impl MarketDataRepository for BinanceWebSocketClient {
 pub struct BinanceWebSocketClientWithCallback {
     websocket: Option<WebSocket>,
     candle_callback: Rc<RefCell<Option<Box<dyn Fn(Candle)>>>>,
+    connected: Rc<RefCell<bool>>,
 }
 
 impl BinanceWebSocketClientWithCallback {
@@ -234,7 +251,12 @@ impl BinanceWebSocketClientWithCallback {
         Self {
             websocket: None,
             candle_callback: Rc::new(RefCell::new(None)),
+            connected: Rc::new(RefCell::new(false)),
         }
+    }
+
+    pub fn is_connected(&self) -> bool {
+        *self.connected.borrow()
     }
 
     pub fn connect_with_callback<F>(&mut self, symbol: &str, interval: &str, callback: F) -> Result<(), JsValue>
@@ -247,14 +269,25 @@ impl BinanceWebSocketClientWithCallback {
             interval
         );
 
-        #[allow(unused_unsafe)]
-        unsafe { web_sys::console::log_1(&format!("Connecting to: {}", ws_url).into()); }
+        log(&format!("Connecting to: {}", ws_url));
+        update_ws_status("Connecting...", false);
 
         let ws = WebSocket::new(&ws_url)?;
         
         // Store callback
         *self.candle_callback.borrow_mut() = Some(Box::new(callback));
         
+        // Setup handlers
+        let connected_clone = self.connected.clone();
+        let onopen_callback = Closure::wrap(Box::new(move |_| {
+            log("WebSocket connected successfully!");
+            *connected_clone.borrow_mut() = true;
+            update_ws_status("Connected ✅", true);
+        }) as Box<dyn FnMut(JsValue)>);
+
+        ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
+        onopen_callback.forget();
+
         // Setup message handler
         let candle_callback_clone = self.candle_callback.clone();
         let onmessage_callback = Closure::wrap(Box::new(move |e: MessageEvent| {
@@ -271,36 +304,41 @@ impl BinanceWebSocketClientWithCallback {
                                 }
                             }
                             Err(e) => {
-                                #[allow(unused_unsafe)] 
-                                unsafe { web_sys::console::error_1(&format!("Failed to convert kline: {:?}", e).into()); }
+                                log(&format!("Failed to convert kline: {:?}", e));
                             },
                         }
                     }
                     Err(e) => {
-                        #[allow(unused_unsafe)] 
-                        unsafe { web_sys::console::error_1(&format!("Failed to parse JSON: {}", e).into()); }
+                        log(&format!("Failed to parse JSON: {}", e));
                     },
                 }
             }
         }) as Box<dyn FnMut(MessageEvent)>);
 
-        #[allow(unused_unsafe)] 
-        unsafe {
-            ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
-            onmessage_callback.forget();
-        }
+        ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
+        onmessage_callback.forget();
 
-        // Setup other handlers
-        let onopen_callback = Closure::wrap(Box::new(move |_| {
-            #[allow(unused_unsafe)] 
-            unsafe { web_sys::console::log_1(&"WebSocket connected successfully!".into()); }
-        }) as Box<dyn FnMut(JsValue)>);
+        // Error handler
+        let connected_clone_error = self.connected.clone();
+        let onerror_callback = Closure::wrap(Box::new(move |e: ErrorEvent| {
+            log(&format!("WebSocket error: {:?}", e));
+            *connected_clone_error.borrow_mut() = false;
+            update_ws_status("Error ❌", false);
+        }) as Box<dyn FnMut(ErrorEvent)>);
 
-        #[allow(unused_unsafe)] 
-        unsafe {
-            ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
-            onopen_callback.forget();
-        }
+        ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
+        onerror_callback.forget();
+
+        // Close handler
+        let connected_clone_close = self.connected.clone();
+        let onclose_callback = Closure::wrap(Box::new(move |e: CloseEvent| {
+            log(&format!("WebSocket closed: {} - {}", e.code(), e.reason()));
+            *connected_clone_close.borrow_mut() = false;
+            update_ws_status("Disconnected", false);
+        }) as Box<dyn FnMut(CloseEvent)>);
+
+        ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
+        onclose_callback.forget();
 
         self.websocket = Some(ws);
         Ok(())
@@ -310,6 +348,8 @@ impl BinanceWebSocketClientWithCallback {
         if let Some(ws) = &self.websocket {
             ws.close()?;
             self.websocket = None;
+            *self.connected.borrow_mut() = false;
+            update_ws_status("Disconnected", false);
         }
         Ok(())
     }

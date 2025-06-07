@@ -244,16 +244,20 @@ pub async fn start() -> Result<(), JsValue> {
 
     let chart_state = Rc::new(RefCell::new(ChartState::new(size.0, size.1)));
     
-    // Create and connect WebSocket client
+    // Log that we're about to create WebSocket client
+    #[allow(unused_unsafe)] 
+    unsafe { web_sys::console::log_1(&"Creating WebSocket client...".into()); }
+    
+    // Create and connect WebSocket client with error handling
     let mut ws_client = BinanceWebSocketClientWithCallback::new();
     let chart_state_clone = chart_state.clone();
     
-    ws_client.connect_with_callback("BTCUSDT", "1m", move |candle| {
+    match ws_client.connect_with_callback("btcusdt", "1m", move |candle| {
         let mut state = chart_state_clone.borrow_mut();
         let candle_clone = candle.clone();
         state.chart.add_candle(candle);
         
-        #[allow(unused_unsafe)]
+        #[allow(unused_unsafe)] 
         unsafe {
             web_sys::console::log_1(&format!(
                 "Added candle to chart: O:{} H:{} L:{} C:{} V:{}",
@@ -264,7 +268,16 @@ pub async fn start() -> Result<(), JsValue> {
                 candle_clone.ohlcv.volume.value()
             ).into());
         }
-    })?;
+    }) {
+        Ok(_) => {
+            #[allow(unused_unsafe)] 
+            unsafe { web_sys::console::log_1(&"WebSocket client setup completed".into()); }
+        }
+        Err(e) => {
+            #[allow(unused_unsafe)]
+            unsafe { web_sys::console::error_1(&format!("Failed to setup WebSocket: {:?}", e).into()); }
+        }
+    }
     
     let render_state = Rc::new(RefCell::new(RenderState {
         surface,
