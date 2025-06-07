@@ -1,5 +1,5 @@
-use gloo::{console, net::http::Request};
-use serde::{Deserialize, Serialize};
+use gloo::net::http::Request;
+use serde::Deserialize;
 use crate::domain::{
     market_data::{
         entities::{Candle, OHLCV},

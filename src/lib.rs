@@ -3,12 +3,8 @@ use leptos::*;
 
 pub mod domain;
 pub mod infrastructure;
-pub mod application;
 pub mod presentation;
 pub mod app;
-
-// Экспорт unified API (для совместимости)
-pub use presentation::unified_wasm_api::*;
 
 // Главный компонент Leptos
 pub use app::App;
@@ -38,17 +34,18 @@ pub fn hydrate() {
     });
 }
 
-/// Initialize DDD logging architecture
+/// Initialize DDD logging architecture with Leptos bridge
 fn initialize_logging() {
-    let console_logger = Box::new(infrastructure::services::ConsoleLogger::new_development());
-    domain::logging::init_logger(console_logger);
+    // 🌉 Используем Leptos bridge logger для отображения логов в Debug Console
+    let leptos_logger = Box::new(app::LeptosLogger);
+    domain::logging::init_logger(leptos_logger);
     
     let browser_time_provider = Box::new(infrastructure::services::BrowserTimeProvider::new());
     domain::logging::init_time_provider(browser_time_provider);
     
     get_logger().info(
-        LogComponent::Presentation("Initialize"),
-        "🚀 DDD Architecture initialized successfully"
+        LogComponent::Presentation("LeptosInit"),
+        "🚀 Leptos Bridge Logger initialized successfully"
     );
 }
 
@@ -227,84 +224,4 @@ pub fn initialize() {
     initialize_logging();
 }
 
-/// Test function для совместимости
-#[wasm_bindgen]
-pub async fn test_historical_data() -> Result<(), JsValue> {
-    use crate::domain::market_data::{Symbol, TimeInterval};
-    use crate::infrastructure::http::BinanceHttpClient;
-    
-    get_logger().info(
-        LogComponent::Infrastructure("Test"),
-        "🧪 Testing historical data from Leptos..."
-    );
-    
-    let http_client = BinanceHttpClient::new();
-    let symbol = Symbol::from("BTCUSDT");
-    let interval = TimeInterval::OneMinute;
-    
-    match http_client.get_recent_candles(&symbol, interval, 5).await {
-        Ok(candles) => {
-            get_logger().info(
-                LogComponent::Infrastructure("Test"),
-                &format!("✅ Leptos test: loaded {} candles", candles.len())
-            );
-            Ok(())
-        }
-        Err(e) => {
-            get_logger().error(
-                LogComponent::Infrastructure("Test"),
-                &format!("❌ Leptos test failed: {:?}", e)
-            );
-            Err(JsValue::from_str(&format!("{:?}", e)))
-        }
-    }
-}
-
-/// Original WebSocket demo
-#[wasm_bindgen]
-pub async fn start_websocket_demo() -> Result<(), JsValue> {
-    get_logger().info(
-        LogComponent::Infrastructure("Demo"),
-        "🚀 Starting WebSocket demo..."
-    );
-    
-    // Note: WebSocket client functionality is now in the infrastructure layer
-    // This demo is simplified for the current architecture
-    
-    get_logger().info(
-        LogComponent::Infrastructure("Demo"),
-        "📡 WebSocket demo functionality moved to application layer"
-    );
-    
-    Ok(())
-}
-
-/// Combined demo: historical + live
-#[wasm_bindgen]
-pub async fn start_combined_demo() -> Result<(), JsValue> {
-    get_logger().info(
-        LogComponent::Infrastructure("Demo"),
-        "🎯 Starting combined demo: Historical + Live data"
-    );
-    
-    // 1. Load historical data first
-    get_logger().info(
-        LogComponent::Infrastructure("Demo"),
-        "📊 Step 1: Loading historical data..."
-    );
-    test_historical_data().await?;
-    
-    // 2. Then connect to live WebSocket
-    get_logger().info(
-        LogComponent::Infrastructure("Demo"),
-        "📡 Step 2: Connecting to live WebSocket..."
-    );
-    start_websocket_demo().await?;
-    
-    get_logger().info(
-        LogComponent::Infrastructure("Demo"),
-        "✅ Combined demo started successfully!"
-    );
-    
-    Ok(())
-} 
+// Demo functions removed - functionality moved to Leptos components 

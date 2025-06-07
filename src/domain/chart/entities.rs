@@ -1,5 +1,5 @@
 use crate::domain::market_data::{Candle, CandleSeries};
-use super::value_objects::{ChartType, Viewport, ChartStyle, Color};
+use super::value_objects::{ChartType, Viewport, Color};
 
 /// Доменная сущность - График
 #[derive(Debug, Clone)]
@@ -8,7 +8,6 @@ pub struct Chart {
     pub chart_type: ChartType,
     pub data: CandleSeries,
     pub viewport: Viewport,
-    pub style: ChartStyle,
     pub indicators: Vec<Indicator>,
 }
 
@@ -19,7 +18,6 @@ impl Chart {
             chart_type,
             data: CandleSeries::new(max_candles),
             viewport: Viewport::default(),
-            style: ChartStyle::default(),
             indicators: Vec::new(),
         }
     }
@@ -115,226 +113,32 @@ impl Chart {
     }
 }
 
-/// Доменная сущность - Индикатор
+/// Simplified Indicator entity - only essential fields
 #[derive(Debug, Clone)]
 pub struct Indicator {
     pub id: String,
     pub indicator_type: IndicatorType,
-    pub parameters: IndicatorParameters,
-    pub style: IndicatorStyle,
 }
 
 impl Indicator {
-    pub fn new(id: String, indicator_type: IndicatorType, parameters: IndicatorParameters) -> Self {
+    pub fn new(id: String, indicator_type: IndicatorType) -> Self {
         Self {
             id,
             indicator_type,
-            parameters,
-            style: IndicatorStyle::default(),
         }
     }
 }
 
-/// Типы индикаторов
+/// Essential indicator types only
 #[derive(Debug, Clone, PartialEq)]
 pub enum IndicatorType {
     SimpleMovingAverage,
     ExponentialMovingAverage,
-    RelativeStrengthIndex,
-    BollingerBands,
     MACD,
-    Volume,
-    SupportResistance,
 }
 
-/// Параметры индикатора
-#[derive(Debug, Clone)]
-pub struct IndicatorParameters {
-    pub period: Option<usize>,
-    pub multiplier: Option<f32>,
-    pub source: PriceSource,
-    pub custom_params: std::collections::HashMap<String, f32>,
-}
-
-impl Default for IndicatorParameters {
-    fn default() -> Self {
-        Self {
-            period: Some(20),
-            multiplier: Some(2.0),
-            source: PriceSource::Close,
-            custom_params: std::collections::HashMap::new(),
-        }
-    }
-}
-
-/// Источник цены для индикатора
-#[derive(Debug, Clone, PartialEq)]
-pub enum PriceSource {
-    Open,
-    High,
-    Low,
-    Close,
-    Volume,
-    HL2,   // (High + Low) / 2
-    HLC3,  // (High + Low + Close) / 3
-    OHLC4, // (Open + High + Low + Close) / 4
-}
-
-/// Стиль индикатора
-#[derive(Debug, Clone)]
-pub struct IndicatorStyle {
-    pub color: Color,
-    pub line_width: f32,
-    pub line_style: LineStyle,
-    pub visible: bool,
-}
-
-impl Default for IndicatorStyle {
-    fn default() -> Self {
-        Self {
-            color: Color::new(0.0, 1.0, 0.0, 1.0), // Зеленый
-            line_width: 1.0,
-            line_style: LineStyle::Solid,
-            visible: true,
-        }
-    }
-}
-
-/// Стили линий
-#[derive(Debug, Clone, PartialEq)]
-pub enum LineStyle {
-    Solid,
-    Dashed,
-    Dotted,
-}
-
-/// Доменная сущность - Слой рендеринга
-#[derive(Debug, Clone)]
-pub struct RenderLayer {
-    pub id: String,
-    pub z_order: i32,
-    pub visible: bool,
-    pub opacity: f32,
-    pub elements: Vec<RenderElement>,
-}
-
-impl RenderLayer {
-    pub fn new(id: String, z_order: i32) -> Self {
-        Self {
-            id,
-            z_order,
-            visible: true,
-            opacity: 1.0,
-            elements: Vec::new(),
-        }
-    }
-
-    pub fn add_element(&mut self, element: RenderElement) {
-        self.elements.push(element);
-    }
-
-    pub fn clear(&mut self) {
-        self.elements.clear();
-    }
-}
-
-/// Элемент рендеринга
-#[derive(Debug, Clone)]
-pub enum RenderElement {
-    Candlestick {
-        timestamp: f64,
-        open: f32,
-        high: f32,
-        low: f32,
-        close: f32,
-        volume: f32,
-        style: CandlestickStyle,
-    },
-    Line {
-        points: Vec<(f64, f32)>,
-        style: IndicatorStyle,
-    },
-    Text {
-        x: f64,
-        y: f32,
-        text: String,
-        style: TextStyle,
-    },
-    Shape {
-        shape_type: ShapeType,
-        points: Vec<(f64, f32)>,
-        style: ShapeStyle,
-    },
-}
-
-/// Стиль свечи
-#[derive(Debug, Clone)]
-pub struct CandlestickStyle {
-    pub bullish_color: Color,
-    pub bearish_color: Color,
-    pub wick_color: Color,
-    pub border_width: f32,
-}
-
-impl Default for CandlestickStyle {
-    fn default() -> Self {
-        Self {
-            bullish_color: Color::new(0.0, 1.0, 0.0, 1.0), // Зеленый
-            bearish_color: Color::new(1.0, 0.0, 0.0, 1.0), // Красный
-            wick_color: Color::new(0.5, 0.5, 0.5, 1.0),    // Серый
-            border_width: 1.0,
-        }
-    }
-}
-
-/// Стиль текста
-#[derive(Debug, Clone)]
-pub struct TextStyle {
-    pub color: Color,
-    pub font_size: f32,
-    pub font_weight: FontWeight,
-}
-
-impl Default for TextStyle {
-    fn default() -> Self {
-        Self {
-            color: Color::new(1.0, 1.0, 1.0, 1.0), // Белый
-            font_size: 12.0,
-            font_weight: FontWeight::Normal,
-        }
-    }
-}
-
-/// Толщина шрифта
-#[derive(Debug, Clone, PartialEq)]
-pub enum FontWeight {
-    Normal,
-    Bold,
-}
-
-/// Типы фигур
-#[derive(Debug, Clone, PartialEq)]
-pub enum ShapeType {
-    Rectangle,
-    Circle,
-    Triangle,
-    Arrow,
-}
-
-/// Стиль фигуры
-#[derive(Debug, Clone)]
-pub struct ShapeStyle {
-    pub fill_color: Option<Color>,
-    pub border_color: Color,
-    pub border_width: f32,
-}
-
-impl Default for ShapeStyle {
-    fn default() -> Self {
-        Self {
-            fill_color: None,
-            border_color: Color::new(1.0, 1.0, 1.0, 1.0), // Белый
-            border_width: 1.0,
-        }
-    }
-} 
+// Removed unused complex structures:
+// - IndicatorParameters, IndicatorStyle, PriceSource, LineStyle
+// - RenderLayer, RenderElement 
+// - CandlestickStyle, TextStyle, FontWeight, ShapeType, ShapeStyle
+// These are handled directly in the WebGPU renderer for better performance 

@@ -112,31 +112,12 @@ pub enum ConfigurationError {
 /// Infrastructure layer errors
 #[derive(Error, Debug, Clone)]
 pub enum InfrastructureError {
-    #[error("Repository Error: {0}")]
-    Repository(#[from] RepositoryError),
     #[error("Network Error: {0}")]
     Network(#[from] NetworkError),
     #[error("Rendering Error: {0}")]
     Rendering(#[from] RenderingError),
     #[error("External Service Error: {0}")]
     External(#[from] ExternalServiceError),
-}
-
-/// Repository operation errors
-#[derive(Error, Debug, Clone)]
-pub enum RepositoryError {
-    #[error("Network error: {0}")]
-    NetworkError(String),
-    #[error("Parse error: {0}")]
-    ParseError(String),
-    #[error("Validation error: {0}")]
-    ValidationError(String),
-    #[error("Connection error: {0}")]
-    ConnectionError(String),
-    #[error("Serialization error: {0}")]
-    SerializationError(String),
-    #[error("Deserialization error: {0}")]
-    DeserializationError(String),
 }
 
 /// Network-related errors
@@ -226,9 +207,4 @@ pub enum UiError {
     RenderingFailed(String),
 }
 
-// Repository error conversion
-impl From<crate::domain::market_data::repositories::RepositoryError> for InfrastructureError {
-    fn from(error: crate::domain::market_data::repositories::RepositoryError) -> Self {
-        InfrastructureError::Repository(RepositoryError::NetworkError(format!("{:?}", error)))
-    }
-} 
+// Repository error conversion removed - no longer needed since repositories are deleted 

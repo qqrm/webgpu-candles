@@ -3,10 +3,7 @@ use crate::domain::{
     logging::{LogComponent, get_logger},
     errors::{InfrastructureError, NetworkError},
 };
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
 use serde_json::Value;
-use gloo::utils::format::JsValueSerdeExt;
 use gloo::net::http::Request;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

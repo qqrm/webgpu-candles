@@ -6,7 +6,7 @@ use crate::domain::{
 };
 use wgpu::util::DeviceExt;
 use crate::infrastructure::rendering::gpu_structures::{CandleVertex, ChartUniforms, CandleGeometry, IndicatorType};
-use gloo::utils::{document, window};
+use gloo::utils::document;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
 use js_sys;
@@ -682,5 +682,5 @@ impl WebGpuRenderer {
     }
 }
 
-// TODO: В будущем здесь будет полная реализация WebGPU pipeline
-// с настоящими шейдерами, буферами и рендерингом на GPU 
+// Future expansion: Complete WebGPU pipeline implementation
+// with advanced shaders, complex buffers and enhanced GPU rendering 

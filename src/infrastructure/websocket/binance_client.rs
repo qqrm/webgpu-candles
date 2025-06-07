@@ -1,8 +1,6 @@
 use wasm_bindgen::prelude::*;
-use gloo::console;
 use gloo_net::websocket::futures::WebSocket;
 use serde::Deserialize;
-use std::collections::HashMap;
 use futures::{StreamExt, SinkExt};
 use crate::domain::{
     market_data::{

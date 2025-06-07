@@ -11,8 +11,52 @@ use crate::{
     domain::{
         chart::Chart,
         market_data::{value_objects::Symbol, TimeInterval},
+        logging::{LogComponent, get_logger},
     },
 };
+
+// 🔗 Глобальные сигналы для логов (bridge к domain::logging)
+thread_local! {
+    static GLOBAL_LOGS: RwSignal<Vec<String>> = create_rw_signal(Vec::new());
+    static IS_LOG_PAUSED: RwSignal<bool> = create_rw_signal(false);
+    
+    // 🌐 Глобальные сигналы для real-time данных
+    static GLOBAL_CURRENT_PRICE: RwSignal<f64> = create_rw_signal(0.0);
+    static GLOBAL_CANDLE_COUNT: RwSignal<usize> = create_rw_signal(0);
+    static GLOBAL_IS_STREAMING: RwSignal<bool> = create_rw_signal(false);
+}
+
+/// 🌉 Bridge logger для подключения domain::logging к Leptos сигналам
+pub struct LeptosLogger;
+
+impl crate::domain::logging::Logger for LeptosLogger {
+    fn log(&self, entry: crate::domain::logging::LogEntry) {
+        use crate::domain::logging::get_time_provider;
+        
+        let timestamp_str = get_time_provider().format_timestamp(entry.timestamp);
+        let formatted = format!("[{}] {} {}: {}", 
+            timestamp_str, 
+            entry.level,
+            entry.component,
+            entry.message
+        );
+        
+        // Обновляем глобальные Leptos сигналы!
+        GLOBAL_LOGS.with(|logs| {
+            IS_LOG_PAUSED.with(|paused| {
+                if !paused.get() {
+                    logs.update(|log_vec| {
+                        log_vec.push(formatted);
+                        // Ограничиваем до 100 логов
+                        while log_vec.len() > 100 {
+                            log_vec.remove(0);
+                        }
+                    });
+                }
+            });
+        });
+    }
+}
 
 /// 🦀 Главный компонент Bitcoin Chart на Leptos
 #[component]
@@ -26,13 +70,13 @@ pub fn App() -> impl IntoView {
     }
 }
 
-/// 📊 Заголовок с информацией о цене
+/// 📊 Заголовок с информацией о цене - теперь с реальными данными!
 #[component]
 fn Header() -> impl IntoView {
-    // Реактивные сигналы для данных
-    let (current_price, set_current_price) = create_signal(0.0);
-    let (candle_count, set_candle_count) = create_signal(0);
-    let (is_streaming, set_is_streaming) = create_signal(false);
+    // Используем глобальные сигналы для реальных данных
+    let current_price = GLOBAL_CURRENT_PRICE.with(|price| *price);
+    let candle_count = GLOBAL_CANDLE_COUNT.with(|count| *count);
+    let is_streaming = GLOBAL_IS_STREAMING.with(|streaming| *streaming);
 
     view! {
         <div class="header">
@@ -145,24 +189,44 @@ fn ChartContainer() -> impl IntoView {
     }
 }
 
-/// 🐛 Отладочная консоль
+/// 🎯 Отладочная консоль с bridge к domain::logging
 #[component] 
 fn DebugConsole() -> impl IntoView {
-    let (logs, set_logs) = create_signal::<Vec<String>>(Vec::new());
-    let (is_paused, set_is_paused) = create_signal(false);
+    // Используем глобальные сигналы вместо локальных!
+    let logs = GLOBAL_LOGS.with(|logs| *logs);
+    let is_paused = IS_LOG_PAUSED.with(|paused| *paused);
 
     view! {
         <div class="debug-console">
             <div class="debug-header">
-                <span>"🐛 Leptos Debug Console"</span>
+                <span>"🐛 Domain Logger Console"</span>
                 <button 
-                    on:click=move |_| set_is_paused.update(|p| *p = !*p)
+                    on:click=move |_| {
+                        is_paused.update(|p| *p = !*p);
+                        if is_paused.get() {
+                            get_logger().info(
+                                LogComponent::Presentation("DebugConsole"),
+                                "🛑 Logging paused"
+                            );
+                        } else {
+                            get_logger().info(
+                                LogComponent::Presentation("DebugConsole"),
+                                "▶️ Logging resumed"
+                            );
+                        }
+                    }
                     class="debug-btn"
                 >
                     {move || if is_paused.get() { "▶️ Resume" } else { "⏸️ Pause" }}
                 </button>
                 <button 
-                    on:click=move |_| set_logs.set(Vec::new())
+                    on:click=move |_| {
+                        logs.set(Vec::new());
+                        get_logger().info(
+                            LogComponent::Presentation("DebugConsole"),
+                            "🗑️ Log history cleared"
+                        );
+                    }
                     class="debug-btn"
                 >
                     "🗑️ Clear"
@@ -181,7 +245,7 @@ fn DebugConsole() -> impl IntoView {
     }
 }
 
-/// 🌐 Запуск WebSocket стрима в Leptos
+/// 🌐 Запуск WebSocket стрима в Leptos с обновлением глобальных сигналов
 async fn start_websocket_stream(
     set_candles: WriteSignal<Vec<Candle>>,
     set_status: WriteSignal<String>,
@@ -191,6 +255,9 @@ async fn start_websocket_stream(
     let symbol = Symbol::from("BTCUSDT");
     let interval = TimeInterval::OneMinute;
     
+    // Устанавливаем статус стрима
+    GLOBAL_IS_STREAMING.with(|streaming| streaming.set(true));
+    
     // Сначала загружаем исторические данные
     match crate::infrastructure::http::BinanceHttpClient::new()
         .get_recent_candles(&symbol, interval, 200).await 
@@ -199,11 +266,22 @@ async fn start_websocket_stream(
             set_candles.set(historical_candles.clone());
             set_status.set(format!("✅ Loaded {} historical candles", historical_candles.len()));
             
+            // Обновляем глобальные сигналы с историческими данными
+            GLOBAL_CANDLE_COUNT.with(|count| count.set(historical_candles.len()));
+            if let Some(last_candle) = historical_candles.last() {
+                GLOBAL_CURRENT_PRICE.with(|price| price.set(last_candle.ohlcv.close.value() as f64));
+            }
+            
             // Теперь запускаем WebSocket
             let mut ws_client = BinanceWebSocketClient::new(symbol, interval);
             
             spawn_local(async move {
                 let handler = move |candle: Candle| {
+                    // Обновляем цену в глобальном сигнале
+                    GLOBAL_CURRENT_PRICE.with(|price| {
+                        price.set(candle.ohlcv.close.value() as f64);
+                    });
+                    
                     // Реактивно обновляем данные в Leptos!
                     set_candles.update(|candles| {
                         let new_timestamp = candle.timestamp.value();
@@ -224,6 +302,9 @@ async fn start_websocket_stream(
                         } else {
                             candles.push(candle);
                         }
+                        
+                        // Обновляем счетчик свечей
+                        GLOBAL_CANDLE_COUNT.with(|count| count.set(candles.len()));
                     });
                     
                     // Обновляем статус
@@ -232,11 +313,13 @@ async fn start_websocket_stream(
 
                 if let Err(e) = ws_client.start_stream(handler).await {
                     set_status.set(format!("❌ WebSocket error: {}", e));
+                    GLOBAL_IS_STREAMING.with(|streaming| streaming.set(false));
                 }
             });
         }
         Err(e) => {
             set_status.set(format!("❌ Failed to load historical data: {:?}", e));
+            GLOBAL_IS_STREAMING.with(|streaming| streaming.set(false));
         }
     }
 } 

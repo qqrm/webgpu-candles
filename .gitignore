@@ -1,4 +1,40 @@
+# Rust build artifacts
 /target
+/Cargo.lock
+
+# WASM build artifacts  
 /pkg
+*.wasm
+
+# Logs and temporary files
 *.log
 .DS_Store
+*.tmp
+*.temp
+
+# IDE files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Node.js (if using npm/yarn for tooling)
+node_modules/
+package-lock.json
+yarn.lock
+
+# OS generated files
+Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Leptos artifacts
+/dist
+/public
+
+# Test and benchmark results
+criterion/
+*.profdata

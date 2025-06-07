@@ -6,11 +6,9 @@ pub mod market_data;  // Агрегат: Рыночные данные
 pub mod chart;        // Агрегат: Графики
 
 // === DOMAIN INFRASTRUCTURE ===
-pub mod events;       // 🆕 Доменные события (DomainEvent, EventDispatcher)
 pub mod logging;      // 🆕 Абстракции логирования (Logger, TimeProvider traits)
 pub mod errors;       // 🆕 Типизированные ошибки (DomainError hierarchy)
 
 // === CLEAN EXPORTS ===
-pub use events::*;
 pub use logging::*; 
 pub use errors::*; 
