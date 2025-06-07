@@ -10,7 +10,8 @@ pub mod events {
     pub trait DomainEvent: Debug + Clone {
         fn event_type(&self) -> &'static str;
         fn timestamp(&self) -> u64 {
-            js_sys::Date::now() as u64
+            use crate::domain::logging::get_time_provider;
+            get_time_provider().current_timestamp()
         }
     }
 
@@ -130,11 +131,10 @@ pub mod events {
     }
 }
 
-/// Centralized logging system for the entire application
+/// Centralized logging system for DDD layers
 pub mod logging {
-    use std::fmt::Display;
+    use std::fmt::{Display, Formatter, Result as FmtResult};
 
-    /// Log levels for structured logging
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     pub enum LogLevel {
         Trace = 0,
@@ -145,18 +145,17 @@ pub mod logging {
     }
 
     impl Display for LogLevel {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
             match self {
                 LogLevel::Trace => write!(f, "TRACE"),
                 LogLevel::Debug => write!(f, "DEBUG"),
-                LogLevel::Info => write!(f, "INFO"),
-                LogLevel::Warn => write!(f, "WARN"),
+                LogLevel::Info => write!(f, " INFO"),
+                LogLevel::Warn => write!(f, " WARN"),
                 LogLevel::Error => write!(f, "ERROR"),
             }
         }
     }
 
-    /// Component/Layer identification for logging
     #[derive(Debug, Clone)]
     pub enum LogComponent {
         Domain(&'static str),      // e.g., "MarketData", "Chart"
@@ -166,17 +165,16 @@ pub mod logging {
     }
 
     impl Display for LogComponent {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
             match self {
-                LogComponent::Domain(name) => write!(f, "🏛️ Domain::{}", name),
-                LogComponent::Application(name) => write!(f, "🎯 Application::{}", name),
-                LogComponent::Infrastructure(name) => write!(f, "🔧 Infrastructure::{}", name),
-                LogComponent::Presentation(name) => write!(f, "🌐 Presentation::{}", name),
+                LogComponent::Domain(name) => write!(f, "DOM:{}", name),
+                LogComponent::Application(name) => write!(f, "APP:{}", name),
+                LogComponent::Infrastructure(name) => write!(f, "INF:{}", name),
+                LogComponent::Presentation(name) => write!(f, "PRE:{}", name),
             }
         }
     }
 
-    /// Structured log entry
     #[derive(Debug, Clone)]
     pub struct LogEntry {
         pub timestamp: u64,
@@ -186,7 +184,13 @@ pub mod logging {
         pub metadata: Option<String>,
     }
 
-    /// Centralized logger trait
+    /// Domain abstraction for time service
+    pub trait TimeProvider: Send + Sync {
+        fn current_timestamp(&self) -> u64;
+        fn format_timestamp(&self, timestamp: u64) -> String;
+    }
+
+    /// Domain abstraction for logging
     pub trait Logger: Send + Sync {
         fn log(&self, entry: LogEntry);
         
@@ -219,7 +223,7 @@ pub mod logging {
     impl LogEntry {
         pub fn new(level: LogLevel, component: LogComponent, message: String) -> Self {
             Self {
-                timestamp: js_sys::Date::now() as u64,
+                timestamp: get_time_provider().current_timestamp(),
                 level,
                 component,
                 message,
@@ -229,7 +233,7 @@ pub mod logging {
 
         pub fn new_with_metadata(level: LogLevel, component: LogComponent, message: String, metadata: String) -> Self {
             Self {
-                timestamp: js_sys::Date::now() as u64,
+                timestamp: get_time_provider().current_timestamp(),
                 level,
                 component,
                 message,
@@ -238,104 +242,19 @@ pub mod logging {
         }
     }
 
-    /// Console logger implementation for WASM environment
-    pub struct ConsoleLogger {
-        min_level: LogLevel,
-    }
-
-    impl ConsoleLogger {
-        pub fn new(min_level: LogLevel) -> Self {
-            Self { min_level }
-        }
-
-        pub fn new_production() -> Self {
-            Self::new(LogLevel::Info)
-        }
-
-        pub fn new_development() -> Self {
-            Self::new(LogLevel::Debug)
-        }
-
-        fn format_log_entry(&self, entry: &LogEntry) -> String {
-            let timestamp = Self::format_timestamp(entry.timestamp);
-            match &entry.metadata {
-                Some(metadata) => {
-                    format!(
-                        "[{}] {} {} | {} | {}",
-                        timestamp,
-                        entry.level,
-                        entry.component,
-                        entry.message,
-                        metadata
-                    )
-                }
-                None => {
-                    format!(
-                        "[{}] {} {} | {}",
-                        timestamp,
-                        entry.level,
-                        entry.component,
-                        entry.message
-                    )
-                }
-            }
-        }
-
-        fn format_timestamp(timestamp: u64) -> String {
-            let date = js_sys::Date::new(&(timestamp as f64).into());
-            format!(
-                "{:02}:{:02}:{:02}.{:03}",
-                date.get_hours(),
-                date.get_minutes(),
-                date.get_seconds(),
-                date.get_milliseconds()
-            )
-        }
-    }
-
-    impl Logger for ConsoleLogger {
-        fn log(&self, entry: LogEntry) {
-            if entry.level >= self.min_level {
-                let formatted = self.format_log_entry(&entry);
-                
-                // Use appropriate console method based on log level
-                match entry.level {
-                    LogLevel::Trace | LogLevel::Debug => {
-                        #[allow(unused_unsafe)]
-                        unsafe {
-                            web_sys::console::debug_1(&formatted.into());
-                        }
-                    }
-                    LogLevel::Info => {
-                        #[allow(unused_unsafe)]
-                        unsafe {
-                            web_sys::console::info_1(&formatted.into());
-                        }
-                    }
-                    LogLevel::Warn => {
-                        #[allow(unused_unsafe)]
-                        unsafe {
-                            web_sys::console::warn_1(&formatted.into());
-                        }
-                    }
-                    LogLevel::Error => {
-                        #[allow(unused_unsafe)]
-                        unsafe {
-                            web_sys::console::error_1(&formatted.into());
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     /// Global logger instance using thread-safe static
     use std::sync::OnceLock;
     static GLOBAL_LOGGER: OnceLock<Box<dyn Logger + Sync + Send>> = OnceLock::new();
+    static GLOBAL_TIME_PROVIDER: OnceLock<Box<dyn TimeProvider + Sync + Send>> = OnceLock::new();
 
     /// Initialize global logger
     pub fn init_logger(logger: Box<dyn Logger + Sync + Send>) {
         let _ = GLOBAL_LOGGER.set(logger);
+    }
+
+    /// Initialize global time provider
+    pub fn init_time_provider(time_provider: Box<dyn TimeProvider + Sync + Send>) {
+        let _ = GLOBAL_TIME_PROVIDER.set(time_provider);
     }
 
     /// Get global logger reference
@@ -349,12 +268,38 @@ pub mod logging {
             })
     }
 
+    /// Get global time provider reference
+    pub fn get_time_provider() -> &'static dyn TimeProvider {
+        GLOBAL_TIME_PROVIDER.get()
+            .map(|provider| provider.as_ref())
+            .unwrap_or_else(|| {
+                // Fallback to a basic time provider if not initialized
+                static FALLBACK: BasicTimeProvider = BasicTimeProvider;
+                &FALLBACK
+            })
+    }
+
     /// No-op logger for fallback
     struct NoOpLogger;
 
     impl Logger for NoOpLogger {
         fn log(&self, _entry: LogEntry) {
             // No-op
+        }
+    }
+
+    /// Basic time provider that provides timestamp as incrementing counter
+    struct BasicTimeProvider;
+
+    impl TimeProvider for BasicTimeProvider {
+        fn current_timestamp(&self) -> u64 {
+            use std::sync::atomic::{AtomicU64, Ordering};
+            static COUNTER: AtomicU64 = AtomicU64::new(0);
+            COUNTER.fetch_add(1, Ordering::SeqCst)
+        }
+
+        fn format_timestamp(&self, timestamp: u64) -> String {
+            format!("{:06}", timestamp)
         }
     }
 

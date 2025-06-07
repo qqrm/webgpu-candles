@@ -8,6 +8,24 @@ mod infrastructure;
 mod application;  // Production-ready application layer
 mod presentation;
 
+/// Initialize the application with proper DDD architecture
+#[wasm_bindgen(start)]
+pub fn initialize() {
+    // Initialize logger with infrastructure implementation
+    let console_logger = Box::new(infrastructure::services::ConsoleLogger::new_development());
+    domain::logging::init_logger(console_logger);
+    
+    // Initialize time provider with browser implementation
+    let browser_time_provider = Box::new(infrastructure::services::BrowserTimeProvider::new());
+    domain::logging::init_time_provider(browser_time_provider);
+    
+    use domain::logging::{LogComponent, get_logger};
+    get_logger().info(
+        LogComponent::Presentation("Initialize"),
+        "🚀 DDD Architecture initialized successfully"
+    );
+}
+
 /// Simple test for historical data loading
 #[wasm_bindgen]
 pub async fn test_historical_data() -> Result<(), JsValue> {

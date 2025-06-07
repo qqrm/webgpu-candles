@@ -1,6 +1,118 @@
 pub mod websocket;
 pub mod rendering;
 
+/// Infrastructure implementations for domain abstractions
+pub mod services {
+    use crate::domain::logging::{Logger, LogEntry, LogLevel, TimeProvider};
+
+    /// Console logger implementation for WASM environment
+    pub struct ConsoleLogger {
+        min_level: LogLevel,
+    }
+
+    impl ConsoleLogger {
+        pub fn new(min_level: LogLevel) -> Self {
+            Self { min_level }
+        }
+
+        pub fn new_production() -> Self {
+            Self::new(LogLevel::Info)
+        }
+
+        pub fn new_development() -> Self {
+            Self::new(LogLevel::Debug)
+        }
+
+        fn format_log_entry(&self, entry: &LogEntry, time_provider: &dyn TimeProvider) -> String {
+            let timestamp = time_provider.format_timestamp(entry.timestamp);
+            match &entry.metadata {
+                Some(metadata) => {
+                    format!(
+                        "[{}] {} {} | {} | {}",
+                        timestamp,
+                        entry.level,
+                        entry.component,
+                        entry.message,
+                        metadata
+                    )
+                }
+                None => {
+                    format!(
+                        "[{}] {} {} | {}",
+                        timestamp,
+                        entry.level,
+                        entry.component,
+                        entry.message
+                    )
+                }
+            }
+        }
+    }
+
+    impl Logger for ConsoleLogger {
+        fn log(&self, entry: LogEntry) {
+            if entry.level >= self.min_level {
+                use crate::domain::logging::get_time_provider;
+                let formatted = self.format_log_entry(&entry, get_time_provider());
+                
+                // Use appropriate console method based on log level
+                match entry.level {
+                    LogLevel::Trace | LogLevel::Debug => {
+                        #[allow(unused_unsafe)]
+                        unsafe {
+                            web_sys::console::debug_1(&formatted.into());
+                        }
+                    }
+                    LogLevel::Info => {
+                        #[allow(unused_unsafe)]
+                        unsafe {
+                            web_sys::console::info_1(&formatted.into());
+                        }
+                    }
+                    LogLevel::Warn => {
+                        #[allow(unused_unsafe)]
+                        unsafe {
+                            web_sys::console::warn_1(&formatted.into());
+                        }
+                    }
+                    LogLevel::Error => {
+                        #[allow(unused_unsafe)]
+                        unsafe {
+                            web_sys::console::error_1(&formatted.into());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Browser-based time provider using JavaScript Date API
+    pub struct BrowserTimeProvider;
+
+    impl BrowserTimeProvider {
+        pub fn new() -> Self {
+            Self
+        }
+    }
+
+    impl TimeProvider for BrowserTimeProvider {
+        fn current_timestamp(&self) -> u64 {
+            js_sys::Date::now() as u64
+        }
+
+        fn format_timestamp(&self, timestamp: u64) -> String {
+            let date = js_sys::Date::new(&(timestamp as f64).into());
+            format!(
+                "{:02}:{:02}:{:02}.{:03}",
+                date.get_hours(),
+                date.get_minutes(),
+                date.get_seconds(),
+                date.get_milliseconds()
+            )
+        }
+    }
+}
+
 /// UI interaction services (separate from domain logic)
 pub mod ui {
     use crate::domain::{

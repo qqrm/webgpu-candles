@@ -175,6 +175,13 @@
                 statusEl.innerHTML = '<div class="loading-spinner"></div>Rendering chart...';
                 chartApi.renderChartProduction();
                 
+                // Инициализируем tooltip для первоначальных данных
+                try {
+                    chartApi.refreshTooltip();
+                } catch (tooltipError) {
+                    // Игнорируем ошибки tooltip при инициализации
+                }
+                
                 // Обновление UI
                 updatePriceInfo(result);
                 const now = new Date().toLocaleTimeString();
@@ -209,6 +216,14 @@
                         // Тихое обновление без смены статуса
                         const result = await chartApi.loadHistoricalDataProduction("BTCUSDT", "1m", 200);
                         chartApi.renderChartProduction();
+                        
+                        // ВАЖНО: Обновляем tooltip после загрузки новых данных
+                        try {
+                            chartApi.refreshTooltip();
+                        } catch (tooltipError) {
+                            // Игнорируем ошибки tooltip, не критично
+                        }
+                        
                         updatePriceInfo(result);
                         
                         // Обновляем только время без мигания
@@ -224,8 +239,62 @@
             }, 1000); // 1 секунда
         }
 
+        // Настройка интерактивности
+        function setupInteractivity() {
+            if (!chartApi) return;
+            
+            const canvas = document.getElementById('priceChart');
+            if (!canvas) return;
+            
+            // Зум колесом мыши
+            canvas.addEventListener('wheel', (event) => {
+                event.preventDefault();
+                
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+                const delta = event.deltaY;
+                
+                try {
+                    chartApi.handleZoom(delta, mouseX, mouseY);
+                } catch (error) {
+                    console.error('Zoom error:', error);
+                }
+            });
+            
+            // Tooltip при движении мыши
+            canvas.addEventListener('mousemove', (event) => {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+                
+                try {
+                    chartApi.handleMouseMove(mouseX, mouseY);
+                } catch (error) {
+                    // console.error('Mouse move error:', error); // Убираем спам в консоль
+                }
+            });
+            
+            // Убираем tooltip при уходе мыши
+            canvas.addEventListener('mouseleave', () => {
+                try {
+                    chartApi.renderChartProduction();
+                } catch (error) {
+                    console.error('Mouse leave error:', error);
+                }
+            });
+            
+            // Изменяем курсор на canvas
+            canvas.style.cursor = 'crosshair';
+            
+            console.log('🎯 Chart interactivity enabled: zoom and tooltip');
+        }
+
         // Запуск автоинициализации
-        autoInitialize();
+        autoInitialize().then(() => {
+            // Настраиваем интерактивность после инициализации
+            setTimeout(setupInteractivity, 100);
+        });
     </script>
 </body>
 </html> 

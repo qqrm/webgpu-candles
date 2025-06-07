@@ -4,13 +4,15 @@ use js_sys::Array;
 use js_sys::Promise;
 use wasm_bindgen_futures::future_to_promise;
 use std::cell::RefCell;
+use web_sys::{MouseEvent, WheelEvent};
 
 // PRODUCTION-READY IMPORTS - FULL APPLICATION LAYER
 use crate::application::use_cases::ChartApplicationCoordinator;
 use crate::infrastructure::websocket::BinanceWebSocketClient;
 use crate::domain::{
     market_data::{Symbol, TimeInterval},
-    chart::value_objects::ChartType,
+    chart::value_objects::{ChartType, CursorPosition},
+    market_data::entities::Candle,
 };
 
 // DEMO ФУНКЦИИ (оставляем для совместимости)
@@ -19,6 +21,43 @@ use crate::infrastructure::websocket::BinanceHttpClient;
 // Глобальное состояние для coordinator'а
 thread_local! {
     static GLOBAL_COORDINATOR: RefCell<Option<ChartApplicationCoordinator<BinanceWebSocketClient>>> = RefCell::new(None);
+}
+
+// Состояние для интерактивности
+thread_local! {
+    static MOUSE_STATE: RefCell<MouseState> = RefCell::new(MouseState::new());
+}
+
+#[derive(Debug, Clone)]
+struct MouseState {
+    x: f32,
+    y: f32,
+    is_over_chart: bool,
+    hovered_candle: Option<CandleTooltipData>,
+}
+
+#[derive(Debug, Clone)]
+struct CandleTooltipData {
+    index: usize,
+    open: f32,
+    high: f32,
+    low: f32,
+    close: f32,
+    volume: f32,
+    timestamp: u64,
+    x: f32,
+    y: f32,
+}
+
+impl MouseState {
+    fn new() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            is_over_chart: false,
+            hovered_candle: None,
+        }
+    }
 }
 
 /// WASM API для взаимодействия с JavaScript
@@ -35,6 +74,12 @@ pub struct PriceChartApi {
     is_initialized: bool,
     chart_width: u32,
     chart_height: u32,
+    
+    // Interactive state
+    zoom_level: f32,
+    min_zoom: f32,
+    max_zoom: f32,
+    tooltip_enabled: bool,
 }
 
 #[wasm_bindgen]
@@ -48,6 +93,10 @@ impl PriceChartApi {
             is_initialized: false,
             chart_width: 800,
             chart_height: 400,
+            zoom_level: 1.0,
+            min_zoom: 0.1,
+            max_zoom: 10.0,
+            tooltip_enabled: true,
         }
     }
 
@@ -57,9 +106,19 @@ impl PriceChartApi {
         self.chart_width = width;
         self.chart_height = height;
         
+        let canvas_id = self.canvas_id.clone();
+        
         future_to_promise(async move {
             log("🚀 Initializing Production-Ready Chart...");
             log(&format!("📐 Chart canvas: {}x{}", width, height));
+            
+            // Настройка интерактивности
+            if let Err(e) = setup_chart_interactivity(&canvas_id) {
+                log(&format!("⚠️ Failed to setup interactivity: {:?}", e));
+            } else {
+                log("🎯 Interactive features enabled: zoom and tooltip");
+            }
+            
             log("✅ Chart infrastructure initialized successfully");
 
             Ok(JsValue::from_str("production_chart_initialized"))
@@ -144,7 +203,10 @@ impl PriceChartApi {
                         ));
                     }
 
-                    // 6. Сохраняем coordinator в глобальном состоянии
+                    // 6. Настраиваем рендерер для coordinator
+                    coordinator.set_canvas_renderer("chart-canvas".to_string(), 800, 400);
+
+                    // 7. Сохраняем coordinator в глобальном состоянии
                     GLOBAL_COORDINATOR.with(|global| {
                         *global.borrow_mut() = Some(coordinator);
                     });
@@ -187,177 +249,43 @@ impl PriceChartApi {
         })
     }
 
-    /// **PRODUCTION** Рендеринг реальных свечей через Canvas 2D
+    /// **PRODUCTION** Рендеринг через Infrastructure слой
     #[wasm_bindgen(js_name = renderChartProduction)]
     pub fn render_chart_production(&self) -> Result<JsValue, JsValue> {
-        log("🎨 PRODUCTION: Starting chart rendering...");
-        
-        // Получаем Canvas
-        let window = web_sys::window().unwrap();
-        let document = window.document().unwrap();
-        let canvas = document
-            .get_element_by_id(&self.canvas_id)
-            .unwrap()
-            .dyn_into::<web_sys::HtmlCanvasElement>()
-            .map_err(|_| JsValue::from_str("Failed to get canvas element"))?;
+        use crate::domain::logging::{LogComponent, get_logger};
+        get_logger().info(
+            LogComponent::Presentation("WASM_API"),
+            "Chart rendering requested via presentation layer"
+        );
 
-        canvas.set_width(self.chart_width);
-        canvas.set_height(self.chart_height);
-
-        let context = canvas
-            .get_context("2d")
-            .map_err(|_| JsValue::from_str("Failed to get 2D context"))?
-            .unwrap()
-            .dyn_into::<web_sys::CanvasRenderingContext2d>()
-            .map_err(|_| JsValue::from_str("Failed to cast to 2D context"))?;
-
-        // Очищаем canvas
-        context.clear_rect(0.0, 0.0, self.chart_width as f64, self.chart_height as f64);
-
-        // Темный фон для modern UI
-        context.set_fill_style(&JsValue::from_str("#1a1a1a"));
-        context.fill_rect(0.0, 0.0, self.chart_width as f64, self.chart_height as f64);
-
-        // Рендерим данные из глобального состояния
-        let chart_data = GLOBAL_COORDINATOR.with(|global| {
-            global.borrow().as_ref().map(|coordinator| {
-                let chart = coordinator.get_chart();
-                let candles = chart.data.get_candles().to_vec();
-                candles
-            })
-        });
-        
-        if let Some(candles) = chart_data {
-            
-            if !candles.is_empty() {
-                log(&format!("🕯️ Rendering {} candles", candles.len()));
-                
-                // Вычисляем масштаб
-                let padding = 50.0;
-                let text_space = 80.0; // Место для цены справа
-                let chart_width = self.chart_width as f64 - (padding * 2.0) - text_space;
-                let chart_height = self.chart_height as f64 - (padding * 2.0);
-                
-                // Находим ценовой диапазон
-                let mut min_price = f64::INFINITY;
-                let mut max_price = f64::NEG_INFINITY;
-                
-                for candle in &candles {
-                    min_price = min_price.min(candle.ohlcv.low.value() as f64);
-                    max_price = max_price.max(candle.ohlcv.high.value() as f64);
-                }
-                
-                let price_range = max_price - min_price;
-                let candle_width = chart_width / candles.len() as f64;
-                
-                // Рендерим каждую свечу
-                for (i, candle) in candles.iter().enumerate() {
-                    let x = padding + (i as f64 * candle_width) + (candle_width / 2.0);
-                    
-                    // Преобразуем цены в Y координаты (инвертируем, так как Y растет вниз)
-                    let high_y = padding + ((max_price - candle.ohlcv.high.value() as f64) / price_range) * chart_height;
-                    let low_y = padding + ((max_price - candle.ohlcv.low.value() as f64) / price_range) * chart_height;
-                    let open_y = padding + ((max_price - candle.ohlcv.open.value() as f64) / price_range) * chart_height;
-                    let close_y = padding + ((max_price - candle.ohlcv.close.value() as f64) / price_range) * chart_height;
-                    
-                    // Определяем цвет свечи
-                    let is_bullish = candle.ohlcv.close.value() >= candle.ohlcv.open.value();
-                    let color = if is_bullish { "#00ff88" } else { "#ff4444" };
-                    
-                    // Рисуем фитиль (высокая-низкая)
-                    context.set_stroke_style(&JsValue::from_str("#888888"));
-                    context.set_line_width(1.0);
-                    context.begin_path();
-                    context.move_to(x, high_y);
-                    context.line_to(x, low_y);
-                    context.stroke();
-                    
-                    // Рисуем тело свечи
-                    context.set_fill_style(&JsValue::from_str(color));
-                    context.set_stroke_style(&JsValue::from_str(color));
-                    context.set_line_width(1.0);
-                    
-                    let body_top = open_y.min(close_y);
-                    let body_height = (open_y - close_y).abs();
-                    let body_width = candle_width * 0.6;
-                    
-                    if body_height < 1.0 {
-                        // Doji - рисуем линию
-                        context.begin_path();
-                        context.move_to(x - body_width / 2.0, open_y);
-                        context.line_to(x + body_width / 2.0, open_y);
-                        context.stroke();
-                    } else {
-                        // Обычная свеча
-                        if is_bullish {
-                            // Бычья свеча - контур
-                            context.stroke_rect(x - body_width / 2.0, body_top, body_width, body_height);
-                        } else {
-                            // Медвежья свеча - заливка
-                            context.fill_rect(x - body_width / 2.0, body_top, body_width, body_height);
-                        }
+        // Делегируем рендеринг в Application Layer
+        GLOBAL_COORDINATOR.with(|global| {
+            if let Some(coordinator) = global.borrow().as_ref() {
+                match coordinator.render_chart() {
+                    Ok(_) => {
+                        get_logger().info(
+                            LogComponent::Presentation("WASM_API"),
+                            "Chart rendered successfully via Application layer"
+                        );
+                        Ok(JsValue::from_str("chart_rendered"))
+                    }
+                    Err(e) => {
+                        get_logger().error(
+                            LogComponent::Presentation("WASM_API"),
+                            &format!("Chart rendering failed: {:?}", e)
+                        );
+                        Err(e)
                     }
                 }
-                
-                // Рисуем ценовую шкалу
-                context.set_fill_style(&JsValue::from_str("#aaaaaa"));
-                context.set_font("12px Arial");
-                
-                // Максимальная цена
-                let max_text = format!("${:.2}", max_price);
-                context.fill_text(&max_text, 10.0, padding + 15.0)?;
-                
-                // Минимальная цена
-                let min_text = format!("${:.2}", min_price);
-                context.fill_text(&min_text, 10.0, padding + chart_height)?;
-                
-                // Текущая цена
-                if let Some(latest) = candles.last() {
-                    let current_price = latest.ohlcv.close.value();
-                    let current_y = padding + ((max_price - current_price as f64) / price_range) * chart_height;
-                    let current_text = format!("${:.2}", current_price);
-                    
-                    // Горизонтальная линия текущей цены
-                    context.set_stroke_style(&JsValue::from_str("#00ff88"));
-                    context.set_line_width(1.0);
-                    context.begin_path();
-                    context.move_to(padding, current_y);
-                    context.line_to(padding + chart_width, current_y);
-                    context.stroke();
-                    
-                    // Цена справа от линии с отступом
-                    let line_end = padding + chart_width; // Конец линии
-                    let text_offset = 10.0; // Отступ от линии
-                    context.set_fill_style(&JsValue::from_str("#00ff88"));
-                    context.fill_text(&current_text, line_end + text_offset, current_y + 5.0)?;
-                }
-                
-                log(&format!("✅ PRODUCTION: Rendered {} candles successfully", candles.len()));
             } else {
-                // Нет данных
-                context.set_fill_style(&JsValue::from_str("#ffffff"));
-                context.set_font("16px Arial");
-                let text = "No chart data available - Loading...";
-                context.fill_text(text, 50.0, self.chart_height as f64 / 2.0)?;
-                log("⚠️ PRODUCTION: No candle data to render");
+                let error_msg = "Chart coordinator not initialized";
+                get_logger().error(
+                    LogComponent::Presentation("WASM_API"),
+                    error_msg
+                );
+                Err(JsValue::from_str(error_msg))
             }
-        } else {
-            // Нет координатора
-            context.set_fill_style(&JsValue::from_str("#ffffff"));
-            context.set_font("16px Arial");
-            let text = "Chart not initialized - Call loadHistoricalDataProduction first";
-            context.fill_text(text, 50.0, self.chart_height as f64 / 2.0)?;
-            log("⚠️ PRODUCTION: Chart coordinator not initialized");
-        }
-
-        // Заголовок
-        context.set_fill_style(&JsValue::from_str("#ffffff"));
-        context.set_font("16px Arial");
-        let title = "Production-Ready Candlestick Chart";
-        context.fill_text(title, 50.0, 30.0)?;
-
-        log("✅ PRODUCTION: Chart rendered successfully with Canvas 2D");
-        Ok(JsValue::from_str("chart_rendered"))
+        })
     }
 
     /// Получить статистику чарта
@@ -381,6 +309,291 @@ impl PriceChartApi {
             )
         }
     }
+
+    /// Обработка зума колесом мыши
+    #[wasm_bindgen(js_name = handleZoom)]
+    pub fn handle_zoom(&mut self, delta: f32, center_x: f32, center_y: f32) -> Result<(), JsValue> {
+        // Вычисляем зум фактор
+        let zoom_factor = if delta > 0.0 { 1.1 } else { 0.9 };
+        
+        // Обновляем уровень зума с ограничениями
+        let new_zoom = (self.zoom_level * zoom_factor).max(self.min_zoom).min(self.max_zoom);
+        
+        if (new_zoom - self.zoom_level).abs() > f32::EPSILON {
+            self.zoom_level = new_zoom;
+            
+            // Применяем зум через глобальный координатор
+            GLOBAL_COORDINATOR.with(|global| {
+                if let Some(coordinator) = global.borrow_mut().as_mut() {
+                    let chart = coordinator.get_chart_mut();
+                    
+                    // Нормализуем центр зума (0-1)
+                    let normalized_center_x = center_x / self.chart_width as f32;
+                    chart.zoom(zoom_factor, normalized_center_x);
+                    
+                    log(&format!("🔍 Zoom: {:.2}x at ({:.1}, {:.1})", self.zoom_level, center_x, center_y));
+                }
+            });
+            
+            // Перерендерим график
+            self.render_chart_production()?;
+        }
+        
+        Ok(())
+    }
+    
+    /// Обработка движения мыши для tooltip
+    #[wasm_bindgen(js_name = handleMouseMove)]
+    pub fn handle_mouse_move(&self, mouse_x: f32, mouse_y: f32) -> Result<(), JsValue> {
+        if !self.tooltip_enabled {
+            return Ok(());
+        }
+        
+        // Обновляем позицию мыши в глобальном состоянии
+        MOUSE_STATE.with(|mouse_state| {
+            let mut state = mouse_state.borrow_mut();
+            state.x = mouse_x;
+            state.y = mouse_y;
+            state.is_over_chart = true;
+            
+            // Ищем свечу под курсором
+            state.hovered_candle = self.find_candle_at_position(mouse_x, mouse_y);
+        });
+        
+        // Перерендерим график с tooltip
+        self.render_chart_production()?;
+        
+        Ok(())
+    }
+    
+    /// Рендеринг tooltip на canvas
+    fn render_tooltip(&self, context: &web_sys::CanvasRenderingContext2d) -> Result<(), JsValue> {
+        MOUSE_STATE.with(|mouse_state| {
+            let state = mouse_state.borrow();
+            
+            if !state.is_over_chart || state.hovered_candle.is_none() {
+                return Ok(());
+            }
+            
+            let tooltip_data = state.hovered_candle.as_ref().unwrap();
+            
+            // Позиция tooltip
+            let tooltip_x = tooltip_data.x + 10.0;
+            let tooltip_y = state.y - 10.0;
+            
+            // Размеры tooltip
+            let tooltip_width = 180.0;
+            let tooltip_height = 130.0;
+            
+            // Корректируем позицию если tooltip выходит за границы
+            let final_x = if tooltip_x + tooltip_width > self.chart_width as f32 {
+                tooltip_data.x - tooltip_width - 10.0
+            } else {
+                tooltip_x
+            };
+            
+            let final_y = if tooltip_y - tooltip_height < 0.0 {
+                state.y + 20.0
+            } else {
+                tooltip_y - tooltip_height
+            };
+            
+            // Рисуем фон tooltip
+            context.set_fill_style(&JsValue::from("rgba(0, 0, 0, 0.9)"));
+            context.fill_rect(final_x as f64, final_y as f64, tooltip_width as f64, tooltip_height as f64);
+            
+            // Рамка
+            context.set_stroke_style(&JsValue::from("#00ff88"));
+            context.set_line_width(1.0);
+            context.stroke_rect(final_x as f64, final_y as f64, tooltip_width as f64, tooltip_height as f64);
+            
+            // Текст
+            context.set_fill_style(&JsValue::from("#ffffff"));
+            context.set_font("12px Arial");
+            
+            let mut text_y = final_y + 20.0;
+            let text_x = final_x + 10.0;
+            
+            // Форматируем время в читаемый вид
+            let timestamp_ms = tooltip_data.timestamp * 1000;
+            let date = js_sys::Date::new(&JsValue::from_f64(timestamp_ms as f64));
+            let time_str = date.to_locale_time_string("en-US").as_string().unwrap_or_default();
+            let date_text = format!("#{} • {}", tooltip_data.index, time_str);
+            context.fill_text(&date_text, text_x as f64, text_y as f64)?;
+            text_y += 18.0;
+            
+            // OHLC данные
+            context.set_fill_style(&JsValue::from("#4ade80"));
+            let open_text = format!("O: ${:.2}", tooltip_data.open);
+            context.fill_text(&open_text, text_x as f64, text_y as f64)?;
+            text_y += 16.0;
+            
+            context.set_fill_style(&JsValue::from("#00ff88"));
+            let high_text = format!("H: ${:.2}", tooltip_data.high);
+            context.fill_text(&high_text, text_x as f64, text_y as f64)?;
+            text_y += 16.0;
+            
+            context.set_fill_style(&JsValue::from("#ff4444"));
+            let low_text = format!("L: ${:.2}", tooltip_data.low);
+            context.fill_text(&low_text, text_x as f64, text_y as f64)?;
+            text_y += 16.0;
+            
+            let close_color = if tooltip_data.close >= tooltip_data.open { "#4ade80" } else { "#ff4444" };
+            context.set_fill_style(&JsValue::from(close_color));
+            let close_text = format!("C: ${:.2}", tooltip_data.close);
+            context.fill_text(&close_text, text_x as f64, text_y as f64)?;
+            text_y += 16.0;
+            
+            // Volume
+            context.set_fill_style(&JsValue::from("#a0a0a0"));
+            let volume_text = format!("Vol: {:.1}K", tooltip_data.volume / 1000.0);
+            context.fill_text(&volume_text, text_x as f64, text_y as f64)?;
+            
+            Ok(())
+        })
+    }
+    
+    /// Поиск свечи под указанной позицией
+    fn find_candle_at_position(&self, mouse_x: f32, mouse_y: f32) -> Option<CandleTooltipData> {
+        GLOBAL_COORDINATOR.with(|global| {
+            global.borrow().as_ref().and_then(|coordinator| {
+                let chart = coordinator.get_chart();
+                let candles = chart.data.get_candles();
+                
+                if candles.is_empty() {
+                    return None;
+                }
+                
+                // Используем те же параметры что и в рендеринге
+                let padding = 50.0;
+                let text_space = 80.0;
+                let chart_width = self.chart_width as f32 - (padding * 2.0) - text_space;
+                
+                // Проверяем что мышь в области графика
+                if mouse_x < padding || mouse_x > padding + chart_width {
+                    return None;
+                }
+                
+                let candle_width = chart_width / candles.len() as f32;
+                
+                // Находим индекс свечи - точно как в рендеринге
+                let relative_x = mouse_x - padding;
+                let candle_index = (relative_x / candle_width) as usize;
+                
+                if candle_index < candles.len() {
+                    let candle = &candles[candle_index];
+                    
+                    // Вычисляем центр свечи точно как в рендеринге
+                    let candle_center_x = padding + (candle_index as f32 * candle_width) + (candle_width / 2.0);
+                    
+                    // Проверяем, что мышь действительно над свечой (с небольшим допуском)
+                    let tolerance = candle_width / 2.0;
+                    if (mouse_x - candle_center_x).abs() <= tolerance {
+                        
+                        // Оставляем timestamp как есть для tooltip
+                        
+                        return Some(CandleTooltipData {
+                            index: candle_index,
+                            open: candle.ohlcv.open.value(),
+                            high: candle.ohlcv.high.value(),
+                            low: candle.ohlcv.low.value(),
+                            close: candle.ohlcv.close.value(),
+                            volume: candle.ohlcv.volume.value(),
+                            timestamp: candle.timestamp.value(),
+                            x: candle_center_x,
+                            y: mouse_y,
+                        });
+                    }
+                }
+                
+                None
+            })
+        })
+    }
+    
+    /// Обновить tooltip данные при изменении данных графика
+    #[wasm_bindgen(js_name = refreshTooltip)]
+    pub fn refresh_tooltip(&self) -> Result<(), JsValue> {
+        MOUSE_STATE.with(|mouse_state| {
+            let mut state = mouse_state.borrow_mut();
+            
+            // Если мышь над графиком, пересчитываем tooltip
+            if state.is_over_chart {
+                state.hovered_candle = self.find_candle_at_position(state.x, state.y);
+            }
+        });
+        
+        Ok(())
+    }
+}
+
+/// Настройка интерактивности для canvas
+fn setup_chart_interactivity(canvas_id: &str) -> Result<(), JsValue> {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let canvas = document
+        .get_element_by_id(canvas_id)
+        .ok_or("Canvas not found")?
+        .dyn_into::<web_sys::HtmlCanvasElement>()?;
+    
+    // Обработчик зума колесом мыши
+    {
+        let wheel_callback = Closure::wrap(Box::new(move |event: WheelEvent| {
+            event.prevent_default();
+            
+            let delta = event.delta_y();
+            let rect = event.target().unwrap()
+                .dyn_into::<web_sys::HtmlCanvasElement>().unwrap()
+                .get_bounding_client_rect();
+            
+            let mouse_x = event.client_x() as f32 - rect.left() as f32;
+            let mouse_y = event.client_y() as f32 - rect.top() as f32;
+            
+            // Отправляем событие в JavaScript для обработки
+            let _ = web_sys::window().unwrap()
+                .dispatch_event(&web_sys::CustomEvent::new("chartZoom").unwrap());
+                
+            log(&format!("🔍 Wheel event: delta={}, pos=({}, {})", delta, mouse_x, mouse_y));
+        }) as Box<dyn FnMut(_)>);
+        
+        canvas.add_event_listener_with_callback("wheel", wheel_callback.as_ref().unchecked_ref())?;
+        wheel_callback.forget();
+    }
+    
+    // Обработчик движения мыши
+    {
+        let mousemove_callback = Closure::wrap(Box::new(move |event: MouseEvent| {
+            let _rect = event.target().unwrap()
+                .dyn_into::<web_sys::HtmlCanvasElement>().unwrap()
+                .get_bounding_client_rect();
+            
+            let _mouse_x = event.client_x() as f32 - _rect.left() as f32;
+            let _mouse_y = event.client_y() as f32 - _rect.top() as f32;
+            
+            // Отправляем событие в JavaScript для обработки
+            let _ = web_sys::window().unwrap()
+                .dispatch_event(&web_sys::CustomEvent::new("chartMouseMove").unwrap());
+        }) as Box<dyn FnMut(_)>);
+        
+        canvas.add_event_listener_with_callback("mousemove", mousemove_callback.as_ref().unchecked_ref())?;
+        mousemove_callback.forget();
+    }
+    
+    // Обработчик ухода мыши с canvas
+    {
+        let mouseleave_callback = Closure::wrap(Box::new(move |_event: MouseEvent| {
+            MOUSE_STATE.with(|mouse_state| {
+                let mut state = mouse_state.borrow_mut();
+                state.is_over_chart = false;
+                state.hovered_candle = None;
+            });
+        }) as Box<dyn FnMut(_)>);
+        
+        canvas.add_event_listener_with_callback("mouseleave", mouseleave_callback.as_ref().unchecked_ref())?;
+        mouseleave_callback.forget();
+    }
+    
+    Ok(())
 }
 
 /// Простые функции для совместимости с существующим JS кодом

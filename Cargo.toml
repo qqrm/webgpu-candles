@@ -28,7 +28,15 @@ web-sys = { version = "0.3.77", features = [
     "Response",
     "Headers",
     "AbortController",
-    "AbortSignal"
+    "AbortSignal",
+    "MouseEvent",
+    "WheelEvent",
+    "EventTarget",
+    "AddEventListenerOptions",
+    "CustomEvent",
+    "Event",
+    "DomRect",
+    "Performance"
 ]}
 js-sys = "0.3.77"
 raw-window-handle = "0.6"
@@ -36,3 +44,4 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 gloo-utils = "0.2"
 bytemuck = { version = "1.14", features = ["derive"] }
+rayon = "1.8"
