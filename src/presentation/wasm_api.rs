@@ -3,6 +3,7 @@ use wasm_bindgen::JsValue;
 use js_sys::Array;
 use js_sys::Promise;
 use wasm_bindgen_futures::future_to_promise;
+use std::cell::RefCell;
 
 // PRODUCTION-READY IMPORTS - FULL APPLICATION LAYER
 use crate::application::use_cases::ChartApplicationCoordinator;
@@ -14,6 +15,11 @@ use crate::domain::{
 
 // DEMO ФУНКЦИИ (оставляем для совместимости)
 use crate::infrastructure::websocket::BinanceHttpClient;
+
+// Глобальное состояние для coordinator'а
+thread_local! {
+    static GLOBAL_COORDINATOR: RefCell<Option<ChartApplicationCoordinator<BinanceWebSocketClient>>> = RefCell::new(None);
+}
 
 /// WASM API для взаимодействия с JavaScript
 /// Минимальная логика - только мост к application слою
@@ -138,6 +144,11 @@ impl PriceChartApi {
                         ));
                     }
 
+                    // 6. Сохраняем coordinator в глобальном состоянии
+                    GLOBAL_COORDINATOR.with(|global| {
+                        *global.borrow_mut() = Some(coordinator);
+                    });
+
                     Ok(JsValue::from_str(&format!(
                         "historical_data_loaded:{}",
                         candle_count
@@ -176,7 +187,7 @@ impl PriceChartApi {
         })
     }
 
-    /// **PRODUCTION** Простая визуализация через Canvas 2D
+    /// **PRODUCTION** Рендеринг реальных свечей через Canvas 2D
     #[wasm_bindgen(js_name = renderChartProduction)]
     pub fn render_chart_production(&self) -> Result<JsValue, JsValue> {
         log("🎨 PRODUCTION: Starting chart rendering...");
@@ -207,19 +218,139 @@ impl PriceChartApi {
         context.set_fill_style(&JsValue::from_str("#1a1a1a"));
         context.fill_rect(0.0, 0.0, self.chart_width as f64, self.chart_height as f64);
 
-        // Placeholder визуализация
-        context.set_stroke_style(&JsValue::from_str("#4ade80"));
-        context.set_line_width(2.0);
-        context.begin_path();
-        context.move_to(50.0, (self.chart_height / 2) as f64);
-        context.line_to((self.chart_width - 50) as f64, (self.chart_height / 2) as f64);
-        context.stroke();
+        // Рендерим данные из глобального состояния
+        let chart_data = GLOBAL_COORDINATOR.with(|global| {
+            global.borrow().as_ref().map(|coordinator| {
+                let chart = coordinator.get_chart();
+                let candles = chart.data.get_candles().to_vec();
+                candles
+            })
+        });
+        
+        if let Some(candles) = chart_data {
+            
+            if !candles.is_empty() {
+                log(&format!("🕯️ Rendering {} candles", candles.len()));
+                
+                // Вычисляем масштаб
+                let padding = 50.0;
+                let chart_width = self.chart_width as f64 - (padding * 2.0);
+                let chart_height = self.chart_height as f64 - (padding * 2.0);
+                
+                // Находим ценовой диапазон
+                let mut min_price = f64::INFINITY;
+                let mut max_price = f64::NEG_INFINITY;
+                
+                for candle in &candles {
+                    min_price = min_price.min(candle.ohlcv.low.value() as f64);
+                    max_price = max_price.max(candle.ohlcv.high.value() as f64);
+                }
+                
+                let price_range = max_price - min_price;
+                let candle_width = chart_width / candles.len() as f64;
+                
+                // Рендерим каждую свечу
+                for (i, candle) in candles.iter().enumerate() {
+                    let x = padding + (i as f64 * candle_width) + (candle_width / 2.0);
+                    
+                    // Преобразуем цены в Y координаты (инвертируем, так как Y растет вниз)
+                    let high_y = padding + ((max_price - candle.ohlcv.high.value() as f64) / price_range) * chart_height;
+                    let low_y = padding + ((max_price - candle.ohlcv.low.value() as f64) / price_range) * chart_height;
+                    let open_y = padding + ((max_price - candle.ohlcv.open.value() as f64) / price_range) * chart_height;
+                    let close_y = padding + ((max_price - candle.ohlcv.close.value() as f64) / price_range) * chart_height;
+                    
+                    // Определяем цвет свечи
+                    let is_bullish = candle.ohlcv.close.value() >= candle.ohlcv.open.value();
+                    let color = if is_bullish { "#00ff88" } else { "#ff4444" };
+                    
+                    // Рисуем фитиль (высокая-низкая)
+                    context.set_stroke_style(&JsValue::from_str("#888888"));
+                    context.set_line_width(1.0);
+                    context.begin_path();
+                    context.move_to(x, high_y);
+                    context.line_to(x, low_y);
+                    context.stroke();
+                    
+                    // Рисуем тело свечи
+                    context.set_fill_style(&JsValue::from_str(color));
+                    context.set_stroke_style(&JsValue::from_str(color));
+                    context.set_line_width(1.0);
+                    
+                    let body_top = open_y.min(close_y);
+                    let body_height = (open_y - close_y).abs();
+                    let body_width = candle_width * 0.6;
+                    
+                    if body_height < 1.0 {
+                        // Doji - рисуем линию
+                        context.begin_path();
+                        context.move_to(x - body_width / 2.0, open_y);
+                        context.line_to(x + body_width / 2.0, open_y);
+                        context.stroke();
+                    } else {
+                        // Обычная свеча
+                        if is_bullish {
+                            // Бычья свеча - контур
+                            context.stroke_rect(x - body_width / 2.0, body_top, body_width, body_height);
+                        } else {
+                            // Медвежья свеча - заливка
+                            context.fill_rect(x - body_width / 2.0, body_top, body_width, body_height);
+                        }
+                    }
+                }
+                
+                // Рисуем ценовую шкалу
+                context.set_fill_style(&JsValue::from_str("#aaaaaa"));
+                context.set_font("12px Arial");
+                
+                // Максимальная цена
+                let max_text = format!("${:.2}", max_price);
+                context.fill_text(&max_text, 10.0, padding + 15.0)?;
+                
+                // Минимальная цена
+                let min_text = format!("${:.2}", min_price);
+                context.fill_text(&min_text, 10.0, padding + chart_height)?;
+                
+                // Текущая цена
+                if let Some(latest) = candles.last() {
+                    let current_price = latest.ohlcv.close.value();
+                    let current_y = padding + ((max_price - current_price as f64) / price_range) * chart_height;
+                    let current_text = format!("${:.2}", current_price);
+                    
+                    context.set_fill_style(&JsValue::from_str("#00ff88"));
+                    context.fill_text(&current_text, self.chart_width as f64 - 80.0, current_y + 5.0)?;
+                    
+                    // Горизонтальная линия текущей цены
+                    context.set_stroke_style(&JsValue::from_str("#00ff88"));
+                    context.set_line_width(1.0);
+                    context.begin_path();
+                    context.move_to(padding, current_y);
+                    context.line_to(padding + chart_width, current_y);
+                    context.stroke();
+                }
+                
+                log(&format!("✅ PRODUCTION: Rendered {} candles successfully", candles.len()));
+            } else {
+                // Нет данных
+                context.set_fill_style(&JsValue::from_str("#ffffff"));
+                context.set_font("16px Arial");
+                let text = "No chart data available - Loading...";
+                context.fill_text(text, 50.0, self.chart_height as f64 / 2.0)?;
+                log("⚠️ PRODUCTION: No candle data to render");
+            }
+        } else {
+            // Нет координатора
+            context.set_fill_style(&JsValue::from_str("#ffffff"));
+            context.set_font("16px Arial");
+            let text = "Chart not initialized - Call loadHistoricalDataProduction first";
+            context.fill_text(text, 50.0, self.chart_height as f64 / 2.0)?;
+            log("⚠️ PRODUCTION: Chart coordinator not initialized");
+        }
 
-        // Текст
+        // Заголовок
         context.set_fill_style(&JsValue::from_str("#ffffff"));
         context.set_font("16px Arial");
-        let text = "Production-Ready Chart - Historical Data Loaded";
-        context.fill_text(text, 50.0, 50.0)?;
+        let title = "Production-Ready Candlestick Chart";
+        context.fill_text(title, 50.0, 30.0)?;
 
         log("✅ PRODUCTION: Chart rendered successfully with Canvas 2D");
         Ok(JsValue::from_str("chart_rendered"))
