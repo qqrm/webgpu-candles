@@ -1,12 +1,29 @@
+use derive_more::Display;
+use strum::{EnumIter, EnumString, AsRefStr};
+
 /// Value Object - Тип графика
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, EnumIter, EnumString, AsRefStr)]
 pub enum ChartType {
+    #[display("Candlestick")]
+    #[strum(serialize = "candlestick")]
     Candlestick,
+    #[display("Line")]
+    #[strum(serialize = "line")]
     Line,
+    #[display("Area")]
+    #[strum(serialize = "area")]
     Area,
+    #[display("OHLC")]
+    #[strum(serialize = "ohlc")]
     OHLC,
+    #[display("Heikin")]
+    #[strum(serialize = "heikin")]
     Heikin,
+    #[display("Renko")]
+    #[strum(serialize = "renko")]
     Renko,
+    #[display("Point and Figure")]
+    #[strum(serialize = "point-and-figure")]
     PointAndFigure,
 }
 
@@ -36,11 +53,7 @@ impl Default for Viewport {
 
 impl Viewport {
     pub fn new(width: u32, height: u32) -> Self {
-        Self {
-            width,
-            height,
-            ..Default::default()
-        }
+        Self { width, height, ..Default::default() }
     }
 
     pub fn time_range(&self) -> f64 {
@@ -72,20 +85,14 @@ impl Viewport {
 
     /// Конвертирует временную координату в экранную X координату
     pub fn time_to_x(&self, timestamp: f64) -> f32 {
-        if self.time_range() == 0.0 {
-            return 0.0;
-        }
-        
+        if self.time_range() == 0.0 { return 0.0; }
         let normalized = (timestamp - self.start_time) / self.time_range();
         (normalized * self.width as f64) as f32
     }
 
     /// Конвертирует цену в экранную Y координату
     pub fn price_to_y(&self, price: f32) -> f32 {
-        if self.price_range() == 0.0 {
-            return self.height as f32 / 2.0;
-        }
-        
+        if self.price_range() == 0.0 { return self.height as f32 / 2.0; }
         let normalized = (price - self.min_price) / self.price_range();
         self.height as f32 * (1.0 - normalized) // Инвертируем Y
     }
@@ -136,10 +143,7 @@ impl Color {
     }
 
     pub fn with_alpha(&self, alpha: f32) -> Self {
-        Self {
-            a: alpha,
-            ..*self
-        }
+        Self { a: alpha, ..*self }
     }
 
     /// Предустановленные цвета
@@ -149,6 +153,25 @@ impl Color {
     pub const GREEN: Color = Color { r: 0.0, g: 1.0, b: 0.0, a: 1.0 };
     pub const BLUE: Color = Color { r: 0.0, g: 0.0, b: 1.0, a: 1.0 };
     pub const TRANSPARENT: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+}
+
+// Конструкторы для цветовых кортежей
+impl From<(f32, f32, f32)> for Color {
+    fn from((r, g, b): (f32, f32, f32)) -> Self {
+        Self::rgb(r, g, b)
+    }
+}
+
+impl From<(f32, f32, f32, f32)> for Color {
+    fn from((r, g, b, a): (f32, f32, f32, f32)) -> Self {
+        Self::new(r, g, b, a)
+    }
+}
+
+impl From<u32> for Color {
+    fn from(hex: u32) -> Self {
+        Self::from_hex(hex)
+    }
 }
 
 /// Value Object - Стиль графика
@@ -168,10 +191,10 @@ pub struct ChartStyle {
 impl Default for ChartStyle {
     fn default() -> Self {
         Self {
-            background_color: Color::new(0.1, 0.1, 0.1, 1.0), // Темно-серый
-            grid_color: Color::new(0.3, 0.3, 0.3, 0.5),       // Полупрозрачный серый
+            background_color: (0.1f32, 0.1f32, 0.1f32, 1.0f32).into(), // Темно-серый
+            grid_color: (0.3f32, 0.3f32, 0.3f32, 0.5f32).into(),       // Полупрозрачный серый
             text_color: Color::WHITE,
-            border_color: Color::new(0.5, 0.5, 0.5, 1.0),
+            border_color: (0.5f32, 0.5f32, 0.5f32, 1.0f32).into(),
             show_grid: true,
             show_crosshair: true,
             show_volume: true,

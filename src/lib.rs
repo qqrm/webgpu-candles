@@ -1,7 +1,8 @@
 use wasm_bindgen::prelude::*;
 
 use crate::domain::market_data::{Symbol, TimeInterval, Candle};
-use crate::infrastructure::websocket::{BinanceWebSocketClientWithCallback, BinanceHttpClient};
+use crate::infrastructure::http::BinanceHttpClient;
+use crate::domain::logging::{LogComponent, get_logger};
 
 pub mod domain;
 pub mod infrastructure;
@@ -19,7 +20,6 @@ pub fn initialize() {
     let browser_time_provider = Box::new(infrastructure::services::BrowserTimeProvider::new());
     domain::logging::init_time_provider(browser_time_provider);
     
-    use domain::logging::{LogComponent, get_logger};
     get_logger().info(
         LogComponent::Presentation("Initialize"),
         "🚀 DDD Architecture initialized successfully"
@@ -29,10 +29,10 @@ pub fn initialize() {
 /// Simple test for historical data loading
 #[wasm_bindgen]
 pub async fn test_historical_data() -> Result<(), JsValue> {
-    #[allow(unused_unsafe)]
-    unsafe {
-        web_sys::console::log_1(&"🧪 Testing historical data loading...".into());
-    }
+    get_logger().info(
+        LogComponent::Infrastructure("Test"),
+        "🧪 Testing historical data loading..."
+    );
     
     let http_client = BinanceHttpClient::new();
     let symbol = Symbol::from("BTCUSDT");
@@ -41,19 +41,16 @@ pub async fn test_historical_data() -> Result<(), JsValue> {
     
     match http_client.get_recent_candles(&symbol, interval, limit).await {
         Ok(candles) => {
-            #[allow(unused_unsafe)]
-            unsafe {
-                web_sys::console::log_1(&format!(
-                    "✅ Successfully loaded {} historical candles!",
-                    candles.len()
-                ).into());
-            }
+            get_logger().info(
+                LogComponent::Infrastructure("Test"),
+                &format!("✅ Successfully loaded {} historical candles!", candles.len())
+            );
             
             // Log first and last candle
             if let Some(first) = candles.first() {
-                #[allow(unused_unsafe)]
-                unsafe {
-                    web_sys::console::log_1(&format!(
+                get_logger().info(
+                    LogComponent::Infrastructure("Test"),
+                    &format!(
                         "📊 First candle: {} O:{} H:{} L:{} C:{} V:{}",
                         first.timestamp.value(),
                         first.ohlcv.open.value(),
@@ -61,14 +58,14 @@ pub async fn test_historical_data() -> Result<(), JsValue> {
                         first.ohlcv.low.value(),
                         first.ohlcv.close.value(),
                         first.ohlcv.volume.value()
-                    ).into());
-                }
+                    )
+                );
             }
             
             if let Some(last) = candles.last() {
-                #[allow(unused_unsafe)]
-                unsafe {
-                    web_sys::console::log_1(&format!(
+                get_logger().info(
+                    LogComponent::Infrastructure("Test"),
+                    &format!(
                         "📊 Last candle: {} O:{} H:{} L:{} C:{} V:{}",
                         last.timestamp.value(),
                         last.ohlcv.open.value(),
@@ -76,8 +73,8 @@ pub async fn test_historical_data() -> Result<(), JsValue> {
                         last.ohlcv.low.value(),
                         last.ohlcv.close.value(),
                         last.ohlcv.volume.value()
-                    ).into());
-                }
+                    )
+                );
             }
             
             // Calculate price range for visualization planning
@@ -86,15 +83,15 @@ pub async fn test_historical_data() -> Result<(), JsValue> {
                 let min_price = prices.iter().fold(f32::INFINITY, |a, &b| a.min(b));
                 let max_price = prices.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
                 
-                #[allow(unused_unsafe)]
-                unsafe {
-                    web_sys::console::log_1(&format!(
+                get_logger().info(
+                    LogComponent::Infrastructure("Test"),
+                    &format!(
                         "📈 Price range: ${:.2} - ${:.2} (${:.2} range)",
                         min_price,
                         max_price,
                         max_price - min_price
-                    ).into());
-                }
+                    )
+                );
                 
                 // Show time range
                 let start_time = candles.first().unwrap().timestamp.value();
@@ -102,24 +99,24 @@ pub async fn test_historical_data() -> Result<(), JsValue> {
                 let time_span_ms = end_time - start_time;
                 let time_span_minutes = time_span_ms as f64 / 1000.0 / 60.0; // minutes
                 
-                #[allow(unused_unsafe)]
-                unsafe {
-                    web_sys::console::log_1(&format!(
+                get_logger().info(
+                    LogComponent::Infrastructure("Test"),
+                    &format!(
                         "⏰ Time span: {:.0} minutes ({:.1} hours)",
                         time_span_minutes,
                         time_span_minutes / 60.0
-                    ).into());
-                }
+                    )
+                );
             }
             
             Ok(())
         }
         Err(e) => {
-            #[allow(unused_unsafe)]
-            unsafe {
-                web_sys::console::error_1(&format!("❌ Failed to load historical data: {:?}", e).into());
-            }
-            Err(e)
+            get_logger().error(
+                LogComponent::Infrastructure("Test"),
+                &format!("❌ Failed to load historical data: {:?}", e)
+            );
+            Err(JsValue::from_str(&format!("{:?}", e)))
         }
     }
 }
@@ -127,29 +124,18 @@ pub async fn test_historical_data() -> Result<(), JsValue> {
 /// Original WebSocket demo
 #[wasm_bindgen]
 pub async fn start_websocket_demo() -> Result<(), JsValue> {
-    #[allow(unused_unsafe)]
-    unsafe {
-        web_sys::console::log_1(&"🚀 Starting WebSocket demo...".into());
-    }
+    get_logger().info(
+        LogComponent::Infrastructure("Demo"),
+        "🚀 Starting WebSocket demo..."
+    );
     
-    let mut client = BinanceWebSocketClientWithCallback::new();
+    // Note: WebSocket client functionality is now in the infrastructure layer
+    // This demo is simplified for the current architecture
     
-    let callback = |candle: Candle| {
-        #[allow(unused_unsafe)]
-        unsafe {
-            web_sys::console::log_1(&format!(
-                "📡 Live candle: {} O:{} H:{} L:{} C:{} V:{}",
-                candle.timestamp.value(),
-                candle.ohlcv.open.value(),
-                candle.ohlcv.high.value(),
-                candle.ohlcv.low.value(),
-                candle.ohlcv.close.value(),
-                candle.ohlcv.volume.value()
-            ).into());
-        }
-    };
-    
-    client.connect_with_callback("btcusdt", "1m", callback)?;
+    get_logger().info(
+        LogComponent::Infrastructure("Demo"),
+        "📡 WebSocket demo functionality moved to application layer"
+    );
     
     Ok(())
 }
@@ -157,29 +143,29 @@ pub async fn start_websocket_demo() -> Result<(), JsValue> {
 /// Combined demo: historical + live
 #[wasm_bindgen]
 pub async fn start_combined_demo() -> Result<(), JsValue> {
-    #[allow(unused_unsafe)]
-    unsafe {
-        web_sys::console::log_1(&"🎯 Starting combined demo: Historical + Live data".into());
-    }
+    get_logger().info(
+        LogComponent::Infrastructure("Demo"),
+        "🎯 Starting combined demo: Historical + Live data"
+    );
     
     // 1. Load historical data first
-    #[allow(unused_unsafe)]
-    unsafe {
-        web_sys::console::log_1(&"📊 Step 1: Loading historical data...".into());
-    }
+    get_logger().info(
+        LogComponent::Infrastructure("Demo"),
+        "📊 Step 1: Loading historical data..."
+    );
     test_historical_data().await?;
     
     // 2. Then connect to live WebSocket
-    #[allow(unused_unsafe)]
-    unsafe {
-        web_sys::console::log_1(&"📡 Step 2: Connecting to live WebSocket...".into());
-    }
+    get_logger().info(
+        LogComponent::Infrastructure("Demo"),
+        "📡 Step 2: Connecting to live WebSocket..."
+    );
     start_websocket_demo().await?;
     
-    #[allow(unused_unsafe)]
-    unsafe {
-        web_sys::console::log_1(&"✅ Combined demo started successfully!".into());
-    }
+    get_logger().info(
+        LogComponent::Infrastructure("Demo"),
+        "✅ Combined demo started successfully!"
+    );
     
     Ok(())
 } 

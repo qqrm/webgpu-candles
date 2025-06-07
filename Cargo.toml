@@ -10,45 +10,23 @@ crate-type = ["cdylib", "rlib"]
 wgpu = { version = "25.0.2", features = ["webgpu", "webgl", "wgsl"] }
 wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"
-web-sys = { version = "0.3.77", features = [
-    "Window",
-    "Document",
-    "Element",
-    "HtmlCanvasElement",
-    "CanvasRenderingContext2d",
-    "console",
-    "WebSocket",
-    "MessageEvent",
-    "ErrorEvent",
-    "CloseEvent",
-    "BinaryType",
-    "Request",
-    "RequestInit",
-    "RequestMode",
-    "Response",
-    "Headers",
-    "AbortController",
-    "AbortSignal",
-    "MouseEvent",
-    "WheelEvent",
-    "EventTarget",
-    "AddEventListenerOptions",
-    "CustomEvent",
-    "Event",
-    "DomRect",
-    "Performance"
-]}
 js-sys = "0.3.77"
-raw-window-handle = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-gloo-utils = "0.2"
 bytemuck = { version = "1.14", features = ["derive"] }
 rayon = "1.8"
 
+# Reduce boilerplate
+thiserror = "2.0"              # Auto-generate Display for errors
+gloo = { version = "0.11", features = ["console", "timers", "events", "net", "utils"] }  # Better web APIs
+gloo-net = { version = "0.6", features = ["websocket"] }  # WebSocket support
+futures = "0.3"
+derive_more = { version = "2.0.1", features = ["display", "from", "error", "into", "try_into", "constructor", "deref", "deref_mut"] }    # Auto-generate trait implementations
+strum = { version = "0.27", features = ["derive"] }  # Enum utilities
+
 # 🚀 BENCHMARKS
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.6", features = ["html_reports"] }
 
 [[bench]]
 name = "rendering_benchmarks"

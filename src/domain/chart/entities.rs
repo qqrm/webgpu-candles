@@ -28,6 +28,39 @@ impl Chart {
         self.data.add_candle(candle);
     }
 
+    /// Добавить исторические данные (замещает существующие)
+    pub fn set_historical_data(&mut self, candles: Vec<Candle>) {
+        // Создаем новую серию с тем же размером
+        self.data = CandleSeries::new(1000); // Максимум 1000 свечей
+        
+        // Добавляем исторические свечи
+        for candle in candles {
+            self.data.add_candle(candle);
+        }
+        
+        // Обновляем viewport
+        self.update_viewport_for_data();
+    }
+
+    /// Добавить новую свечу в реальном времени
+    pub fn add_realtime_candle(&mut self, candle: Candle) {
+        // CandleSeries уже обрабатывает обновления существующих свечей
+        self.data.add_candle(candle);
+        
+        // Обновляем viewport
+        self.update_viewport_for_data();
+    }
+
+    /// Получить общее количество свечей
+    pub fn get_candle_count(&self) -> usize {
+        self.data.count()
+    }
+
+    /// Проверить, есть ли данные
+    pub fn has_data(&self) -> bool {
+        self.data.count() > 0
+    }
+
     pub fn add_indicator(&mut self, indicator: Indicator) {
         self.indicators.push(indicator);
     }
@@ -55,6 +88,7 @@ impl Chart {
         }
     }
 
+    #[allow(dead_code)]
     fn update_viewport(&mut self) {
         if let Some((min_price, max_price)) = self.data.price_range() {
             let padding = (max_price.value() - min_price.value()) * 0.1; // 10% padding

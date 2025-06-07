@@ -1,11 +1,13 @@
 pub mod websocket;
 pub mod rendering;
+pub mod http;
 
 /// Infrastructure implementations for domain abstractions
 pub mod services {
-    use crate::domain::logging::{Logger, LogEntry, LogLevel, TimeProvider};
+    use crate::domain::logging::{Logger, LogEntry, LogLevel, TimeProvider, LogComponent};
+    use gloo::console;
 
-    /// Console logger implementation for WASM environment
+    /// Console logger implementation using gloo
     pub struct ConsoleLogger {
         min_level: LogLevel,
     }
@@ -27,23 +29,10 @@ pub mod services {
             let timestamp = time_provider.format_timestamp(entry.timestamp);
             match &entry.metadata {
                 Some(metadata) => {
-                    format!(
-                        "[{}] {} {} | {} | {}",
-                        timestamp,
-                        entry.level,
-                        entry.component,
-                        entry.message,
-                        metadata
-                    )
+                    format!("[{}] {} {} | {} | {}", timestamp, entry.level, entry.component, entry.message, metadata)
                 }
                 None => {
-                    format!(
-                        "[{}] {} {} | {}",
-                        timestamp,
-                        entry.level,
-                        entry.component,
-                        entry.message
-                    )
+                    format!("[{}] {} {} | {}", timestamp, entry.level, entry.component, entry.message)
                 }
             }
         }
@@ -55,38 +44,18 @@ pub mod services {
                 use crate::domain::logging::get_time_provider;
                 let formatted = self.format_log_entry(&entry, get_time_provider());
                 
-                // Use appropriate console method based on log level
+                // Use gloo console methods
                 match entry.level {
-                    LogLevel::Trace | LogLevel::Debug => {
-                        #[allow(unused_unsafe)]
-                        unsafe {
-                            web_sys::console::debug_1(&formatted.into());
-                        }
-                    }
-                    LogLevel::Info => {
-                        #[allow(unused_unsafe)]
-                        unsafe {
-                            web_sys::console::info_1(&formatted.into());
-                        }
-                    }
-                    LogLevel::Warn => {
-                        #[allow(unused_unsafe)]
-                        unsafe {
-                            web_sys::console::warn_1(&formatted.into());
-                        }
-                    }
-                    LogLevel::Error => {
-                        #[allow(unused_unsafe)]
-                        unsafe {
-                            web_sys::console::error_1(&formatted.into());
-                        }
-                    }
+                    LogLevel::Trace | LogLevel::Debug => console::debug!("{}", formatted),
+                    LogLevel::Info => console::info!("{}", formatted),
+                    LogLevel::Warn => console::warn!("{}", formatted),
+                    LogLevel::Error => console::error!("{}", formatted),
                 }
             }
         }
     }
 
-    /// Browser-based time provider using JavaScript Date API
+    /// Browser-based time provider using JS Date API
     pub struct BrowserTimeProvider;
 
     impl BrowserTimeProvider {
@@ -111,16 +80,35 @@ pub mod services {
             )
         }
     }
+
+    /// Initialize infrastructure services
+    pub fn initialize_infrastructure_services() {
+        use crate::domain::logging::{init_logger, init_time_provider, get_logger};
+
+        // Initialize services
+        let console_logger = ConsoleLogger::new_production();
+        init_logger(Box::new(console_logger));
+
+        let time_provider = BrowserTimeProvider::new();
+        init_time_provider(Box::new(time_provider));
+
+        // Log successful initialization
+        get_logger().info(
+            LogComponent::Infrastructure("Services"),
+            "Infrastructure services initialized successfully"
+        );
+    }
 }
 
-/// UI interaction services (separate from domain logic)
+/// UI interaction services using gloo
 pub mod ui {
     use crate::domain::{
-        logging::{Logger, LogComponent, get_logger},
-        errors::{InfrastructureError, UiError, PresentationError}
+        logging::{LogComponent, get_logger},
+        errors::{InfrastructureError, ExternalServiceError}
     };
+    use gloo::utils::document;
 
-    /// Service for updating UI elements without mixing with business logic
+    /// Service for updating UI elements
     #[derive(Clone)]
     pub struct UiNotificationService;
 
@@ -129,51 +117,31 @@ pub mod ui {
             Self
         }
 
-        /// Update WebSocket connection status in UI
+        /// Update WebSocket connection status
         pub fn update_websocket_status(&self, status: &str, is_connected: bool) -> Result<(), InfrastructureError> {
             get_logger().debug(
                 LogComponent::Infrastructure("UI"),
                 &format!("Updating WebSocket status: {} (connected: {})", status, is_connected)
             );
 
-            if let Some(window) = web_sys::window() {
-                if let Some(document) = window.document() {
-                    if let Some(element) = document.get_element_by_id("ws-status") {
-                        element.set_text_content(Some(&format!("WebSocket: {}", status)));
-                        
-                        let style_value = if is_connected {
-                            "text-align: center; margin: 10px; padding: 10px; background: #006600; border-radius: 5px;"
-                        } else {
-                            "text-align: center; margin: 10px; padding: 10px; background: #660000; border-radius: 5px;"
-                        };
-                        
-                        if let Err(_) = element.set_attribute("style", style_value) {
-                            return Err(InfrastructureError::External(
-                                crate::domain::errors::ExternalServiceError::BrowserApiError(
-                                    "Failed to set element style".to_string()
-                                )
-                            ));
-                        }
-                    } else {
-                        get_logger().warn(
-                            LogComponent::Infrastructure("UI"),
-                            "WebSocket status element 'ws-status' not found in DOM"
-                        );
-                    }
-                } else {
-                    return Err(InfrastructureError::External(
-                        crate::domain::errors::ExternalServiceError::BrowserApiError(
-                            "Document not available".to_string()
-                        )
-                    ));
-                }
+            let element = document()
+                .get_element_by_id("ws-status")
+                .ok_or_else(|| InfrastructureError::External(
+                    ExternalServiceError::BrowserApiError("WebSocket status element not found".to_string())
+                ))?;
+
+            element.set_text_content(Some(&format!("WebSocket: {}", status)));
+            
+            let style_value = if is_connected {
+                "text-align: center; margin: 10px; padding: 10px; background: #006600; border-radius: 5px;"
             } else {
-                return Err(InfrastructureError::External(
-                    crate::domain::errors::ExternalServiceError::BrowserApiError(
-                        "Window not available".to_string()
-                    )
-                ));
-            }
+                "text-align: center; margin: 10px; padding: 10px; background: #660000; border-radius: 5px;"
+            };
+            
+            element.set_attribute("style", style_value)
+                .map_err(|_| InfrastructureError::External(
+                    ExternalServiceError::BrowserApiError("Failed to set element style".to_string())
+                ))?;
 
             Ok(())
         }
@@ -190,17 +158,8 @@ pub mod ui {
                 &format!("Updating chart status: {}", message)
             );
 
-            if let Some(window) = web_sys::window() {
-                if let Some(document) = window.document() {
-                    if let Some(element) = document.get_element_by_id("chart-status") {
-                        element.set_text_content(Some(&message));
-                    } else {
-                        get_logger().debug(
-                            LogComponent::Infrastructure("UI"),
-                            "Chart status element 'chart-status' not found (optional)"
-                        );
-                    }
-                }
+            if let Some(element) = document().get_element_by_id("chart-status") {
+                element.set_text_content(Some(&message));
             }
 
             Ok(())
@@ -213,47 +172,52 @@ pub mod ui {
                 &format!("Updating price display: {} = ${:.2} ({:+.2}%)", symbol, price, change_percent)
             );
 
-            if let Some(window) = web_sys::window() {
-                if let Some(document) = window.document() {
-                    // Update price
-                    if let Some(price_element) = document.get_element_by_id("current-price") {
-                        price_element.set_text_content(Some(&format!("${:.2}", price)));
-                    }
+            // Update price
+            if let Some(price_element) = document().get_element_by_id("current-price") {
+                price_element.set_text_content(Some(&format!("${:.2}", price)));
+            }
 
-                    // Update price change with color
-                    if let Some(change_element) = document.get_element_by_id("price-change") {
-                        change_element.set_text_content(Some(&format!("{:+.2}%", change_percent)));
-                        
-                        let color = if change_percent >= 0.0 { "#00ff00" } else { "#ff0000" };
-                        let _ = change_element.set_attribute("style", &format!("color: {}", color));
-                    }
-                }
+            // Update price change with color
+            if let Some(change_element) = document().get_element_by_id("price-change") {
+                change_element.set_text_content(Some(&format!("{:+.2}%", change_percent)));
+                
+                let color = if change_percent >= 0.0 { "#00ff00" } else { "#ff0000" };
+                let _ = change_element.set_attribute("style", &format!("color: {}", color));
             }
 
             Ok(())
         }
 
-        /// Show error notification in UI
+        /// Show error notification
         pub fn show_error_notification(&self, error_message: &str, error_type: &str) -> Result<(), InfrastructureError> {
             get_logger().error(
                 LogComponent::Infrastructure("UI"),
                 &format!("Showing error notification: [{}] {}", error_type, error_message)
             );
 
-            if let Some(window) = web_sys::window() {
-                if let Some(document) = window.document() {
-                    if let Some(error_container) = document.get_element_by_id("error-notifications") {
-                        // Create error element
-                        if let Ok(error_div) = document.create_element("div") {
-                            error_div.set_text_content(Some(&format!("[{}] {}", error_type, error_message)));
-                            let _ = error_div.set_attribute("style", 
-                                "padding: 10px; margin: 5px; background: #ffeeee; border: 1px solid #ff0000; border-radius: 5px;");
-                            
-                            let _ = error_container.append_child(&error_div);
-                        }
-                    }
-                }
-            }
+            let error_container = document()
+                .get_element_by_id("error-notifications")
+                .ok_or_else(|| InfrastructureError::External(
+                    ExternalServiceError::BrowserApiError("Error notifications container not found".to_string())
+                ))?;
+
+            // Create error element
+            let error_div = document().create_element("div")
+                .map_err(|_| InfrastructureError::External(
+                    ExternalServiceError::BrowserApiError("Failed to create error div".to_string())
+                ))?;
+
+            error_div.set_text_content(Some(&format!("[{}] {}", error_type, error_message)));
+            error_div.set_attribute("style", 
+                "padding: 10px; margin: 5px; background: #ffeeee; border: 1px solid #ff0000; border-radius: 5px;")
+                .map_err(|_| InfrastructureError::External(
+                    ExternalServiceError::BrowserApiError("Failed to set error div style".to_string())
+                ))?;
+            
+            error_container.append_child(&error_div)
+                .map_err(|_| InfrastructureError::External(
+                    ExternalServiceError::BrowserApiError("Failed to append error div".to_string())
+                ))?;
 
             Ok(())
         }
@@ -265,12 +229,8 @@ pub mod ui {
                 "Clearing all UI notifications"
             );
 
-            if let Some(window) = web_sys::window() {
-                if let Some(document) = window.document() {
-                    if let Some(container) = document.get_element_by_id("error-notifications") {
-                        container.set_inner_html("");
-                    }
-                }
+            if let Some(container) = document().get_element_by_id("error-notifications") {
+                container.set_inner_html("");
             }
 
             Ok(())
@@ -302,4 +262,8 @@ pub mod ui {
             self.clear_notifications()
         }
     }
-} 
+}
+
+pub use rendering::*;
+pub use websocket::*;
+pub use services::*; 

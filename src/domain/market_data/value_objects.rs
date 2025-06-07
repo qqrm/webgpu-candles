@@ -1,14 +1,13 @@
+use derive_more::{Display, From, Into, Deref, DerefMut, Constructor};
+use strum::{EnumIter, EnumString, AsRefStr, Display as StrumDisplay};
+use serde::{Serialize, Deserialize};
 use std::cmp::Ordering;
 
-/// Value Object - Цена
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Value Object - Цена с автогенерацией
+#[derive(Debug, Clone, Copy, PartialEq, From, Into, Deref, DerefMut, Constructor, Serialize, Deserialize)]
 pub struct Price(f32);
 
 impl Price {
-    pub fn from(value: f32) -> Self {
-        Self(value)
-    }
-
     pub fn value(&self) -> f32 {
         self.0
     }
@@ -20,41 +19,21 @@ impl PartialOrd for Price {
     }
 }
 
-impl From<f32> for Price {
-    fn from(value: f32) -> Self {
-        Self(value)
-    }
-}
-
-/// Value Object - Объем
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Value Object - Объем с автогенерацией
+#[derive(Debug, Clone, Copy, PartialEq, From, Into, Deref, DerefMut, Constructor, Serialize, Deserialize)]
 pub struct Volume(f32);
 
 impl Volume {
-    pub fn from(value: f32) -> Self {
-        Self(value)
-    }
-
     pub fn value(&self) -> f32 {
         self.0
     }
 }
 
-impl From<f32> for Volume {
-    fn from(value: f32) -> Self {
-        Self(value)
-    }
-}
-
-/// Value Object - Временная метка
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Value Object - Временная метка с автогенерацией
+#[derive(Debug, Clone, Copy, PartialEq, Eq, From, Into, Deref, DerefMut, Constructor, Serialize, Deserialize)]
 pub struct Timestamp(u64);
 
 impl Timestamp {
-    pub fn from(value: u64) -> Self {
-        Self(value)
-    }
-
     pub fn value(&self) -> u64 {
         self.0
     }
@@ -62,22 +41,15 @@ impl Timestamp {
     pub fn as_f64(&self) -> f64 {
         self.0 as f64
     }
-}
 
-impl From<u64> for Timestamp {
-    fn from(value: u64) -> Self {
+    /// Создание из миллисекунд (для совместимости)
+    pub fn from_millis(value: u64) -> Self {
         Self(value)
     }
 }
 
-impl From<f64> for Timestamp {
-    fn from(value: f64) -> Self {
-        Self(value as u64)
-    }
-}
-
-/// Value Object - OHLCV данные
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Value Object - OHLCV данные с автогенерацией
+#[derive(Debug, Clone, Copy, PartialEq, Constructor, Serialize, Deserialize)]
 pub struct OHLCV {
     pub open: Price,
     pub high: Price,
@@ -87,16 +59,6 @@ pub struct OHLCV {
 }
 
 impl OHLCV {
-    pub fn new(open: Price, high: Price, low: Price, close: Price, volume: Volume) -> Self {
-        Self {
-            open,
-            high,
-            low,
-            close,
-            volume,
-        }
-    }
-
     /// Проверяет валидность OHLCV данных
     pub fn is_valid(&self) -> bool {
         self.high >= self.open
@@ -108,8 +70,9 @@ impl OHLCV {
     }
 }
 
-/// Value Object - Торговый символ
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Value Object - Торговый символ с автогенерацией
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deref, DerefMut, Display, Serialize, Deserialize)]
+#[display("Symbol({})", _0)]
 pub struct Symbol(String);
 
 impl Symbol {
@@ -131,33 +94,49 @@ impl From<&str> for Symbol {
     }
 }
 
-/// Value Object - Временной интервал
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Value Object - Временной интервал с полной автогенерацией
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, StrumDisplay, EnumIter, EnumString, AsRefStr, Serialize, Deserialize)]
 pub enum TimeInterval {
+    #[strum(serialize = "1m")]
+    #[serde(rename = "1m")]
     OneMinute,
+    
+    #[strum(serialize = "5m")]
+    #[serde(rename = "5m")]
     FiveMinutes,
+    
+    #[strum(serialize = "15m")]
+    #[serde(rename = "15m")]
     FifteenMinutes,
+    
+    #[strum(serialize = "30m")]
+    #[serde(rename = "30m")]
     ThirtyMinutes,
+    
+    #[strum(serialize = "1h")]
+    #[serde(rename = "1h")]
     OneHour,
+    
+    #[strum(serialize = "4h")]
+    #[serde(rename = "4h")]
     FourHours,
+    
+    #[strum(serialize = "1d")]
+    #[serde(rename = "1d")]
     OneDay,
+    
+    #[strum(serialize = "1w")]
+    #[serde(rename = "1w")]
     OneWeek,
+    
+    #[strum(serialize = "1M")]
+    #[serde(rename = "1M")]
     OneMonth,
 }
 
 impl TimeInterval {
-    pub fn to_binance_str(&self) -> &'static str {
-        match self {
-            Self::OneMinute => "1m",
-            Self::FiveMinutes => "5m",
-            Self::FifteenMinutes => "15m",
-            Self::ThirtyMinutes => "30m",
-            Self::OneHour => "1h",
-            Self::FourHours => "4h",
-            Self::OneDay => "1d",
-            Self::OneWeek => "1w",
-            Self::OneMonth => "1M",
-        }
+    pub fn to_binance_str(&self) -> &str {
+        self.as_ref()
     }
 
     pub fn duration_ms(&self) -> u64 {

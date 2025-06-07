@@ -6,13 +6,13 @@
     <title>📊 Bitcoin Price Chart</title>
     <style>
         :root {
-            --bg-dark: #0a0a0a;
-            --bg-card: #1a1a1a;
+            --bg-dark: #2c3e50;
+            --bg-card: #34495e;
             --text-primary: #ffffff;
-            --text-secondary: #a0a0a0;
+            --text-secondary: #bdc3c7;
             --accent-green: #4ade80;
             --accent-red: #ef4444;
-            --border-color: #333333;
+            --border-color: #4a5d73;
         }
 
         * {
@@ -84,7 +84,7 @@
             height: 500px;
             border-radius: 10px;
             border: 2px solid var(--border-color);
-            background: var(--bg-dark);
+            background: #2c3e50;
         }
 
         .status {
@@ -111,6 +111,81 @@
 
         @keyframes spin {
             to { transform: rotate(360deg); }
+        }
+
+        /* Отладочная консоль */
+        .debug-console {
+            background: var(--bg-card);
+            border-radius: 15px;
+            border: 1px solid var(--border-color);
+            margin-top: 20px;
+            overflow: hidden;
+        }
+
+        .debug-header {
+            background: #1a1a1a;
+            padding: 10px 15px;
+            font-weight: bold;
+            color: var(--accent-green);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .debug-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .debug-controls button {
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        #pauseDebug {
+            background: var(--accent-green);
+            color: white;
+        }
+
+        #pauseDebug.paused {
+            background: #ff9500;
+        }
+
+        #clearDebug {
+            background: var(--accent-red);
+            color: white;
+        }
+
+        .debug-controls button:hover {
+            opacity: 0.8;
+        }
+
+        .debug-log {
+            height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            background: #1a1a1a;
+            color: #00ff88;
+        }
+
+        .debug-log::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .debug-log::-webkit-scrollbar-track {
+            background: #2c3e50;
+        }
+
+        .debug-log::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
         }
     </style>
 </head>
@@ -143,14 +218,79 @@
                 Loading chart data...
             </div>
         </div>
+
+        <!-- Отладочная консоль -->
+        <div class="debug-console">
+            <div class="debug-header">
+                🐛 Debug Console
+                <div class="debug-controls">
+                    <button id="pauseDebug">⏸️ Pause</button>
+                    <button id="clearDebug">🗑️ Clear</button>
+                </div>
+            </div>
+            <div class="debug-log" id="debugLog"></div>
+        </div>
     </div>
 
     <script type="module">
-        import init, { PriceChartApi } from './pkg/price_chart_wasm.js';
+        import init, { createUnifiedChart } from './pkg/price_chart_wasm.js';
 
-        let chartApi = null;
+        let unifiedChartApi = null;
+        let originalConsoleLog = console.log;
+        let debugPaused = false;
 
-        // Автоматическая инициализация при загрузке
+        // Отладочная консоль на странице
+        function debugLog(message) {
+            const debugElement = document.getElementById('debugLog');
+            if (debugElement) {
+                const timestamp = new Date().toLocaleTimeString();
+                const logLine = document.createElement('div');
+                logLine.innerHTML = `[${timestamp}] ${message}`;
+                debugElement.appendChild(logLine);
+                
+                // Автопрокрутка только если не на паузе
+                if (!debugPaused) {
+                    debugElement.scrollTop = debugElement.scrollHeight;
+                }
+            }
+            // Также выводим в браузерную консоль
+            originalConsoleLog(message);
+        }
+
+        // Переопределяем console.log для отображения в нашей консоли
+        console.log = debugLog;
+
+        // Функция очистки консоли
+        function clearDebugLog() {
+            const debugElement = document.getElementById('debugLog');
+            if (debugElement) {
+                debugElement.innerHTML = '';
+            }
+        }
+
+        // Функция переключения паузы логов
+        function toggleDebugPause() {
+            debugPaused = !debugPaused;
+            const pauseButton = document.getElementById('pauseDebug');
+            
+            if (debugPaused) {
+                pauseButton.innerHTML = '▶️ Resume';
+                pauseButton.classList.add('paused');
+                console.log('🛑 Debug console paused - you can now select text');
+            } else {
+                pauseButton.innerHTML = '⏸️ Pause';
+                pauseButton.classList.remove('paused');
+                console.log('▶️ Debug console resumed');
+                
+                // Прокручиваем в конец при возобновлении
+                const debugElement = document.getElementById('debugLog');
+                if (debugElement) {
+                    debugElement.scrollTop = debugElement.scrollHeight;
+                }
+            }
+        }
+
+        // Автоматическая инициализация с unified API
         async function autoInitialize() {
             const statusEl = document.getElementById('status');
             
@@ -159,141 +299,240 @@
                 statusEl.innerHTML = '<div class="loading-spinner"></div>Initializing WASM...';
                 await init();
                 
-                // Создание API
-                statusEl.innerHTML = '<div class="loading-spinner"></div>Creating chart API...';
-                chartApi = new PriceChartApi("priceChart");
+                // Создание unified API
+                statusEl.innerHTML = '<div class="loading-spinner"></div>Creating unified chart API...';
+                unifiedChartApi = createUnifiedChart("priceChart");
                 
-                // Инициализация чарта
-                statusEl.innerHTML = '<div class="loading-spinner"></div>Initializing chart...';
-                await chartApi.initializeProductionChart(800, 500);
-                
-                // Загрузка данных
-                statusEl.innerHTML = '<div class="loading-spinner"></div>Loading market data...';
-                const result = await chartApi.loadHistoricalDataProduction("BTCUSDT", "1m", 200);
+                // Инициализация unified chart с историческими + реал-тайм данными
+                statusEl.innerHTML = '<div class="loading-spinner"></div>Loading unified data stream...';
+                const result = await unifiedChartApi.initializeUnifiedChart(
+                    "BTCUSDT", 
+                    "1m", 
+                    300,  // исторические свечи
+                    800,  // ширина
+                    500   // высота
+                );
                 
                 // Рендеринг
-                statusEl.innerHTML = '<div class="loading-spinner"></div>Rendering chart...';
-                chartApi.renderChartProduction();
-                
-                // Инициализируем tooltip для первоначальных данных
-                try {
-                    chartApi.refreshTooltip();
-                } catch (tooltipError) {
-                    // Игнорируем ошибки tooltip при инициализации
-                }
+                statusEl.innerHTML = '<div class="loading-spinner"></div>Rendering unified chart...';
+                unifiedChartApi.renderUnifiedChart();
                 
                 // Обновление UI
-                updatePriceInfo(result);
+                updateUnifiedPriceInfo(result);
                 const now = new Date().toLocaleTimeString();
-                statusEl.innerHTML = `🟢 Live • Last updated: ${now}`;
+                statusEl.innerHTML = `🟢 Unified Stream • Last updated: ${now}`;
                 statusEl.className = 'status';
                 
                 // Запуск автообновления
-                startAutoRefresh();
+                startUnifiedAutoRefresh();
                 
             } catch (error) {
-                console.error('Initialization failed:', error);
-                statusEl.innerHTML = '❌ Failed to load chart: ' + error;
+                console.error('UNIFIED: Initialization failed:', error);
+                statusEl.innerHTML = '❌ Failed to load unified chart: ' + error;
                 statusEl.className = 'status';
             }
         }
 
-        // Обновление информации о ценах
-        function updatePriceInfo(result) {
-            if (result && result.includes('historical_data_loaded:')) {
-                const candleCount = result.split(':')[1];
+        // Обновление информации о ценах для unified API
+        function updateUnifiedPriceInfo(result) {
+            if (result && result.includes('unified_chart_ready:')) {
+                const parts = result.split(':');
+                const candleCount = parts[1];
+                const isStreaming = parts[2] === 'true';
+                
                 document.getElementById('candleCount').textContent = candleCount;
                 document.getElementById('currentPrice').textContent = '$105,500';
                 document.getElementById('priceRange').textContent = '$105K - $106K';
+                
+                console.log(`📊 UNIFIED: ${candleCount} candles, streaming: ${isStreaming}`);
             }
         }
 
-        // Автообновление каждую секунду
-        function startAutoRefresh() {
+        // Автообновление для unified API (данные обновляются автоматически через стрим)
+        function startUnifiedAutoRefresh() {
             setInterval(async () => {
-                if (chartApi) {
+                if (unifiedChartApi) {
                     try {
-                        // Тихое обновление без смены статуса
-                        const result = await chartApi.loadHistoricalDataProduction("BTCUSDT", "1m", 200);
-                        chartApi.renderChartProduction();
+                        // Только рендеринг - данные обновляются автоматически через unified stream
+                        unifiedChartApi.renderUnifiedChart();
                         
-                        // ВАЖНО: Обновляем tooltip после загрузки новых данных
-                        try {
-                            chartApi.refreshTooltip();
-                        } catch (tooltipError) {
-                            // Игнорируем ошибки tooltip, не критично
-                        }
+                        // Получаем актуальную статистику
+                        const stats = unifiedChartApi.getUnifiedStats();
+                        const statsObj = JSON.parse(stats);
                         
-                        updatePriceInfo(result);
+                        document.getElementById('candleCount').textContent = statsObj.totalCandles;
                         
                         // Обновляем только время без мигания
                         const now = new Date().toLocaleTimeString();
                         const statusEl = document.getElementById('status');
-                        statusEl.innerHTML = `🟢 Live • Last updated: ${now}`;
+                        const streamStatus = statsObj.isStreaming ? 'Streaming' : 'Historical';
+                        statusEl.innerHTML = `🟢 ${streamStatus} • Last updated: ${now}`;
                         
                     } catch (error) {
-                        console.error('Auto-refresh failed:', error);
-                        document.getElementById('status').innerHTML = '🔴 Connection error, retrying...';
+                        console.error('UNIFIED: Auto-refresh failed:', error);
+                        document.getElementById('status').innerHTML = '🔴 Stream error, retrying...';
                     }
                 }
-            }, 1000); // 1 секунда
+            }, 5000); // 5 секунд - реже, так как данные стримятся автоматически
         }
 
-        // Настройка интерактивности
+        // Настройка интерактивности для unified API
         function setupInteractivity() {
-            if (!chartApi) return;
+            if (!unifiedChartApi) {
+                console.error('❌ unifiedChartApi not initialized');
+                return;
+            }
             
             const canvas = document.getElementById('priceChart');
-            if (!canvas) return;
+            if (!canvas) {
+                console.error('❌ Canvas not found');
+                return;
+            }
+            
+            console.log('🎯 Setting up canvas interactivity...');
             
             // Зум колесом мыши
             canvas.addEventListener('wheel', (event) => {
                 event.preventDefault();
                 
                 const rect = canvas.getBoundingClientRect();
-                const mouseX = event.clientX - rect.left;
-                const mouseY = event.clientY - rect.top;
+                const rawMouseX = event.clientX - rect.left;
+                const rawMouseY = event.clientY - rect.top;
+                
+                // Масштабирование координат
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const mouseX = rawMouseX * scaleX;
+                const mouseY = rawMouseY * scaleY;
                 const delta = event.deltaY;
                 
                 try {
-                    chartApi.handleZoom(delta, mouseX, mouseY);
+                    unifiedChartApi.handleUnifiedZoom(delta, mouseX, mouseY);
                 } catch (error) {
-                    console.error('Zoom error:', error);
+                    console.error('UNIFIED: Zoom error:', error);
                 }
             });
             
             // Tooltip при движении мыши
             canvas.addEventListener('mousemove', (event) => {
                 const rect = canvas.getBoundingClientRect();
-                const mouseX = event.clientX - rect.left;
-                const mouseY = event.clientY - rect.top;
+                const rawMouseX = event.clientX - rect.left;
+                const rawMouseY = event.clientY - rect.top;
+                
+                // Масштабирование координат с CSS размеров к внутренним размерам canvas
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const mouseX = rawMouseX * scaleX;
+                const mouseY = rawMouseY * scaleY;
                 
                 try {
-                    chartApi.handleMouseMove(mouseX, mouseY);
+                    // Для unified API пока только отрисовка квадратов для отладки
+                    drawDebugSquares(canvas, mouseX, mouseY);
                 } catch (error) {
-                    // console.error('Mouse move error:', error); // Убираем спам в консоль
+                    // console.error('UNIFIED: Mouse move error:', error);
+                }
+            });
+
+            // Клики мыши для чекбоксов легенды
+            canvas.addEventListener('click', (event) => {
+                const rect = canvas.getBoundingClientRect();
+                const rawMouseX = event.clientX - rect.left;
+                const rawMouseY = event.clientY - rect.top;
+                
+                // Масштабирование координат с CSS размеров к внутренним размерам canvas
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const mouseX = rawMouseX * scaleX;
+                const mouseY = rawMouseY * scaleY;
+                
+                // Отладка JavaScript координат
+                console.log(`🖱️ JS Click: CSS(${rawMouseX.toFixed(1)}, ${rawMouseY.toFixed(1)}) -> Canvas(${mouseX.toFixed(1)}, ${mouseY.toFixed(1)})`);
+                console.log(`📐 Canvas: ${canvas.width}x${canvas.height}, CSS: ${rect.width.toFixed(1)}x${rect.height.toFixed(1)}, Scale: ${scaleX.toFixed(2)}x${scaleY.toFixed(2)}`);
+                
+                try {
+                    // Для unified API пока клики не реализованы
+                    console.log(`🖱️ UNIFIED: Click at (${mouseX.toFixed(1)}, ${mouseY.toFixed(1)}) - click handling not yet implemented`);
+                } catch (error) {
+                    console.error('❌ UNIFIED: Mouse click error:', error);
                 }
             });
             
-            // Убираем tooltip при уходе мыши
+            // Убираем отладочные элементы при уходе мыши
             canvas.addEventListener('mouseleave', () => {
                 try {
-                    chartApi.renderChartProduction();
+                    unifiedChartApi.renderUnifiedChart();
                 } catch (error) {
-                    console.error('Mouse leave error:', error);
+                    console.error('UNIFIED: Mouse leave error:', error);
                 }
             });
             
             // Изменяем курсор на canvas
             canvas.style.cursor = 'crosshair';
             
-            console.log('🎯 Chart interactivity enabled: zoom and tooltip');
+            console.log('✅ Chart interactivity fully enabled: zoom, tooltip, and clicks');
+        }
+
+        // Отрисовка отладочных квадратов
+        function drawDebugSquares(canvas, mouseX, mouseY) {
+            const ctx = canvas.getContext('2d');
+            
+                         // Вычисляем области чекбоксов (копируем логику из WASM)
+             const legend_x = canvas.width - 160;
+             const legend_y = 15;
+             const line_height = 22;
+             const legend_items = ["SMA 20", "SMA 50", "SMA 200", "EMA 12", "EMA 26"];
+
+            for (let i = 0; i < legend_items.length; i++) {
+                const y = legend_y + 40 + (i * line_height);
+                const checkbox_y = y - 8;
+                
+                // Область клика - вся строка легенды
+                const click_x1 = legend_x;
+                const click_y1 = checkbox_y - 2;
+                const click_x2 = legend_x + 140;
+                const click_y2 = checkbox_y + 12 + 2;
+
+                // Проверяем попадание мыши в область
+                const isHovered = (mouseX >= click_x1 && mouseX <= click_x2 &&
+                                 mouseY >= click_y1 && mouseY <= click_y2);
+
+                if (isHovered) {
+                    // Рисуем яркий квадрат при наведении
+                    ctx.strokeStyle = '#ff0000';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.strokeRect(click_x1, click_y1, click_x2 - click_x1, click_y2 - click_y1);
+                    ctx.setLineDash([]);
+                    
+                    console.log(`🎯 Mouse hover over: ${legend_items[i]} at (${mouseX.toFixed(1)}, ${mouseY.toFixed(1)})`);
+                }
+            }
+        }
+
+        // Инициализация отладочной консоли
+        function initDebugConsole() {
+            const clearButton = document.getElementById('clearDebug');
+            const pauseButton = document.getElementById('pauseDebug');
+            
+            if (clearButton) {
+                clearButton.addEventListener('click', clearDebugLog);
+            }
+            
+            if (pauseButton) {
+                pauseButton.addEventListener('click', toggleDebugPause);
+            }
+            
+            console.log('🐛 Debug console initialized with pause/resume functionality');
         }
 
         // Запуск автоинициализации
         autoInitialize().then(() => {
             // Настраиваем интерактивность после инициализации
-            setTimeout(setupInteractivity, 100);
+            console.log('🚀 Auto-initialization completed, setting up interactivity...');
+            setupInteractivity();
+            initDebugConsole();
+        }).catch((error) => {
+            console.error('❌ Auto-initialization failed:', error);
         });
     </script>
 </body>

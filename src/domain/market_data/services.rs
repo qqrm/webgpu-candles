@@ -1,4 +1,14 @@
-use crate::domain::market_data::{Candle, Price, TimeInterval};
+use crate::domain::market_data::{Candle, Price};
+
+/// Структура для хранения данных скользящих средних
+#[derive(Debug, Clone)]
+pub struct MovingAveragesData {
+    pub sma_20: Vec<Price>,
+    pub sma_50: Vec<Price>, 
+    pub sma_200: Vec<Price>,
+    pub ema_12: Vec<Price>,
+    pub ema_26: Vec<Price>,
+}
 
 /// Доменный сервис для анализа рыночных данных
 pub struct MarketAnalysisService;
@@ -53,6 +63,46 @@ impl MarketAnalysisService {
         }
 
         sma_values
+    }
+
+    /// Вычисляет экспоненциальную скользящую среднюю (EMA)
+    pub fn calculate_ema(&self, candles: &[Candle], period: usize) -> Vec<Price> {
+        if candles.len() < period {
+            return Vec::new();
+        }
+
+        let mut ema_values = Vec::new();
+        let alpha = 2.0 / (period as f32 + 1.0); // Сглаживающий коэффициент
+        
+        // Первое значение EMA = простое среднее за первые period свечей
+        let first_sma: f32 = candles[0..period]
+            .iter()
+            .map(|candle| candle.ohlcv.close.value())
+            .sum::<f32>() / period as f32;
+        
+        ema_values.push(Price::from(first_sma));
+        
+        // Вычисляем остальные значения EMA
+        for i in period..candles.len() {
+            let current_price = candles[i].ohlcv.close.value();
+            let prev_ema = ema_values.last().unwrap().value();
+            let new_ema = alpha * current_price + (1.0 - alpha) * prev_ema;
+            
+            ema_values.push(Price::from(new_ema));
+        }
+
+        ema_values
+    }
+
+    /// Вычисляет несколько скользящих средних одновременно
+    pub fn calculate_multiple_mas(&self, candles: &[Candle]) -> MovingAveragesData {
+        MovingAveragesData {
+            sma_20: self.calculate_sma(candles, 20),
+            sma_50: self.calculate_sma(candles, 50),
+            sma_200: self.calculate_sma(candles, 200),
+            ema_12: self.calculate_ema(candles, 12),
+            ema_26: self.calculate_ema(candles, 26),
+        }
     }
 
     /// Находит локальные максимумы и минимумы
