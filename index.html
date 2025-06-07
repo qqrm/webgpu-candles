@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Price Chart WASM Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+        }
+        #chart-canvas {
+            border: 1px solid #444;
+            background: #000;
+            display: block;
+            margin: 20px auto;
+        }
+        h1 {
+            text-align: center;
+            color: #00ff88;
+        }
+        .status {
+            text-align: center;
+            margin: 10px;
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebGPU Price Chart Demo</h1>
+    <div class="status" id="status">Loading WebGPU...</div>
+    <canvas id="chart-canvas" width="800" height="600"></canvas>
+
+    <script type="module">
+        import init from './pkg/price_chart_wasm.js';
+        
+        async function run() {
+            const statusEl = document.getElementById('status');
+            
+            try {
+                statusEl.textContent = 'Initializing WASM module...';
+                await init();
+                
+                statusEl.textContent = 'WebGPU initialized successfully! 🎉';
+                statusEl.style.background = '#006600';
+            } catch (e) {
+                console.error('Error initializing WebGPU:', e);
+                statusEl.textContent = `Error: ${e.message}`;
+                statusEl.style.background = '#660000';
+            }
+        }
+        
+        run();
+    </script>
+</body>
+</html> 

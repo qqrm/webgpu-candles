@@ -1,0 +1,21 @@
+[package]
+name = "price-chart-wasm"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wgpu = { version = "25.0.2", features = ["webgpu", "webgl"] }
+wasm-bindgen = "0.2.100"
+wasm-bindgen-futures = "0.4.50"
+web-sys = { version = "0.3.77", features = [
+    "Window",
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "console"
+]}
+js-sys = "0.3.77"
+raw-window-handle = "0.6"
