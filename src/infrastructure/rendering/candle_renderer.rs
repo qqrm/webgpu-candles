@@ -1,6 +1,6 @@
 use wgpu::{Device, Queue, RenderPass, Buffer, BindGroup};
 use crate::domain::chart::Chart;
-use super::gpu_structures::{CandleVertex, ChartUniforms, CandleGeometry};
+use super::gpu_structures::{CandleVertex, ChartUniforms};
 
 /// Рендерер свечей - управляет GPU буферами и отрисовкой
 pub struct CandleRenderer {
@@ -28,6 +28,8 @@ pub struct CandleRenderer {
     buffer_stats: BufferStats,
     /// Флаг для переключения буферов при следующем рендере
     swap_buffers_next_frame: bool,
+    /// Детальная статистика изменений viewport
+    viewport_change_stats: ViewportChangeStats,
 }
 
 /// Кэшированное состояние viewport для оптимизации обновлений
@@ -40,6 +42,27 @@ struct ViewportState {
     start_time: f64,
     end_time: f64,
     candle_count: usize,
+}
+
+/// Детальная статистика изменений viewport
+#[derive(Debug, Clone)]
+pub struct ViewportChangeStats {
+    pub size_changes: u32,
+    pub price_range_changes: u32,
+    pub time_range_changes: u32,
+    pub candle_count_changes: u32,
+    pub total_viewport_changes: u32,
+    pub last_change_type: Option<ViewportChangeType>,
+}
+
+/// Типы изменений viewport
+#[derive(Debug, Clone, PartialEq)]
+pub enum ViewportChangeType {
+    SizeChange { old_size: (u32, u32), new_size: (u32, u32) },
+    PriceRangeChange { old_range: (f32, f32), new_range: (f32, f32) },
+    TimeRangeChange { old_range: (f64, f64), new_range: (f64, f64) },
+    CandleCountChange { old_count: usize, new_count: usize },
+    MultipleChanges(Vec<ViewportChangeType>),
 }
 
 /// Статистика использования буферов
@@ -142,37 +165,47 @@ impl CandleRenderer {
                 viewport_changes: 0,
             },
             swap_buffers_next_frame: false,
+            viewport_change_stats: ViewportChangeStats {
+                size_changes: 0,
+                price_range_changes: 0,
+                time_range_changes: 0,
+                candle_count_changes: 0,
+                total_viewport_changes: 0,
+                last_change_type: None,
+            },
         }
     }
 
-    /// Обновить данные свечей из ChartState
+    /// Обновить данные свечей из ChartState с детальным трекингом изменений
     pub fn update_from_chart(&mut self, chart: &Chart, _device: &Device, queue: &Queue) {
         let current_viewport = self.extract_viewport_state(chart);
-        let viewport_changed = current_viewport != self.cached_viewport;
+        let viewport_changes = self.analyze_viewport_changes(&current_viewport);
         
         // Обновляем uniform буфер только при изменении viewport
-        if viewport_changed {
-            self.update_uniforms_from_chart(chart, queue);
+        if !viewport_changes.is_empty() {
+            self.update_uniforms_from_chart_selective(chart, queue, &viewport_changes);
             self.cached_viewport = current_viewport;
             self.buffer_stats.viewport_changes += 1;
             self.buffer_stats.uniform_updates += 1;
             
+            // Обновляем детальную статистику
+            self.update_viewport_change_stats(&viewport_changes);
+            
             #[allow(unused_unsafe)]
             unsafe {
                 web_sys::console::log_1(&format!(
-                    "🔄 Viewport changed: {}x{}, price: {:.2}-{:.2}, time: {:.0}-{:.0}",
-                    self.cached_viewport.width,
-                    self.cached_viewport.height,
-                    self.cached_viewport.min_price,
-                    self.cached_viewport.max_price,
-                    self.cached_viewport.start_time,
-                    self.cached_viewport.end_time
+                    "🔄 Viewport changed: {:?} | Total changes: {}",
+                    viewport_changes,
+                    self.viewport_change_stats.total_viewport_changes
                 ).into());
             }
         }
         
         // Генерируем vertices только если viewport изменился или есть новые данные
-        if viewport_changed || chart.data.count() != self.cached_viewport.candle_count {
+        let needs_geometry_update = !viewport_changes.is_empty() || 
+            chart.data.count() != self.cached_viewport.candle_count;
+            
+        if needs_geometry_update {
             self.regenerate_geometry(chart, queue);
             self.buffer_stats.geometry_regenerations += 1;
         }
@@ -254,40 +287,177 @@ impl CandleRenderer {
         self.buffer_stats.vertex_count = self.vertex_counts[self.current_buffer];
         self.buffer_stats.max_vertices = self.max_vertices as u32;
         self.buffer_stats.buffer_usage_percent = 
-            (self.vertex_counts[self.current_buffer] as f32 / self.max_vertices as f32 * 100.0);
+            self.vertex_counts[self.current_buffer] as f32 / self.max_vertices as f32 * 100.0;
     }
 
-    /// Обновить uniform буфер из данных графика
-    fn update_uniforms_from_chart(&mut self, chart: &Chart, queue: &Queue) {
+    /// Анализ изменений viewport для определения типа и масштаба изменений
+    fn analyze_viewport_changes(&self, new_viewport: &ViewportState) -> Vec<ViewportChangeType> {
+        let mut changes = Vec::new();
+        
+        // Проверяем изменение размеров
+        if self.cached_viewport.width != new_viewport.width || 
+           self.cached_viewport.height != new_viewport.height {
+            changes.push(ViewportChangeType::SizeChange {
+                old_size: (self.cached_viewport.width, self.cached_viewport.height),
+                new_size: (new_viewport.width, new_viewport.height),
+            });
+        }
+        
+        // Проверяем изменение ценового диапазона
+        if (self.cached_viewport.min_price - new_viewport.min_price).abs() > f32::EPSILON ||
+           (self.cached_viewport.max_price - new_viewport.max_price).abs() > f32::EPSILON {
+            changes.push(ViewportChangeType::PriceRangeChange {
+                old_range: (self.cached_viewport.min_price, self.cached_viewport.max_price),
+                new_range: (new_viewport.min_price, new_viewport.max_price),
+            });
+        }
+        
+        // Проверяем изменение временного диапазона
+        if (self.cached_viewport.start_time - new_viewport.start_time).abs() > f64::EPSILON ||
+           (self.cached_viewport.end_time - new_viewport.end_time).abs() > f64::EPSILON {
+            changes.push(ViewportChangeType::TimeRangeChange {
+                old_range: (self.cached_viewport.start_time, self.cached_viewport.end_time),
+                new_range: (new_viewport.start_time, new_viewport.end_time),
+            });
+        }
+        
+        // Проверяем изменение количества свечей
+        if self.cached_viewport.candle_count != new_viewport.candle_count {
+            changes.push(ViewportChangeType::CandleCountChange {
+                old_count: self.cached_viewport.candle_count,
+                new_count: new_viewport.candle_count,
+            });
+        }
+        
+        changes
+    }
+    
+    /// Обновить статистику изменений viewport
+    fn update_viewport_change_stats(&mut self, changes: &[ViewportChangeType]) {
+        self.viewport_change_stats.total_viewport_changes += 1;
+        
+        for change in changes {
+            match change {
+                ViewportChangeType::SizeChange { .. } => {
+                    self.viewport_change_stats.size_changes += 1;
+                }
+                ViewportChangeType::PriceRangeChange { .. } => {
+                    self.viewport_change_stats.price_range_changes += 1;
+                }
+                ViewportChangeType::TimeRangeChange { .. } => {
+                    self.viewport_change_stats.time_range_changes += 1;
+                }
+                ViewportChangeType::CandleCountChange { .. } => {
+                    self.viewport_change_stats.candle_count_changes += 1;
+                }
+                ViewportChangeType::MultipleChanges(_) => {
+                    // Уже учтены в индивидуальных счетчиках
+                }
+            }
+        }
+        
+        // Сохраняем последний тип изменения
+        self.viewport_change_stats.last_change_type = if changes.len() == 1 {
+            Some(changes[0].clone())
+        } else if changes.len() > 1 {
+            Some(ViewportChangeType::MultipleChanges(changes.to_vec()))
+        } else {
+            None
+        };
+    }
+    
+    /// Селективное обновление uniform буфера в зависимости от типа изменений
+    fn update_uniforms_from_chart_selective(
+        &mut self, 
+        chart: &Chart, 
+        queue: &Queue, 
+        changes: &[ViewportChangeType]
+    ) {
         let viewport = &chart.viewport;
+        let mut uniform_updated = false;
         
-        // Обновляем viewport данные
-        self.uniforms.viewport = [
-            viewport.width as f32,
-            viewport.height as f32,
-            viewport.min_price,
-            viewport.max_price,
-        ];
+        for change in changes {
+            match change {
+                ViewportChangeType::SizeChange { .. } => {
+                    // Обновляем размеры viewport
+                    self.uniforms.viewport[0] = viewport.width as f32;
+                    self.uniforms.viewport[1] = viewport.height as f32;
+                    uniform_updated = true;
+                    
+                    #[allow(unused_unsafe)]
+                    unsafe {
+                        web_sys::console::log_1(&format!(
+                            "📐 Size changed: {}x{}", 
+                            viewport.width, 
+                            viewport.height
+                        ).into());
+                    }
+                }
+                ViewportChangeType::PriceRangeChange { .. } => {
+                    // Обновляем ценовой диапазон
+                    self.uniforms.viewport[2] = viewport.min_price;
+                    self.uniforms.viewport[3] = viewport.max_price;
+                    uniform_updated = true;
+                    
+                    #[allow(unused_unsafe)]
+                    unsafe {
+                        web_sys::console::log_1(&format!(
+                            "💰 Price range changed: {:.2} - {:.2}", 
+                            viewport.min_price, 
+                            viewport.max_price
+                        ).into());
+                    }
+                }
+                ViewportChangeType::TimeRangeChange { .. } => {
+                    // Обновляем временной диапазон
+                    self.uniforms.time_range = [
+                        viewport.start_time as f32,
+                        viewport.end_time as f32,
+                        viewport.time_range() as f32,
+                        0.0, // padding
+                    ];
+                    uniform_updated = true;
+                    
+                    #[allow(unused_unsafe)]
+                    unsafe {
+                        web_sys::console::log_1(&format!(
+                            "⏰ Time range changed: {:.0} - {:.0} (range: {:.0})", 
+                            viewport.start_time, 
+                            viewport.end_time,
+                            viewport.time_range()
+                        ).into());
+                    }
+                }
+                ViewportChangeType::CandleCountChange { new_count, .. } => {
+                    #[allow(unused_unsafe)]
+                    unsafe {
+                        web_sys::console::log_1(&format!(
+                            "🕯️ Candle count changed: {} candles", 
+                            new_count
+                        ).into());
+                    }
+                }
+                ViewportChangeType::MultipleChanges(sub_changes) => {
+                    // Рекурсивно обрабатываем множественные изменения
+                    self.update_uniforms_from_chart_selective(chart, queue, sub_changes);
+                    return; // Избегаем двойной записи в GPU
+                }
+            }
+        }
         
-        self.uniforms.time_range = [
-            viewport.start_time as f32,
-            viewport.end_time as f32,
-            viewport.time_range() as f32,
-            0.0, // padding
-        ];
-        
-        // Обновляем цвета из стиля графика
-        let _style = &chart.style;
-        self.uniforms.bullish_color = [0.0, 0.8, 0.0, 1.0];  // Зеленый
-        self.uniforms.bearish_color = [0.8, 0.0, 0.0, 1.0];  // Красный
-        self.uniforms.wick_color = [0.6, 0.6, 0.6, 1.0];     // Серый
-        
-        // Записываем обновления в GPU
-        queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[self.uniforms]),
-        );
+        // Записываем обновления в GPU только если что-то изменилось
+        if uniform_updated {
+            queue.write_buffer(
+                &self.uniform_buffer,
+                0,
+                bytemuck::cast_slice(&[self.uniforms]),
+            );
+            
+            #[allow(unused_unsafe)]
+            unsafe {
+                web_sys::console::log_1(&"✅ Uniform buffer updated on GPU".into());
+            }
+        }
     }
 
     /// Оптимизированная генерация vertices с переиспользованием буфера
@@ -548,21 +718,24 @@ impl CandleRenderer {
     /// Оптимизированное обновление с double buffering
     pub fn update_with_double_buffering(&mut self, chart: &Chart, _device: &Device, queue: &Queue) {
         let current_viewport = self.extract_viewport_state(chart);
-        let viewport_changed = current_viewport != self.cached_viewport;
+        let viewport_changes = self.analyze_viewport_changes(&current_viewport);
         
         // Переключаем буферы если готов
         self.swap_buffers();
         
         // Обновляем uniform буфер только при изменении viewport
-        if viewport_changed {
-            self.update_uniforms_from_chart(chart, queue);
+        if !viewport_changes.is_empty() {
+            self.update_uniforms_from_chart_selective(chart, queue, &viewport_changes);
             self.cached_viewport = current_viewport;
             self.buffer_stats.viewport_changes += 1;
             self.buffer_stats.uniform_updates += 1;
+            
+            // Обновляем детальную статистику
+            self.update_viewport_change_stats(&viewport_changes);
         }
         
         // Подготавливаем следующий буфер если viewport изменился или есть новые данные
-        if viewport_changed || chart.data.count() != self.cached_viewport.candle_count {
+        if !viewport_changes.is_empty() || chart.data.count() != self.cached_viewport.candle_count {
             self.prepare_next_buffer(chart, queue);
             self.buffer_stats.geometry_regenerations += 1;
         }
@@ -579,6 +752,23 @@ impl CandleRenderer {
             swap_ready: self.swap_buffers_next_frame,
             total_capacity: self.max_vertices,
         }
+    }
+
+    /// Получить статистику изменений viewport
+    pub fn get_viewport_change_stats(&self) -> &ViewportChangeStats {
+        &self.viewport_change_stats
+    }
+    
+    /// Сбросить статистику изменений viewport
+    pub fn reset_viewport_stats(&mut self) {
+        self.viewport_change_stats = ViewportChangeStats {
+            size_changes: 0,
+            price_range_changes: 0,
+            time_range_changes: 0,
+            candle_count_changes: 0,
+            total_viewport_changes: 0,
+            last_change_type: None,
+        };
     }
 }
 

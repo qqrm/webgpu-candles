@@ -1,4 +1,3 @@
-
 /// Доменная сущность - Свеча
 #[derive(Debug, Clone, PartialEq)]
 pub struct Candle {
@@ -76,24 +75,30 @@ impl CandleSeries {
         self.candles.len()
     }
 
-    pub fn price_range(&self) -> Option<(Price, Price)> {
+    /// Получить последнюю цену закрытия
+    pub fn get_latest_price(&self) -> Option<&Price> {
+        self.candles.last().map(|candle| &candle.ohlcv.close)
+    }
+
+    /// Получить ценовой диапазон всех свечей
+    pub fn price_range(&self) -> Option<(&Price, &Price)> {
         if self.candles.is_empty() {
             return None;
         }
 
-        let mut min = self.candles[0].ohlcv.low;
-        let mut max = self.candles[0].ohlcv.high;
+        let mut min_price = &self.candles[0].ohlcv.low;
+        let mut max_price = &self.candles[0].ohlcv.high;
 
         for candle in &self.candles {
-            if candle.ohlcv.low < min {
-                min = candle.ohlcv.low;
+            if candle.ohlcv.low.value() < min_price.value() {
+                min_price = &candle.ohlcv.low;
             }
-            if candle.ohlcv.high > max {
-                max = candle.ohlcv.high;
+            if candle.ohlcv.high.value() > max_price.value() {
+                max_price = &candle.ohlcv.high;
             }
         }
 
-        Some((min, max))
+        Some((min_price, max_price))
     }
 }
 

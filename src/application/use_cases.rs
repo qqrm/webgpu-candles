@@ -1,98 +1,46 @@
 use crate::domain::market_data::{
     repositories::MarketDataRepository, Symbol, TimeInterval, 
-    services::{MarketAnalysisService, DataValidationService}
+    services::{MarketAnalysisService, DataValidationService},
+    Candle, entities::CandleSeries
 };
-use crate::domain::chart::{Chart, services::ChartRenderingService};
-use wasm_bindgen::JsValue;
+use crate::domain::chart::{Chart, services::ChartRenderingService, value_objects::ChartType};
+use crate::infrastructure::websocket::BinanceHttpClient;
+use wasm_bindgen::prelude::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-/// Use Case: Подключение к реальным данным
-pub struct ConnectToMarketDataUseCase<T: MarketDataRepository> {
-    repository: T,
-    validation_service: DataValidationService,
-    chart: Rc<RefCell<Chart>>,
+/// Helper function for logging
+fn log(s: &str) {
+    #[allow(unused_unsafe)]
+    unsafe {
+        web_sys::console::log_1(&s.into());
+    }
 }
 
-impl<T: MarketDataRepository> ConnectToMarketDataUseCase<T> {
-    pub fn new(repository: T, chart: Rc<RefCell<Chart>>) -> Self {
+/// Use Case для подключения к потоку рыночных данных
+pub struct ConnectToMarketDataUseCase<T> {
+    repository: T,
+    validation_service: DataValidationService,
+}
+
+impl<T> ConnectToMarketDataUseCase<T> {
+    pub fn new(repository: T) -> Self {
         Self {
             repository,
             validation_service: DataValidationService::new(),
-            chart,
         }
     }
 
-    pub fn execute(&mut self, symbol: Symbol, interval: TimeInterval) -> Result<(), JsValue> {
-        let chart_clone = self.chart.clone();
-        let validation_service = self.validation_service.clone();
-        
-        #[allow(unused_unsafe)]
-        unsafe {
-            web_sys::console::log_1(&format!(
-                "🔗 Use Case: Setting up WebSocket subscription for {} {}",
-                symbol.value(),
-                interval.to_binance_str()
-            ).into());
-        }
-        
-        self.repository.subscribe_to_updates(
-            &symbol,
-            interval,
-            Box::new(move |candle| {
-                #[allow(unused_unsafe)]
-                unsafe {
-                    web_sys::console::log_1(&format!(
-                        "📨 Use Case: Received candle data - {} O:{} H:{} L:{} C:{} V:{}",
-                        candle.timestamp.value(),
-                        candle.ohlcv.open.value(),
-                        candle.ohlcv.high.value(),
-                        candle.ohlcv.low.value(),
-                        candle.ohlcv.close.value(),
-                        candle.ohlcv.volume.value()
-                    ).into());
-                }
+    pub fn get_repository(&self) -> &T {
+        &self.repository
+    }
 
-                // Валидация данных
-                if let Err(e) = validation_service.validate_candle(&candle) {
-                    #[allow(unused_unsafe)]
-                    unsafe {
-                        web_sys::console::error_1(&format!("❌ Invalid candle data: {}", e).into());
-                    }
-                    return;
-                }
-
-                #[allow(unused_unsafe)]
-                unsafe {
-                    web_sys::console::log_1(&"✅ Candle validation passed, adding to chart...".into());
-                }
-
-                // Добавление в график
-                let candle_for_log = candle.clone();
-                chart_clone.borrow_mut().add_candle(candle);
-                
-                // Логируем состояние графика после добавления
-                let chart_borrowed = chart_clone.borrow();
-                let total_candles = chart_borrowed.data.count();
-                
-                #[allow(unused_unsafe)]
-                unsafe {
-                    web_sys::console::log_1(&format!(
-                        "📊 ChartState updated: Total candles: {}, Latest: O:{} H:{} L:{} C:{} V:{}",
-                        total_candles,
-                        candle_for_log.ohlcv.open.value(),
-                        candle_for_log.ohlcv.high.value(),
-                        candle_for_log.ohlcv.low.value(),
-                        candle_for_log.ohlcv.close.value(),
-                        candle_for_log.ohlcv.volume.value()
-                    ).into());
-                }
-            })
-        )
+    pub fn get_repository_mut(&mut self) -> &mut T {
+        &mut self.repository
     }
 }
 
-/// Use Case: Анализ рыночных данных
+/// Use Case для анализа рыночных данных
 pub struct AnalyzeMarketDataUseCase {
     analysis_service: MarketAnalysisService,
 }
@@ -104,108 +52,220 @@ impl AnalyzeMarketDataUseCase {
         }
     }
 
-    pub fn calculate_moving_average(&self, chart: &Chart, period: usize) -> Vec<f32> {
-        let candles = chart.data.get_candles();
-        self.analysis_service
-            .calculate_sma(candles, period)
-            .into_iter()
-            .map(|price| price.value())
-            .collect()
-    }
-
-    pub fn calculate_volatility(&self, chart: &Chart, period: usize) -> Option<f32> {
-        let candles = chart.data.get_candles();
-        self.analysis_service.calculate_volatility(candles, period)
-    }
-
-    pub fn find_support_resistance(&self, chart: &Chart, window: usize) -> (Vec<usize>, Vec<usize>) {
-        let candles = chart.data.get_candles();
-        self.analysis_service.find_extremes(candles, window)
+    pub fn process_candle(&self, candle: Candle, chart: &mut Chart) -> Result<(), JsValue> {
+        // Domain validation через analysis service
+        if self.analysis_service.validate_candle(&candle) {
+            log("✅ Candle validation passed, adding to chart...");
+            chart.add_candle(candle);
+            
+            // Log chart state update
+            log(&format!(
+                "📊 ChartState updated: Total candles: {}, Latest: {}",
+                chart.data.count(),
+                if let Some(latest) = chart.data.get_candles().last() {
+                    format!("O:{} H:{} L:{} C:{} V:{}",
+                        latest.ohlcv.open.value(),
+                        latest.ohlcv.high.value(),
+                        latest.ohlcv.low.value(),
+                        latest.ohlcv.close.value(),
+                        latest.ohlcv.volume.value()
+                    )
+                } else {
+                    "No candles".to_string()
+                }
+            ));
+            
+            Ok(())
+        } else {
+            let error_msg = "❌ Candle validation failed";
+            log(error_msg);
+            Err(JsValue::from_str(error_msg))
+        }
     }
 }
 
-/// Use Case: Рендеринг графика
+/// Use Case для рендеринга графика
 pub struct RenderChartUseCase {
-    rendering_service: ChartRenderingService,
+    // Этот use case может содержать логику для подготовки данных к рендерингу
 }
 
 impl RenderChartUseCase {
     pub fn new() -> Self {
+        Self {}
+    }
+
+    pub fn prepare_chart_for_rendering(&self, chart: &Chart) -> Result<(), JsValue> {
+        // Здесь может быть логика подготовки данных для рендеринга
+        // Например, вычисление индикаторов, фильтрация данных и т.д.
+        log(&format!("🎨 Chart prepared for rendering: {} candles", chart.data.count()));
+        Ok(())
+    }
+}
+
+/// **NEW** Use Case для загрузки исторических данных
+pub struct LoadHistoricalDataUseCase {
+    http_client: BinanceHttpClient,
+    validation_service: DataValidationService,
+}
+
+impl LoadHistoricalDataUseCase {
+    pub fn new() -> Self {
         Self {
-            rendering_service: ChartRenderingService::new(),
+            http_client: BinanceHttpClient::new(),
+            validation_service: DataValidationService::new(),
         }
     }
 
-    pub fn prepare_render_data(&self, chart: &Chart) -> ChartRenderData {
-        let layers = self.rendering_service.create_render_layers(chart);
+    pub fn with_testnet() -> Self {
+        Self {
+            http_client: BinanceHttpClient::with_testnet(),
+            validation_service: DataValidationService::new(),
+        }
+    }
+
+    /// Загрузить исторические данные и преобразовать в CandleSeries
+    pub async fn load_historical_candles(
+        &self,
+        symbol: &Symbol,
+        interval: TimeInterval,
+        limit: usize,
+    ) -> Result<CandleSeries, JsValue> {
+        log(&format!(
+            "📡 Use Case: Loading historical data for {} with {} interval, limit: {}",
+            symbol.value(),
+            interval.to_binance_str(),
+            limit
+        ));
+
+        // Получаем данные через HTTP
+        let candles = self.http_client
+            .get_recent_candles(symbol, interval, limit)
+            .await?;
+
+        log(&format!("📊 Use Case: Received {} historical candles", candles.len()));
+
+        // Создаем CandleSeries и валидируем через Domain Layer
+        let mut candle_series = CandleSeries::new(limit + 100); // Запас для live данных
         
-        ChartRenderData {
-            layers,
-            viewport: chart.viewport.clone(),
-            style: chart.style.clone(),
-            candle_count: chart.data.count(),
+        for (i, candle) in candles.into_iter().enumerate() {
+            // Domain валидация каждой свечи через ValidationService
+            match self.validation_service.validate_candle(&candle) {
+                Ok(_) => {
+                    candle_series.add_candle(candle);
+                }
+                Err(e) => {
+                    log(&format!("⚠️ Use Case: Invalid candle at index {}: {}, skipping", i, e));
+                }
+            }
         }
+
+        log(&format!(
+            "✅ Use Case: Successfully created CandleSeries with {} validated candles",
+            candle_series.count()
+        ));
+
+        Ok(candle_series)
+    }
+
+    /// Загрузить исторические данные и добавить их в Chart
+    pub async fn load_and_populate_chart(
+        &self,
+        chart: &mut Chart,
+        symbol: &Symbol,
+        interval: TimeInterval,
+        limit: usize,
+    ) -> Result<(), JsValue> {
+        log(&format!(
+            "🔄 Use Case: Loading historical data into chart for {}",
+            symbol.value()
+        ));
+
+        let candle_series = self.load_historical_candles(symbol, interval, limit).await?;
+        
+        // Заменяем данные в chart на исторические
+        chart.data = candle_series;
+        
+        // Обновляем viewport на основе новых данных
+        chart.update_viewport_for_data();
+        
+        log(&format!(
+            "📈 Use Case: Chart populated with {} historical candles",
+            chart.data.count()
+        ));
+
+        Ok(())
     }
 }
 
-/// DTO для передачи данных рендеринга
-#[derive(Debug, Clone)]
-pub struct ChartRenderData {
-    pub layers: Vec<crate::domain::chart::RenderLayer>,
-    pub viewport: crate::domain::chart::Viewport,
-    pub style: crate::domain::chart::ChartStyle,
-    pub candle_count: usize,
-}
-
-/// Координатор всех use cases
-pub struct ChartApplicationCoordinator<T: MarketDataRepository> {
+/// Главный координатор всех Use Cases
+pub struct ChartApplicationCoordinator<T> {
     connect_use_case: ConnectToMarketDataUseCase<T>,
     analyze_use_case: AnalyzeMarketDataUseCase,
     render_use_case: RenderChartUseCase,
+    historical_use_case: LoadHistoricalDataUseCase,
+    chart: Chart,
 }
 
-impl<T: MarketDataRepository> ChartApplicationCoordinator<T> {
-    pub fn new(repository: T, chart: Rc<RefCell<Chart>>) -> Self {
+impl<T> ChartApplicationCoordinator<T> {
+    pub fn new(repository: T) -> Self {
         Self {
-            connect_use_case: ConnectToMarketDataUseCase::new(repository, chart),
+            connect_use_case: ConnectToMarketDataUseCase::new(repository),
             analyze_use_case: AnalyzeMarketDataUseCase::new(),
             render_use_case: RenderChartUseCase::new(),
+            historical_use_case: LoadHistoricalDataUseCase::new(),
+            chart: Chart::new("main-chart".to_string(), ChartType::Candlestick, 1000),
         }
     }
 
-    /// Полный сценарий: подключение + анализ + рендеринг
-    pub fn start_live_chart(&mut self, symbol: Symbol, interval: TimeInterval) -> Result<(), JsValue> {
-        #[allow(unused_unsafe)]
-        unsafe {
-            web_sys::console::log_1(&format!(
-                "Starting live chart for {} with {} interval", 
-                symbol.value(), 
-                interval.to_binance_str()
-            ).into());
-        }
-
-        self.connect_use_case.execute(symbol, interval)
+    pub fn get_chart(&self) -> &Chart {
+        &self.chart
     }
 
-    pub fn get_analysis(&self, chart: &Chart) -> MarketAnalysisResult {
-        MarketAnalysisResult {
-            sma_20: self.analyze_use_case.calculate_moving_average(chart, 20),
-            sma_50: self.analyze_use_case.calculate_moving_average(chart, 50),
-            volatility: self.analyze_use_case.calculate_volatility(chart, 20),
-            support_resistance: self.analyze_use_case.find_support_resistance(chart, 5),
-        }
+    pub fn get_chart_mut(&mut self) -> &mut Chart {
+        &mut self.chart
     }
 
-    pub fn prepare_chart_render(&self, chart: &Chart) -> ChartRenderData {
-        self.render_use_case.prepare_render_data(chart)
+    pub fn get_connect_use_case_mut(&mut self) -> &mut ConnectToMarketDataUseCase<T> {
+        &mut self.connect_use_case
     }
-}
 
-/// Результат анализа рынка
-#[derive(Debug, Clone)]
-pub struct MarketAnalysisResult {
-    pub sma_20: Vec<f32>,
-    pub sma_50: Vec<f32>,
-    pub volatility: Option<f32>,
-    pub support_resistance: (Vec<usize>, Vec<usize>),
+    /// **NEW** Загрузить исторические данные перед подключением к live потоку
+    pub async fn initialize_with_historical_data(
+        &mut self,
+        symbol: &Symbol,
+        interval: TimeInterval,
+        historical_limit: usize,
+    ) -> Result<(), JsValue> {
+        log("🚀 Application: Initializing chart with historical data...");
+
+        // Загружаем исторические данные
+        self.historical_use_case
+            .load_and_populate_chart(&mut self.chart, symbol, interval, historical_limit)
+            .await?;
+
+        log(&format!(
+            "✅ Application: Chart initialized with {} historical candles",
+            self.chart.data.count()
+        ));
+
+        Ok(())
+    }
+
+    pub fn process_new_candle(&mut self, candle: Candle) -> Result<(), JsValue> {
+        log(&format!(
+            "📨 Use Case: Received candle data - {} O:{} H:{} L:{} C:{} V:{}",
+            candle.timestamp.value(),
+            candle.ohlcv.open.value(),
+            candle.ohlcv.high.value(),
+            candle.ohlcv.low.value(),
+            candle.ohlcv.close.value(),
+            candle.ohlcv.volume.value()
+        ));
+
+        self.analyze_use_case.process_candle(candle, &mut self.chart)
+    }
+
+    pub fn prepare_for_rendering(&self) -> Result<(), JsValue> {
+        self.render_use_case.prepare_chart_for_rendering(&self.chart)
+    }
 } 

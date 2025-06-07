@@ -4,35 +4,13 @@ use web_sys::{WebSocket, MessageEvent, ErrorEvent, CloseEvent};
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use crate::domain::market_data::{repositories::MarketDataRepository, Candle, Symbol, TimeInterval};
+use crate::domain::{
+    market_data::{repositories::MarketDataRepository, Candle, Symbol, TimeInterval},
+    logging::{LogComponent, get_logger},
+    errors::{InfrastructureError, RepositoryError},
+};
+use crate::infrastructure::ui::{UiNotificationService, UiNotificationProvider};
 use super::dto::{BinanceKlineData, BinanceSubscription};
-
-// Helper function for logging
-fn log(s: &str) {
-    #[allow(unused_unsafe)]
-    unsafe {
-        web_sys::console::log_1(&s.into());
-    }
-}
-
-/// Helper function to update WebSocket status in UI
-fn update_ws_status(status: &str, is_connected: bool) {
-    if let Some(window) = web_sys::window() {
-        if let Some(document) = window.document() {
-            if let Some(element) = document.get_element_by_id("ws-status") {
-                element.set_text_content(Some(&format!("WebSocket: {}", status)));
-                
-                let style_value = if is_connected {
-                    "text-align: center; margin: 10px; padding: 10px; background: #006600; border-radius: 5px;"
-                } else {
-                    "text-align: center; margin: 10px; padding: 10px; background: #660000; border-radius: 5px;"
-                };
-                
-                let _ = element.set_attribute("style", style_value);
-            }
-        }
-    }
-}
 
 /// Binance WebSocket клиент - инфраструктурная реализация
 pub struct BinanceWebSocketClient {
@@ -40,6 +18,7 @@ pub struct BinanceWebSocketClient {
     url: String,
     on_candle_callback: Rc<RefCell<Option<Box<dyn Fn(Candle)>>>>,
     connected: Rc<RefCell<bool>>,
+    ui_service: UiNotificationService,
 }
 
 impl Default for BinanceWebSocketClient {
@@ -49,6 +28,7 @@ impl Default for BinanceWebSocketClient {
             url: "wss://stream.binance.com:9443/ws".to_string(),
             on_candle_callback: Rc::new(RefCell::new(None)),
             connected: Rc::new(RefCell::new(false)),
+            ui_service: UiNotificationService::new(),
         }
     }
 }
@@ -64,6 +44,7 @@ impl BinanceWebSocketClient {
             url: "wss://testnet.binance.vision/ws".to_string(),
             on_candle_callback: Rc::new(RefCell::new(None)),
             connected: Rc::new(RefCell::new(false)),
+            ui_service: UiNotificationService::new(),
         }
     }
 
@@ -79,8 +60,12 @@ impl BinanceWebSocketClient {
             interval.to_binance_str()
         );
 
-        log(&format!("🔌 Infrastructure: Connecting to: {}", ws_url));
-        update_ws_status("Connecting...", false);
+        get_logger().info(
+            LogComponent::Infrastructure("WebSocket"),
+            &format!("Connecting to: {}", ws_url)
+        );
+        
+        let _ = self.ui_service.notify_connection_status("Connecting...", false);
 
         let ws = WebSocket::new(&ws_url)?;
 
@@ -97,23 +82,30 @@ impl BinanceWebSocketClient {
     {
         *self.on_candle_callback.borrow_mut() = Some(Box::new(callback));
         
-        log("🔧 Infrastructure: Candle callback set");
+        get_logger().debug(
+            LogComponent::Infrastructure("WebSocket"),
+            "Candle callback set"
+        );
     }
 
     fn setup_handlers(&mut self, ws: &WebSocket) -> Result<(), JsValue> {
         let connected_clone = self.connected.clone();
+        let ui_service_clone = self.ui_service.clone();
         
         // Open handler
         let onopen_callback = Closure::wrap(Box::new(move |_| {
-            log("🔗 Infrastructure: WebSocket connected successfully!");
+            get_logger().info(
+                LogComponent::Infrastructure("WebSocket"),
+                "WebSocket connected successfully!"
+            );
             *connected_clone.borrow_mut() = true;
-            update_ws_status("Connected ✅", true);
+            let _ = ui_service_clone.notify_connection_status("Connected ✅", true);
         }) as Box<dyn FnMut(JsValue)>);
 
         ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
         onopen_callback.forget();
 
-        // Message handler с правильным callback
+        // Message handler with proper callback
         let callback_clone = self.on_candle_callback.clone();
         let onmessage_callback = Closure::wrap(Box::new(move |e: MessageEvent| {
             if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
@@ -123,31 +115,46 @@ impl BinanceWebSocketClient {
                     Ok(kline_data) => {
                         match kline_data.kline.to_domain_candle() {
                             Ok(candle) => {
-                                log(&format!(
-                                    "📡 Infrastructure: Received candle - {} O:{} H:{} L:{} C:{} V:{}",
-                                    candle.timestamp.value(),
-                                    candle.ohlcv.open.value(),
-                                    candle.ohlcv.high.value(),
-                                    candle.ohlcv.low.value(),
-                                    candle.ohlcv.close.value(),
-                                    candle.ohlcv.volume.value()
-                                ));
+                                get_logger().debug(
+                                    LogComponent::Infrastructure("WebSocket"),
+                                    &format!(
+                                        "Received candle - {} O:{} H:{} L:{} C:{} V:{}",
+                                        candle.timestamp.value(),
+                                        candle.ohlcv.open.value(),
+                                        candle.ohlcv.high.value(),
+                                        candle.ohlcv.low.value(),
+                                        candle.ohlcv.close.value(),
+                                        candle.ohlcv.volume.value()
+                                    )
+                                );
                                 
-                                // Вызываем callback правильно
+                                // Call callback properly
                                 if let Some(callback) = callback_clone.borrow().as_ref() {
-                                    log("🚀 Infrastructure: Calling Application Layer callback");
+                                    get_logger().debug(
+                                        LogComponent::Infrastructure("WebSocket"),
+                                        "Calling Application Layer callback"
+                                    );
                                     callback(candle);
                                 } else {
-                                    log("⚠️ Infrastructure: No callback set, data will be lost");
+                                    get_logger().warn(
+                                        LogComponent::Infrastructure("WebSocket"),
+                                        "No callback set, data will be lost"
+                                    );
                                 }
                             }
                             Err(e) => {
-                                log(&format!("❌ Infrastructure: Failed to convert kline: {:?}", e));
+                                get_logger().error(
+                                    LogComponent::Infrastructure("WebSocket"),
+                                    &format!("Failed to convert kline: {:?}", e)
+                                );
                             },
                         }
                     }
                     Err(e) => {
-                        log(&format!("❌ Infrastructure: Failed to parse JSON: {}", e));
+                        get_logger().error(
+                            LogComponent::Infrastructure("WebSocket"),
+                            &format!("Failed to parse JSON: {}", e)
+                        );
                     },
                 }
             }
@@ -158,10 +165,14 @@ impl BinanceWebSocketClient {
 
         // Error handler
         let connected_clone_error = self.connected.clone();
+        let ui_service_error = self.ui_service.clone();
         let onerror_callback = Closure::wrap(Box::new(move |e: ErrorEvent| {
-            log(&format!("❌ Infrastructure: WebSocket error: {:?}", e));
+            get_logger().error(
+                LogComponent::Infrastructure("WebSocket"),
+                &format!("WebSocket error: {:?}", e)
+            );
             *connected_clone_error.borrow_mut() = false;
-            update_ws_status("Error ❌", false);
+            let _ = ui_service_error.notify_connection_status("Error ❌", false);
         }) as Box<dyn FnMut(ErrorEvent)>);
 
         ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
@@ -169,10 +180,14 @@ impl BinanceWebSocketClient {
 
         // Close handler
         let connected_clone_close = self.connected.clone();
+        let ui_service_close = self.ui_service.clone();
         let onclose_callback = Closure::wrap(Box::new(move |e: CloseEvent| {
-            log(&format!("🔌 Infrastructure: WebSocket closed: {} - {}", e.code(), e.reason()));
+            get_logger().info(
+                LogComponent::Infrastructure("WebSocket"),
+                &format!("WebSocket closed: {} - {}", e.code(), e.reason())
+            );
             *connected_clone_close.borrow_mut() = false;
-            update_ws_status("Disconnected", false);
+            let _ = ui_service_close.notify_connection_status("Disconnected", false);
         }) as Box<dyn FnMut(CloseEvent)>);
 
         ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
@@ -186,12 +201,12 @@ impl BinanceWebSocketClient {
             ws.close()?;
             self.websocket = None;
             *self.connected.borrow_mut() = false;
-            update_ws_status("Disconnected", false);
+            let _ = self.ui_service.notify_connection_status("Disconnected", false);
         }
         Ok(())
     }
 
-    /// Отправить подписку на символ
+    /// Send subscription for symbol
     pub fn subscribe(&self, symbol: &Symbol, interval: TimeInterval) -> Result<(), JsValue> {
         if let Some(ws) = &self.websocket {
             let subscription = BinanceSubscription::kline_subscription(
@@ -207,7 +222,7 @@ impl BinanceWebSocketClient {
         Ok(())
     }
 
-    /// Отписаться от символа
+    /// Unsubscribe from symbol
     pub fn unsubscribe(&self, symbol: &Symbol, interval: TimeInterval) -> Result<(), JsValue> {
         if let Some(ws) = &self.websocket {
             let unsubscription = BinanceSubscription::unsubscribe(
@@ -230,8 +245,10 @@ impl MarketDataRepository for BinanceWebSocketClient {
         _symbol: &Symbol,
         _interval: TimeInterval,
         _limit: Option<usize>,
-    ) -> Result<Vec<Candle>, JsValue> {
-        Err(JsValue::from_str("Historical data not available via WebSocket"))
+    ) -> Result<Vec<Candle>, crate::domain::market_data::repositories::RepositoryError> {
+        Err(crate::domain::market_data::repositories::RepositoryError::NetworkError(
+            "Historical data not available via WebSocket".to_string()
+        ))
     }
 
     fn subscribe_to_updates(
@@ -239,21 +256,28 @@ impl MarketDataRepository for BinanceWebSocketClient {
         symbol: &Symbol,
         interval: TimeInterval,
         callback: Box<dyn Fn(Candle)>,
-    ) -> Result<(), JsValue> {
+    ) -> Result<(), crate::domain::market_data::repositories::RepositoryError> {
         self.set_candle_callback(callback);
         self.connect(symbol, interval)
+            .map_err(|e| crate::domain::market_data::repositories::RepositoryError::ConnectionError(
+                format!("WebSocket connection failed: {:?}", e)
+            ))
     }
 
-    fn unsubscribe(&mut self) -> Result<(), JsValue> {
+    fn unsubscribe(&mut self) -> Result<(), crate::domain::market_data::repositories::RepositoryError> {
         self.disconnect()
+            .map_err(|e| crate::domain::market_data::repositories::RepositoryError::ConnectionError(
+                format!("WebSocket disconnection failed: {:?}", e)
+            ))
     }
 }
 
-/// Статический WebSocket клиент с callback системой
+/// Static WebSocket client with callback system
 pub struct BinanceWebSocketClientWithCallback {
     websocket: Option<WebSocket>,
     candle_callback: Rc<RefCell<Option<Box<dyn Fn(Candle)>>>>,
     connected: Rc<RefCell<bool>>,
+    ui_service: UiNotificationService,
 }
 
 impl BinanceWebSocketClientWithCallback {
@@ -262,6 +286,7 @@ impl BinanceWebSocketClientWithCallback {
             websocket: None,
             candle_callback: Rc::new(RefCell::new(None)),
             connected: Rc::new(RefCell::new(false)),
+            ui_service: UiNotificationService::new(),
         }
     }
 
@@ -279,8 +304,12 @@ impl BinanceWebSocketClientWithCallback {
             interval
         );
 
-        log(&format!("Connecting to: {}", ws_url));
-        update_ws_status("Connecting...", false);
+        get_logger().info(
+            LogComponent::Infrastructure("WebSocket"),
+            &format!("Connecting to: {}", ws_url)
+        );
+        
+        let _ = self.ui_service.notify_connection_status("Connecting...", false);
 
         let ws = WebSocket::new(&ws_url)?;
         
@@ -289,10 +318,14 @@ impl BinanceWebSocketClientWithCallback {
         
         // Setup handlers
         let connected_clone = self.connected.clone();
+        let ui_service_clone = self.ui_service.clone();
         let onopen_callback = Closure::wrap(Box::new(move |_| {
-            log("WebSocket connected successfully!");
+            get_logger().info(
+                LogComponent::Infrastructure("WebSocket"),
+                "WebSocket connected successfully!"
+            );
             *connected_clone.borrow_mut() = true;
-            update_ws_status("Connected ✅", true);
+            let _ = ui_service_clone.notify_connection_status("Connected ✅", true);
         }) as Box<dyn FnMut(JsValue)>);
 
         ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
@@ -308,18 +341,24 @@ impl BinanceWebSocketClientWithCallback {
                     Ok(kline_data) => {
                         match kline_data.kline.to_domain_candle() {
                             Ok(candle) => {
-                                // Вызываем callback
+                                // Call callback
                                 if let Some(callback) = candle_callback_clone.borrow().as_ref() {
                                     callback(candle);
                                 }
                             }
                             Err(e) => {
-                                log(&format!("Failed to convert kline: {:?}", e));
+                                get_logger().error(
+                                    LogComponent::Infrastructure("WebSocket"),
+                                    &format!("Failed to convert kline: {:?}", e)
+                                );
                             },
                         }
                     }
                     Err(e) => {
-                        log(&format!("Failed to parse JSON: {}", e));
+                        get_logger().error(
+                            LogComponent::Infrastructure("WebSocket"),
+                            &format!("Failed to parse JSON: {}", e)
+                        );
                     },
                 }
             }
@@ -330,10 +369,14 @@ impl BinanceWebSocketClientWithCallback {
 
         // Error handler
         let connected_clone_error = self.connected.clone();
+        let ui_service_error = self.ui_service.clone();
         let onerror_callback = Closure::wrap(Box::new(move |e: ErrorEvent| {
-            log(&format!("WebSocket error: {:?}", e));
+            get_logger().error(
+                LogComponent::Infrastructure("WebSocket"),
+                &format!("WebSocket error: {:?}", e)
+            );
             *connected_clone_error.borrow_mut() = false;
-            update_ws_status("Error ❌", false);
+            let _ = ui_service_error.notify_connection_status("Error ❌", false);
         }) as Box<dyn FnMut(ErrorEvent)>);
 
         ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
@@ -341,10 +384,14 @@ impl BinanceWebSocketClientWithCallback {
 
         // Close handler
         let connected_clone_close = self.connected.clone();
+        let ui_service_close = self.ui_service.clone();
         let onclose_callback = Closure::wrap(Box::new(move |e: CloseEvent| {
-            log(&format!("WebSocket closed: {} - {}", e.code(), e.reason()));
+            get_logger().info(
+                LogComponent::Infrastructure("WebSocket"),
+                &format!("WebSocket closed: {} - {}", e.code(), e.reason())
+            );
             *connected_clone_close.borrow_mut() = false;
-            update_ws_status("Disconnected", false);
+            let _ = ui_service_close.notify_connection_status("Disconnected", false);
         }) as Box<dyn FnMut(CloseEvent)>);
 
         ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
@@ -359,7 +406,7 @@ impl BinanceWebSocketClientWithCallback {
             ws.close()?;
             self.websocket = None;
             *self.connected.borrow_mut() = false;
-            update_ws_status("Disconnected", false);
+            let _ = self.ui_service.notify_connection_status("Disconnected", false);
         }
         Ok(())
     }

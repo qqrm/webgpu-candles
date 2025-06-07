@@ -15,12 +15,20 @@ web-sys = { version = "0.3.77", features = [
     "Document",
     "Element",
     "HtmlCanvasElement",
+    "CanvasRenderingContext2d",
     "console",
     "WebSocket",
     "MessageEvent",
     "ErrorEvent",
     "CloseEvent",
-    "BinaryType"
+    "BinaryType",
+    "Request",
+    "RequestInit",
+    "RequestMode",
+    "Response",
+    "Headers",
+    "AbortController",
+    "AbortSignal"
 ]}
 js-sys = "0.3.77"
 raw-window-handle = "0.6"

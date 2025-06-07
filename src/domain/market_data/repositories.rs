@@ -1,5 +1,13 @@
 use crate::domain::market_data::{Candle, Symbol, TimeInterval};
-use wasm_bindgen::JsValue;
+
+/// Domain error types for repository operations
+#[derive(Debug, Clone)]
+pub enum RepositoryError {
+    NetworkError(String),
+    ParseError(String),
+    ValidationError(String),
+    ConnectionError(String),
+}
 
 /// Интерфейс для получения рыночных данных
 pub trait MarketDataRepository {
@@ -9,7 +17,7 @@ pub trait MarketDataRepository {
         symbol: &Symbol,
         interval: TimeInterval,
         limit: Option<usize>,
-    ) -> Result<Vec<Candle>, JsValue>;
+    ) -> Result<Vec<Candle>, RepositoryError>;
 
     /// Подписаться на real-time обновления
     fn subscribe_to_updates(
@@ -17,20 +25,20 @@ pub trait MarketDataRepository {
         symbol: &Symbol,
         interval: TimeInterval,
         callback: Box<dyn Fn(Candle)>,
-    ) -> Result<(), JsValue>;
+    ) -> Result<(), RepositoryError>;
 
     /// Отписаться от обновлений
-    fn unsubscribe(&mut self) -> Result<(), JsValue>;
+    fn unsubscribe(&mut self) -> Result<(), RepositoryError>;
 }
 
 /// Интерфейс для хранения данных
 pub trait CandleStorage {
     /// Сохранить свечи
-    fn store_candles(&mut self, candles: Vec<Candle>) -> Result<(), JsValue>;
+    fn store_candles(&mut self, candles: Vec<Candle>) -> Result<(), RepositoryError>;
     
     /// Получить свечи
-    fn get_candles(&self, symbol: &Symbol, interval: TimeInterval) -> Result<Vec<Candle>, JsValue>;
+    fn get_candles(&self, symbol: &Symbol, interval: TimeInterval) -> Result<Vec<Candle>, RepositoryError>;
     
     /// Очистить старые данные
-    fn cleanup_old_data(&mut self, keep_count: usize) -> Result<(), JsValue>;
+    fn cleanup_old_data(&mut self, keep_count: usize) -> Result<(), RepositoryError>;
 } 

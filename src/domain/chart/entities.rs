@@ -26,7 +26,6 @@ impl Chart {
 
     pub fn add_candle(&mut self, candle: Candle) {
         self.data.add_candle(candle);
-        self.update_viewport();
     }
 
     pub fn add_indicator(&mut self, indicator: Indicator) {
@@ -35,6 +34,25 @@ impl Chart {
 
     pub fn remove_indicator(&mut self, indicator_id: &str) {
         self.indicators.retain(|ind| ind.id != indicator_id);
+    }
+
+    /// Обновить viewport на основе данных свечей
+    pub fn update_viewport_for_data(&mut self) {
+        if let Some((min_price, max_price)) = self.data.price_range() {
+            // Добавляем отступы для лучшей визуализации (5% сверху и снизу)
+            let price_range = max_price.value() - min_price.value();
+            let padding = price_range * 0.05;
+            
+            self.viewport.min_price = (min_price.value() - padding).max(0.1); // Минимум $0.1
+            self.viewport.max_price = max_price.value() + padding;
+            
+            // Обновляем временной диапазон
+            let candles = self.data.get_candles();
+            if !candles.is_empty() {
+                self.viewport.start_time = candles.first().unwrap().timestamp.value() as f64;
+                self.viewport.end_time = candles.last().unwrap().timestamp.value() as f64;
+            }
+        }
     }
 
     fn update_viewport(&mut self) {

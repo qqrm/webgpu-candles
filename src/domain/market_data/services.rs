@@ -8,6 +8,33 @@ impl MarketAnalysisService {
         Self
     }
 
+    /// Валидация свечи - production-ready validation
+    pub fn validate_candle(&self, candle: &Candle) -> bool {
+        // 1. Базовая валидация OHLC логики
+        let ohlc_valid = candle.ohlcv.high.value() >= candle.ohlcv.low.value() &&
+                        candle.ohlcv.high.value() >= candle.ohlcv.open.value() &&
+                        candle.ohlcv.high.value() >= candle.ohlcv.close.value() &&
+                        candle.ohlcv.low.value() <= candle.ohlcv.open.value() &&
+                        candle.ohlcv.low.value() <= candle.ohlcv.close.value();
+
+        // 2. Валидация положительных значений
+        let positive_values = candle.ohlcv.open.value() > 0.0 &&
+                             candle.ohlcv.high.value() > 0.0 &&
+                             candle.ohlcv.low.value() > 0.0 &&
+                             candle.ohlcv.close.value() > 0.0 &&
+                             candle.ohlcv.volume.value() >= 0.0;
+
+        // 3. Валидация разумных пределов для BTC/USDT
+        let reasonable_price_range = candle.ohlcv.low.value() > 1.0 && // Минимум $1
+                                    candle.ohlcv.high.value() < 1_000_000.0; // Максимум $1M
+
+        // 4. Валидация timestamp (не может быть в будущем более чем на 1 минуту)
+        let now = js_sys::Date::now() as u64;
+        let timestamp_valid = candle.timestamp.value() <= now + 60_000; // +1 минута буфер
+
+        ohlc_valid && positive_values && reasonable_price_range && timestamp_valid
+    }
+
     /// Вычисляет простую скользящую среднюю (SMA)
     pub fn calculate_sma(&self, candles: &[Candle], period: usize) -> Vec<Price> {
         if candles.len() < period {
@@ -110,42 +137,88 @@ impl DataValidationService {
         Self
     }
 
-    /// Проверяет валидность свечи
+    /// Валидация свечи с подробным описанием ошибки
     pub fn validate_candle(&self, candle: &Candle) -> Result<(), String> {
-        if !candle.ohlcv.is_valid() {
-            return Err("Invalid OHLCV data".to_string());
+        // 1. Базовая валидация OHLC логики
+        if candle.ohlcv.high.value() < candle.ohlcv.low.value() {
+            return Err("High price cannot be lower than low price".to_string());
+        }
+        
+        if candle.ohlcv.high.value() < candle.ohlcv.open.value() {
+            return Err("High price cannot be lower than open price".to_string());
+        }
+        
+        if candle.ohlcv.high.value() < candle.ohlcv.close.value() {
+            return Err("High price cannot be lower than close price".to_string());
+        }
+        
+        if candle.ohlcv.low.value() > candle.ohlcv.open.value() {
+            return Err("Low price cannot be higher than open price".to_string());
+        }
+        
+        if candle.ohlcv.low.value() > candle.ohlcv.close.value() {
+            return Err("Low price cannot be higher than close price".to_string());
         }
 
-        if candle.timestamp.value() == 0 {
-            return Err("Invalid timestamp".to_string());
+        // 2. Валидация положительных значений
+        if candle.ohlcv.open.value() <= 0.0 {
+            return Err("Open price must be positive".to_string());
+        }
+        if candle.ohlcv.high.value() <= 0.0 {
+            return Err("High price must be positive".to_string());
+        }
+        if candle.ohlcv.low.value() <= 0.0 {
+            return Err("Low price must be positive".to_string());
+        }
+        if candle.ohlcv.close.value() <= 0.0 {
+            return Err("Close price must be positive".to_string());
+        }
+        if candle.ohlcv.volume.value() < 0.0 {
+            return Err("Volume cannot be negative".to_string());
+        }
+
+        // 3. Валидация разумных пределов для BTC/USDT
+        if candle.ohlcv.low.value() < 1.0 {
+            return Err("Price is unreasonably low (< $1)".to_string());
+        }
+        if candle.ohlcv.high.value() > 1_000_000.0 {
+            return Err("Price is unreasonably high (> $1M)".to_string());
+        }
+
+        // 4. Валидация timestamp (не может быть в будущем более чем на 1 минуту)
+        let now = js_sys::Date::now() as u64;
+        if candle.timestamp.value() > now + 60_000 {
+            return Err("Timestamp is too far in the future".to_string());
         }
 
         Ok(())
     }
 
-    /// Проверяет последовательность свечей
-    pub fn validate_candle_sequence(&self, candles: &[Candle], interval: TimeInterval) -> Result<(), String> {
-        if candles.len() < 2 {
+    /// Валидация последовательности свечей
+    pub fn validate_candle_sequence(&self, candles: &[Candle]) -> Result<(), String> {
+        if candles.is_empty() {
             return Ok(());
         }
 
-        for pair in candles.windows(2) {
-            let curr = &pair[0];
-            let next = &pair[1];
+        for i in 1..candles.len() {
+            let prev = &candles[i - 1];
+            let current = &candles[i];
 
-            // Проверяем временную последовательность
-            if next.timestamp.value() <= curr.timestamp.value() {
-                return Err("Candles are not in chronological order".to_string());
+            // Проверяем хронологический порядок
+            if current.timestamp.value() <= prev.timestamp.value() {
+                return Err(format!(
+                    "Candles are not in chronological order at index {}",
+                    i
+                ));
             }
 
-            // Проверяем интервал (с небольшой погрешностью)
-            let expected_interval = interval.duration_ms();
-            let actual_interval = next.timestamp.value() - curr.timestamp.value();
-            
-            if actual_interval < expected_interval / 2 || actual_interval > expected_interval * 2 {
+            // Проверяем разумные промежутки времени (не более 1 часа между свечами)
+            let time_diff = current.timestamp.value() - prev.timestamp.value();
+            if time_diff > 3_600_000 {
+                // 1 час в миллисекундах
                 return Err(format!(
-                    "Invalid time interval between candles: expected ~{}, got {}",
-                    expected_interval, actual_interval
+                    "Time gap too large between candles at index {}: {} ms",
+                    i, time_diff
                 ));
             }
         }
