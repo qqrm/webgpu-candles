@@ -1,0 +1,259 @@
+/// Value Object - Тип графика
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChartType {
+    Candlestick,
+    Line,
+    Area,
+    OHLC,
+    Heikin,
+    Renko,
+    PointAndFigure,
+}
+
+/// Value Object - Окно просмотра
+#[derive(Debug, Clone, PartialEq)]
+pub struct Viewport {
+    pub start_time: f64,
+    pub end_time: f64,
+    pub min_price: f32,
+    pub max_price: f32,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Default for Viewport {
+    fn default() -> Self {
+        Self {
+            start_time: 0.0,
+            end_time: 0.0,
+            min_price: 0.0,
+            max_price: 100.0,
+            width: 800,
+            height: 600,
+        }
+    }
+}
+
+impl Viewport {
+    pub fn new(width: u32, height: u32) -> Self {
+        Self {
+            width,
+            height,
+            ..Default::default()
+        }
+    }
+
+    pub fn time_range(&self) -> f64 {
+        self.end_time - self.start_time
+    }
+
+    pub fn price_range(&self) -> f32 {
+        self.max_price - self.min_price
+    }
+
+    pub fn zoom(&mut self, factor: f32, center_x: f32) {
+        let current_range = self.time_range();
+        let new_range = current_range / factor as f64;
+        let center_time = self.start_time + current_range * center_x as f64;
+        
+        self.start_time = center_time - new_range / 2.0;
+        self.end_time = center_time + new_range / 2.0;
+    }
+
+    pub fn pan(&mut self, delta_x: f32, delta_y: f32) {
+        let time_delta = self.time_range() * delta_x as f64;
+        self.start_time += time_delta;
+        self.end_time += time_delta;
+
+        let price_delta = self.price_range() * delta_y;
+        self.min_price += price_delta;
+        self.max_price += price_delta;
+    }
+
+    /// Конвертирует временную координату в экранную X координату
+    pub fn time_to_x(&self, timestamp: f64) -> f32 {
+        if self.time_range() == 0.0 {
+            return 0.0;
+        }
+        
+        let normalized = (timestamp - self.start_time) / self.time_range();
+        (normalized * self.width as f64) as f32
+    }
+
+    /// Конвертирует цену в экранную Y координату
+    pub fn price_to_y(&self, price: f32) -> f32 {
+        if self.price_range() == 0.0 {
+            return self.height as f32 / 2.0;
+        }
+        
+        let normalized = (price - self.min_price) / self.price_range();
+        self.height as f32 * (1.0 - normalized) // Инвертируем Y
+    }
+
+    /// Конвертирует экранную X координату во время
+    pub fn x_to_time(&self, x: f32) -> f64 {
+        let normalized = x / self.width as f32;
+        self.start_time + self.time_range() * normalized as f64
+    }
+
+    /// Конвертирует экранную Y координату в цену
+    pub fn y_to_price(&self, y: f32) -> f32 {
+        let normalized = 1.0 - (y / self.height as f32); // Инвертируем Y
+        self.min_price + self.price_range() * normalized
+    }
+}
+
+/// Value Object - Цвет
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Color {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+}
+
+impl Color {
+    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
+        Self { r, g, b, a }
+    }
+
+    pub fn rgb(r: f32, g: f32, b: f32) -> Self {
+        Self::new(r, g, b, 1.0)
+    }
+
+    pub fn from_hex(hex: u32) -> Self {
+        let r = ((hex >> 16) & 0xFF) as f32 / 255.0;
+        let g = ((hex >> 8) & 0xFF) as f32 / 255.0;
+        let b = (hex & 0xFF) as f32 / 255.0;
+        Self::rgb(r, g, b)
+    }
+
+    pub fn to_hex(&self) -> u32 {
+        let r = (self.r * 255.0) as u32;
+        let g = (self.g * 255.0) as u32;
+        let b = (self.b * 255.0) as u32;
+        (r << 16) | (g << 8) | b
+    }
+
+    pub fn with_alpha(&self, alpha: f32) -> Self {
+        Self {
+            a: alpha,
+            ..*self
+        }
+    }
+
+    /// Предустановленные цвета
+    pub const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+    pub const WHITE: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
+    pub const RED: Color = Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 };
+    pub const GREEN: Color = Color { r: 0.0, g: 1.0, b: 0.0, a: 1.0 };
+    pub const BLUE: Color = Color { r: 0.0, g: 0.0, b: 1.0, a: 1.0 };
+    pub const TRANSPARENT: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+}
+
+/// Value Object - Стиль графика
+#[derive(Debug, Clone)]
+pub struct ChartStyle {
+    pub background_color: Color,
+    pub grid_color: Color,
+    pub text_color: Color,
+    pub border_color: Color,
+    pub show_grid: bool,
+    pub show_crosshair: bool,
+    pub show_volume: bool,
+    pub show_prices: bool,
+    pub show_time_axis: bool,
+}
+
+impl Default for ChartStyle {
+    fn default() -> Self {
+        Self {
+            background_color: Color::new(0.1, 0.1, 0.1, 1.0), // Темно-серый
+            grid_color: Color::new(0.3, 0.3, 0.3, 0.5),       // Полупрозрачный серый
+            text_color: Color::WHITE,
+            border_color: Color::new(0.5, 0.5, 0.5, 1.0),
+            show_grid: true,
+            show_crosshair: true,
+            show_volume: true,
+            show_prices: true,
+            show_time_axis: true,
+        }
+    }
+}
+
+/// Value Object - Точка на графике
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Point {
+    pub x: f64, // Время
+    pub y: f32, // Цена
+}
+
+impl Point {
+    pub fn new(x: f64, y: f32) -> Self {
+        Self { x, y }
+    }
+}
+
+/// Value Object - Область на графике
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Rect {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+impl Rect {
+    pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
+        Self { x, y, width, height }
+    }
+
+    pub fn contains_point(&self, px: f32, py: f32) -> bool {
+        px >= self.x && px <= self.x + self.width &&
+        py >= self.y && py <= self.y + self.height
+    }
+
+    pub fn intersects(&self, other: &Rect) -> bool {
+        self.x < other.x + other.width &&
+        self.x + self.width > other.x &&
+        self.y < other.y + other.height &&
+        self.y + self.height > other.y
+    }
+}
+
+/// Value Object - Размеры
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Dimensions {
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Dimensions {
+    pub fn new(width: u32, height: u32) -> Self {
+        Self { width, height }
+    }
+
+    pub fn aspect_ratio(&self) -> f32 {
+        self.width as f32 / self.height as f32
+    }
+}
+
+/// Value Object - Позиция мыши/курсора
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CursorPosition {
+    pub x: f32,
+    pub y: f32,
+    pub timestamp: f64,
+    pub price: f32,
+}
+
+impl CursorPosition {
+    pub fn new(x: f32, y: f32, viewport: &Viewport) -> Self {
+        Self {
+            x,
+            y,
+            timestamp: viewport.x_to_time(x),
+            price: viewport.y_to_price(y),
+        }
+    }
+} 

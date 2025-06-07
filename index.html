@@ -33,7 +33,13 @@
 <body>
     <h1>WebGPU Price Chart Demo</h1>
     <div class="status" id="status">Loading WebGPU...</div>
+    <div class="status" id="ws-status">WebSocket: Not connected</div>
     <canvas id="chart-canvas" width="800" height="600"></canvas>
+    
+    <div style="text-align: center; margin-top: 20px;">
+        <p>Real-time BTC/USDT data from Binance WebSocket</p>
+        <p>Open browser console to see live data updates</p>
+    </div>
 
     <script type="module">
         import init from './pkg/price_chart_wasm.js';

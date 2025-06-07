@@ -1,0 +1,101 @@
+
+/// Доменная сущность - Свеча
+#[derive(Debug, Clone, PartialEq)]
+pub struct Candle {
+    pub timestamp: Timestamp,
+    pub ohlcv: OHLCV,
+}
+
+impl Candle {
+    pub fn new(timestamp: Timestamp, ohlcv: OHLCV) -> Self {
+        Self { timestamp, ohlcv }
+    }
+
+    pub fn is_bullish(&self) -> bool {
+        self.ohlcv.close > self.ohlcv.open
+    }
+
+    pub fn is_bearish(&self) -> bool {
+        self.ohlcv.close < self.ohlcv.open
+    }
+
+    pub fn body_size(&self) -> Price {
+        Price::from((self.ohlcv.close.value() - self.ohlcv.open.value()).abs())
+    }
+
+    pub fn wick_high(&self) -> Price {
+        Price::from(self.ohlcv.high.value() - self.ohlcv.close.value().max(self.ohlcv.open.value()))
+    }
+
+    pub fn wick_low(&self) -> Price {
+        Price::from(self.ohlcv.close.value().min(self.ohlcv.open.value()) - self.ohlcv.low.value())
+    }
+}
+
+/// Доменная сущность - Временной ряд свечей
+#[derive(Debug, Clone)]
+pub struct CandleSeries {
+    candles: Vec<Candle>,
+    max_size: usize,
+}
+
+impl CandleSeries {
+    pub fn new(max_size: usize) -> Self {
+        Self {
+            candles: Vec::new(),
+            max_size,
+        }
+    }
+
+    pub fn add_candle(&mut self, candle: Candle) {
+        // Проверяем, обновляем ли мы существующую свечу или добавляем новую
+        if let Some(last_candle) = self.candles.last_mut() {
+            if last_candle.timestamp == candle.timestamp {
+                *last_candle = candle;
+                return;
+            }
+        }
+
+        self.candles.push(candle);
+        
+        // Ограничиваем размер для производительности
+        if self.candles.len() > self.max_size {
+            self.candles.remove(0);
+        }
+    }
+
+    pub fn get_candles(&self) -> &[Candle] {
+        &self.candles
+    }
+
+    pub fn latest(&self) -> Option<&Candle> {
+        self.candles.last()
+    }
+
+    pub fn count(&self) -> usize {
+        self.candles.len()
+    }
+
+    pub fn price_range(&self) -> Option<(Price, Price)> {
+        if self.candles.is_empty() {
+            return None;
+        }
+
+        let mut min = self.candles[0].ohlcv.low;
+        let mut max = self.candles[0].ohlcv.high;
+
+        for candle in &self.candles {
+            if candle.ohlcv.low < min {
+                min = candle.ohlcv.low;
+            }
+            if candle.ohlcv.high > max {
+                max = candle.ohlcv.high;
+            }
+        }
+
+        Some((min, max))
+    }
+}
+
+// Реэкспорт value objects
+pub use super::value_objects::{Timestamp, OHLCV, Price, Volume}; 
