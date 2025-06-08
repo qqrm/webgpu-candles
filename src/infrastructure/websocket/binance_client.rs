@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
 use gloo_net::websocket::futures::WebSocket;
+use gloo_net::http::Request;
 use serde::Deserialize;
 use futures::StreamExt;
 use crate::domain::{
@@ -38,6 +39,23 @@ struct KlineInfo {
     #[serde(rename = "v")]
     volume: String,
 }
+
+/// Структура для исторических данных Binance Klines API
+#[derive(Debug, Deserialize)]
+struct BinanceHistoricalKline(
+    u64,     // Open time
+    String,  // Open
+    String,  // High  
+    String,  // Low
+    String,  // Close
+    String,  // Volume
+    u64,     // Close time
+    String,  // Quote asset volume
+    u32,     // Number of trades
+    String,  // Taker buy base asset volume
+    String,  // Taker buy quote asset volume
+    String,  // Ignore
+);
 
 impl BinanceWebSocketClient {
     pub fn new(symbol: Symbol, interval: TimeInterval) -> Self {
@@ -165,6 +183,73 @@ impl BinanceWebSocketClient {
             "🔌 WebSocket stream ended"
         );
         Ok(())
+    }
+
+    /// 📈 Загрузка исторических данных от Binance REST API
+    pub async fn fetch_historical_data(&self, limit: u32) -> Result<Vec<Candle>, String> {
+        let symbol_upper = self.symbol.value().to_uppercase();
+        let interval_str = self.interval.to_binance_str();
+        
+        let url = format!(
+            "https://api.binance.com/api/v3/klines?symbol={}&interval={}&limit={}",
+            symbol_upper, interval_str, limit
+        );
+
+        get_logger().info(
+            LogComponent::Infrastructure("BinanceAPI"),
+            &format!("📈 Fetching {} historical candles from: {}", limit, url)
+        );
+
+        let response = Request::get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Failed to fetch historical data: {:?}", e))?;
+
+        if !response.ok() {
+            return Err(format!("HTTP error: {}", response.status()));
+        }
+
+        let klines: Vec<BinanceHistoricalKline> = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse JSON: {:?}", e))?;
+
+        let mut candles = Vec::new();
+        
+        for kline in klines {
+            let open = kline.1.parse::<f64>()
+                .map_err(|_| "Invalid open price")?;
+            let high = kline.2.parse::<f64>()
+                .map_err(|_| "Invalid high price")?;
+            let low = kline.3.parse::<f64>()
+                .map_err(|_| "Invalid low price")?;
+            let close = kline.4.parse::<f64>()
+                .map_err(|_| "Invalid close price")?;
+            let volume = kline.5.parse::<f64>()
+                .map_err(|_| "Invalid volume")?;
+
+            let ohlcv = OHLCV::new(
+                Price::new(open),
+                Price::new(high),
+                Price::new(low),
+                Price::new(close),
+                Volume::new(volume),
+            );
+
+            let candle = Candle::new(
+                Timestamp::new(kline.0), // open_time
+                ohlcv,
+            );
+
+            candles.push(candle);
+        }
+
+        get_logger().info(
+            LogComponent::Infrastructure("BinanceAPI"),
+            &format!("✅ Loaded {} historical candles for {}", candles.len(), symbol_upper)
+        );
+
+        Ok(candles)
     }
 }
 

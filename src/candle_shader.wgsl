@@ -71,6 +71,15 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     } else if (vertex.element_type < 4.5) {
         // 💰 Линия текущей цены
         out.color = uniforms.current_price_color; // Ярко-желтый
+    } else if (vertex.element_type < 5.5) {
+        // 📊 Volume bars
+        if (vertex.color_type > 0.5) {
+            // Бычий volume - зеленый с пониженной яркостью
+            out.color = vec4<f32>(uniforms.bullish_color.rgb * 0.6, 0.8);
+        } else {
+            // Медвежий volume - красный с пониженной яркостью
+            out.color = vec4<f32>(uniforms.bearish_color.rgb * 0.6, 0.8);
+        }
     } else if (vertex.element_type > 98.0) {
         // УЛЬТРА-ПРОСТОЙ ТЕСТ - яркий красный цвет
         out.color = vec4<f32>(1.0, 0.0, 0.0, 1.0); // Красный

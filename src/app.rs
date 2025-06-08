@@ -1,31 +1,31 @@
-use leptos::*;
+// src/app.rs
+
 use leptos::html::Canvas;
-use std::rc::Rc;
+use leptos::*;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::{
     domain::market_data::entities::Candle,
-    infrastructure::{
-        rendering::WebGpuRenderer,
-        websocket::BinanceWebSocketClient,
-    },
     domain::{
         chart::Chart,
-        market_data::{value_objects::Symbol, TimeInterval},
         logging::{LogComponent, get_logger},
+        market_data::{TimeInterval, value_objects::Symbol},
     },
+    infrastructure::{rendering::WebGpuRenderer, websocket::BinanceWebSocketClient},
 };
 
 // 🔗 Глобальные сигналы для логов (bridge к domain::logging)
 thread_local! {
     static GLOBAL_LOGS: RwSignal<Vec<String>> = create_rw_signal(Vec::new());
     static IS_LOG_PAUSED: RwSignal<bool> = create_rw_signal(false);
-    
+
     // 🌐 Глобальные сигналы для real-time данных
     static GLOBAL_CURRENT_PRICE: RwSignal<f64> = create_rw_signal(0.0);
     static GLOBAL_CANDLE_COUNT: RwSignal<usize> = create_rw_signal(0);
     static GLOBAL_IS_STREAMING: RwSignal<bool> = create_rw_signal(false);
-    
+    static GLOBAL_MAX_VOLUME: RwSignal<f64> = create_rw_signal(0.0);
+
     // 🎯 Tooltip данные
     static TOOLTIP_DATA: RwSignal<Option<TooltipData>> = create_rw_signal(None);
     static TOOLTIP_VISIBLE: RwSignal<bool> = create_rw_signal(false);
@@ -45,10 +45,10 @@ impl TooltipData {
         let change = candle.ohlcv.close.value() - candle.ohlcv.open.value();
         let change_pct = (change / candle.ohlcv.open.value()) * 100.0;
         let trend = if change >= 0.0 { "🟢" } else { "🔴" };
-        
+
         // Форматируем время из timestamp
         let time_str = format!("Time: {}", candle.timestamp.value());
-        
+
         let formatted_text = format!(
             "{} BTC/USDT\n📈 Open:   ${:.2}\n📊 High:   ${:.2}\n📉 Low:    ${:.2}\n💰 Close:  ${:.2}\n📈 Change: ${:.2} ({:.2}%)\n📊 Volume: {:.4}\n{}",
             trend,
@@ -61,7 +61,7 @@ impl TooltipData {
             candle.ohlcv.volume.value(),
             time_str
         );
-        
+
         Self {
             candle,
             x,
@@ -77,15 +77,13 @@ pub struct LeptosLogger;
 impl crate::domain::logging::Logger for LeptosLogger {
     fn log(&self, entry: crate::domain::logging::LogEntry) {
         use crate::domain::logging::get_time_provider;
-        
+
         let timestamp_str = get_time_provider().format_timestamp(entry.timestamp);
-        let formatted = format!("[{}] {} {}: {}", 
-            timestamp_str, 
-            entry.level,
-            entry.component,
-            entry.message
+        let formatted = format!(
+            "[{}] {} {}: {}",
+            timestamp_str, entry.level, entry.component, entry.message
         );
-        
+
         // Обновляем глобальные Leptos сигналы!
         GLOBAL_LOGS.with(|logs| {
             IS_LOG_PAUSED.with(|paused| {
@@ -105,7 +103,7 @@ impl crate::domain::logging::Logger for LeptosLogger {
 
 /// 🦀 Главный компонент Bitcoin Chart на Leptos
 #[component]
-pub fn App() -> impl IntoView {
+pub fn app() -> impl IntoView {
     view! {
         <style>
             {r#"
@@ -277,17 +275,18 @@ pub fn App() -> impl IntoView {
 
 /// 📊 Заголовок с информацией о цене - теперь с реальными данными!
 #[component]
-fn Header() -> impl IntoView {
+fn header() -> impl IntoView {
     // Используем глобальные сигналы для реальных данных
     let current_price = GLOBAL_CURRENT_PRICE.with(|price| *price);
     let candle_count = GLOBAL_CANDLE_COUNT.with(|count| *count);
     let is_streaming = GLOBAL_IS_STREAMING.with(|streaming| *streaming);
+    let max_volume = GLOBAL_MAX_VOLUME.with(|volume| *volume);
 
     view! {
         <div class="header">
             <h1>"🌐 Bitcoin WebSocket Chart"</h1>
             <p>"BTC/USDT • Real-time Leptos + WebGPU"</p>
-            
+
             <div class="price-info">
                 <div class="price-item">
                     <div class="price-value">
@@ -307,7 +306,102 @@ fn Header() -> impl IntoView {
                     </div>
                     <div class="price-label">"WebSocket"</div>
                 </div>
+                <div class="price-item">
+                    <div class="price-value">
+                        {move || format!("{:.2}", max_volume.get())}
+                    </div>
+                    <div class="price-label">"Max Volume"</div>
+                </div>
             </div>
+        </div>
+    }
+}
+
+#[component]
+fn PriceAxisLeft(candles: ReadSignal<Vec<Candle>>) -> impl IntoView {
+    let labels = move || {
+        let candles = candles.get();
+        if candles.is_empty() {
+            return vec![];
+        }
+        let max_visible = 300;
+        let visible = if candles.len() > max_visible {
+            &candles[candles.len() - max_visible..]
+        } else {
+            &candles[..]
+        };
+        let (min, max) = visible.iter().fold((f64::MAX, f64::MIN), |(min, max), c| {
+            (min.min(c.ohlcv.low.value()), max.max(c.ohlcv.high.value()))
+        });
+        let step = (max - min) / 8.0;
+        (0..=8)
+            .rev()
+            .map(|i| min + i as f64 * step)
+            .collect::<Vec<_>>()
+    };
+
+    view! {
+        <div style="width: 60px; height: 500px; background: #222; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; margin-right: 8px;">
+            <For
+                each=labels
+                key=|v| (*v * 100.0) as i64
+                children=|v| view! {
+                    <div style="font-size: 12px; color: #fff;">{format!("{:.2}", v)}</div>
+                }
+            />
+        </div>
+    }
+}
+
+/// ⏰ Временная шкала снизу графика
+#[component]
+fn TimeScale(candles: ReadSignal<Vec<Candle>>) -> impl IntoView {
+    let time_labels = move || {
+        let candles = candles.get();
+        if candles.is_empty() {
+            return vec![];
+        }
+        
+        let max_visible = 300;
+        let visible = if candles.len() > max_visible {
+            &candles[candles.len() - max_visible..]
+        } else {
+            &candles[..]
+        };
+        
+        // Показываем 5 временных меток
+        let num_labels = 5;
+        let mut labels = Vec::new();
+        
+        for i in 0..num_labels {
+            let index = (i * visible.len()) / (num_labels - 1);
+            if let Some(candle) = visible.get(index.min(visible.len() - 1)) {
+                let timestamp = candle.timestamp.value();
+                // Конвертируем timestamp в читаемое время
+                let date = js_sys::Date::new(&(timestamp as f64).into());
+                let time_str = format!("{:02}:{:02}", 
+                    date.get_hours(), 
+                    date.get_minutes()
+                );
+                let position_percent = (i as f64 / (num_labels as f64 - 1.0)) * 100.0;
+                labels.push((time_str, position_percent));
+            }
+        }
+        
+        labels
+    };
+
+    view! {
+        <div style="width: 800px; height: 30px; background: #222; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; margin-top: 5px; border-radius: 5px;">
+            <For
+                each=time_labels
+                key=|(time, _pos)| time.clone()
+                children=|(time, _position)| view! {
+                    <div style="font-size: 11px; color: #888;">
+                        {time}
+                    </div>
+                }
+            />
         </div>
     }
 }
@@ -328,13 +422,13 @@ fn ChartContainer() -> impl IntoView {
         if canvas_ref.get().is_some() {
             spawn_local(async move {
                 set_status.set("🚀 Initializing WebGPU renderer...".to_string());
-                
+
                 match WebGpuRenderer::new("chart-canvas", 800, 500).await {
                     Ok(webgpu_renderer) => {
                         let renderer_rc = Rc::new(RefCell::new(webgpu_renderer));
                         set_renderer.set(Some(renderer_rc));
                         set_status.set("✅ WebGPU renderer ready".to_string());
-                        
+
                         // Запускаем WebSocket после инициализации renderer
                         start_websocket_stream(set_candles, set_status).await;
                     }
@@ -356,9 +450,9 @@ fn ChartContainer() -> impl IntoView {
                         let mut chart = Chart::new(
                             "leptos-chart".to_string(),
                             crate::domain::chart::ChartType::Candlestick,
-                            1000
+                            1000,
                         );
-                        
+
                         // Добавляем данные в chart
                         for candle in candles_data {
                             chart.data.add_candle(candle.clone());
@@ -369,7 +463,8 @@ fn ChartContainer() -> impl IntoView {
                             if let Err(e) = webgpu_renderer.render(&chart) {
                                 set_status.set(format!("❌ Render error: {:?}", e));
                             } else {
-                                set_status.set(format!("✅ Rendered {} candles", candles_data.len()));
+                                set_status
+                                    .set(format!("✅ Rendered {} candles", candles_data.len()));
                             }
                         }
                     }
@@ -385,28 +480,30 @@ fn ChartContainer() -> impl IntoView {
             // Упрощенная версия без getBoundingClientRect
             let mouse_x = event.offset_x() as f64;
             let mouse_y = event.offset_y() as f64;
-            
+
             // Конвертируем в NDC координаты (предполагаем canvas 800x500)
             let canvas_width = 800.0;
             let canvas_height = 500.0;
             let ndc_x = (mouse_x / canvas_width) * 2.0 - 1.0;
             let _ndc_y = 1.0 - (mouse_y / canvas_height) * 2.0;
-            
+
             candles_clone.with(|candles_data| {
                 if !candles_data.is_empty() {
                     let max_visible = 300;
                     let start_idx = if candles_data.len() > max_visible {
                         candles_data.len() - max_visible
-                    } else { 0 };
+                    } else {
+                        0
+                    };
                     let visible = &candles_data[start_idx..];
-                    
+
                     let step_size = 2.0 / visible.len() as f64;
                     let candle_idx = ((ndc_x + 1.0) / step_size).floor() as usize;
-                    
+
                     if candle_idx < visible.len() {
                         let candle = &visible[candle_idx];
                         let tooltip_data = TooltipData::new(candle.clone(), mouse_x, mouse_y);
-                        
+
                         TOOLTIP_DATA.with(|data| data.set(Some(tooltip_data)));
                         TOOLTIP_VISIBLE.with(|visible| visible.set(true));
                     } else {
@@ -418,26 +515,35 @@ fn ChartContainer() -> impl IntoView {
             });
         }
     };
-    
+
     let handle_mouse_leave = move |_event: web_sys::MouseEvent| {
         TOOLTIP_VISIBLE.with(|visible| visible.set(false));
     };
 
     view! {
         <div class="chart-container">
-            <div class="chart-wrapper">
-                <canvas 
-                    id="chart-canvas"
-                    node_ref=canvas_ref
-                    width="800"
-                    height="500"
-                    style="border: 2px solid #4a5d73; border-radius: 10px; background: #2c3e50; cursor: crosshair;"
-                    on:mousemove=handle_mouse_move
-                    on:mouseleave=handle_mouse_leave
-                />
-                <PriceScale />
-                <ChartTooltip />
+            <div style="display: flex; flex-direction: row; align-items: flex-start;">
+                <PriceAxisLeft candles=candles />
+                <div style="position: relative;">
+                    <canvas
+                        id="chart-canvas"
+                        node_ref=canvas_ref
+                        width="800"
+                        height="500"
+                        style="border: 2px solid #4a5d73; border-radius: 10px; background: #2c3e50; cursor: crosshair;"
+                        on:mousemove=handle_mouse_move
+                        on:mouseleave=handle_mouse_leave
+                    />
+                    <PriceScale />
+                    <ChartTooltip />
+                </div>
             </div>
+            
+            // Временная шкала под графиком
+            <div style="display: flex; justify-content: center; margin-top: 10px;">
+                <TimeScale candles=candles />
+            </div>
+            
             <div class="status">
                 {move || status.get()}
             </div>
@@ -449,10 +555,50 @@ fn ChartContainer() -> impl IntoView {
 #[component]
 fn PriceScale() -> impl IntoView {
     let current_price = GLOBAL_CURRENT_PRICE.with(|price| *price);
-    
+
+    // Вычисляем ценовые уровни для отображения (такие же как в сетке)
+    let price_levels = move || {
+        let price = current_price.get();
+        if price <= 0.0 {
+            return vec![];
+        }
+        
+        // Примерный диапазон цен (±3% от текущей цены)
+        let min_price = price * 0.97;
+        let max_price = price * 1.03;
+        let price_range = max_price - min_price;
+        
+        // 8 ценовых уровней (как в сетке)
+        let num_levels = 8;
+        let mut levels = Vec::new();
+        
+        for i in 0..=num_levels {
+            let level_price = min_price + (price_range * i as f64 / num_levels as f64);
+            let position_percent = (i as f64 / num_levels as f64) * 100.0;
+            levels.push((level_price, position_percent));
+        }
+        
+        levels.reverse(); // Сверху вниз
+        levels
+    };
+
     view! {
         <div class="price-scale">
-            // Показываем текущую цену
+            // Показываем ценовые уровни
+            <For
+                each=price_levels
+                key=|(_price, pos)| (*pos * 100.0) as i64
+                children=|(price, position)| view! {
+                    <div 
+                        class="price-level" 
+                        style=format!("position: absolute; top: {}%; right: 5px; transform: translateY(-50%); font-size: 11px; color: #888; background: rgba(0,0,0,0.7); padding: 2px 4px; border-radius: 2px;", position)
+                    >
+                        {format!("{:.2}", price)}
+                    </div>
+                }
+            />
+            
+            // Показываем текущую цену (более заметно)
             <div class="current-price-label" style=format!("top: 50%")>
                 <span class="price-value">{move || format!("${:.2}", current_price.get())}</span>
             </div>
@@ -467,7 +613,7 @@ fn ChartTooltip() -> impl IntoView {
     let tooltip_data = TOOLTIP_DATA.with(|data| *data);
 
     view! {
-        <div 
+        <div
             class="tooltip"
             style:display=move || if tooltip_visible.get() { "block" } else { "none" }
             style:left=move || {
@@ -503,7 +649,7 @@ fn ChartTooltip() -> impl IntoView {
 }
 
 /// 🎯 Отладочная консоль с bridge к domain::logging
-#[component] 
+#[component]
 fn DebugConsole() -> impl IntoView {
     // Используем глобальные сигналы вместо локальных!
     let logs = GLOBAL_LOGS.with(|logs| *logs);
@@ -513,7 +659,7 @@ fn DebugConsole() -> impl IntoView {
         <div class="debug-console">
             <div class="debug-header">
                 <span>"🐛 Domain Logger Console"</span>
-                <button 
+                <button
                     on:click=move |_| {
                         is_paused.update(|p| *p = !*p);
                         if is_paused.get() {
@@ -532,7 +678,7 @@ fn DebugConsole() -> impl IntoView {
                 >
                     {move || if is_paused.get() { "▶️ Resume" } else { "⏸️ Pause" }}
                 </button>
-                <button 
+                <button
                     on:click=move |_| {
                         GLOBAL_LOGS.with(|logs| logs.set(Vec::new()));
                         get_logger().info(
@@ -563,28 +709,71 @@ async fn start_websocket_stream(
     set_candles: WriteSignal<Vec<Candle>>,
     set_status: WriteSignal<String>,
 ) {
-    set_status.set("🔌 Starting WebSocket stream...".to_string());
-
     let symbol = Symbol::from("BTCUSDT");
     let interval = TimeInterval::OneMinute;
-    
+
+    // Создаем клиент для загрузки данных
+    let ws_client = BinanceWebSocketClient::new(symbol, interval);
+
     // Устанавливаем статус стрима
+    GLOBAL_IS_STREAMING.with(|streaming| streaming.set(false));
+    
+    // 📈 Сначала загружаем исторические данные
+    set_status.set("📈 Loading historical data...".to_string());
+    
+    match ws_client.fetch_historical_data(300).await {
+        Ok(historical_candles) => {
+            get_logger().info(
+                LogComponent::Presentation("WebSocketStream"),
+                &format!("✅ Loaded {} historical candles", historical_candles.len())
+            );
+            
+            // Загружаем исторические данные в UI
+            set_candles.set(historical_candles.clone());
+            
+            // Обновляем глобальные сигналы с историческими данными
+            GLOBAL_CANDLE_COUNT.with(|count| count.set(historical_candles.len()));
+            
+            if let Some(last_candle) = historical_candles.last() {
+                GLOBAL_CURRENT_PRICE.with(|price| {
+                    price.set(last_candle.ohlcv.close.value());
+                });
+            }
+            
+            // Вычисляем максимальный объем из истории
+            let max_vol = historical_candles.iter()
+                .map(|c| c.ohlcv.volume.value())
+                .fold(0.0f64, |a, b| a.max(b));
+            GLOBAL_MAX_VOLUME.with(|volume| volume.set(max_vol));
+            
+            set_status.set("✅ Historical data loaded. Starting real-time stream...".to_string());
+        }
+        Err(e) => {
+            get_logger().error(
+                LogComponent::Presentation("WebSocketStream"),
+                &format!("❌ Failed to load historical data: {}", e)
+            );
+            set_status.set("⚠️ Historical data failed. Starting real-time only...".to_string());
+        }
+    }
+
+    // 🔌 Теперь запускаем WebSocket для real-time обновлений
+    set_status.set("🔌 Starting WebSocket stream...".to_string());
     GLOBAL_IS_STREAMING.with(|streaming| streaming.set(true));
-    
-    // Запускаем WebSocket сразу - только реальное время!
-    let mut ws_client = BinanceWebSocketClient::new(symbol, interval);
-    
+
+    let mut ws_client = BinanceWebSocketClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
+
     spawn_local(async move {
         let handler = move |candle: Candle| {
             // Обновляем цену в глобальном сигнале
             GLOBAL_CURRENT_PRICE.with(|price| {
                 price.set(candle.ohlcv.close.value() as f64);
             });
-            
+
             // Реактивно обновляем данные в Leptos!
             set_candles.update(|candles| {
                 let new_timestamp = candle.timestamp.value();
-                
+
                 if let Some(last_candle) = candles.last_mut() {
                     if last_candle.timestamp.value() == new_timestamp {
                         // Обновляем существующую свечу
@@ -592,7 +781,7 @@ async fn start_websocket_stream(
                     } else if new_timestamp > last_candle.timestamp.value() {
                         // Добавляем новую свечу
                         candles.push(candle);
-                        
+
                         // Ограничиваем до 300 свечей
                         while candles.len() > 300 {
                             candles.remove(0);
@@ -601,11 +790,17 @@ async fn start_websocket_stream(
                 } else {
                     candles.push(candle);
                 }
-                
+
                 // Обновляем счетчик свечей
                 GLOBAL_CANDLE_COUNT.with(|count| count.set(candles.len()));
+                
+                // Обновляем максимальный объем
+                let max_vol = candles.iter()
+                    .map(|c| c.ohlcv.volume.value())
+                    .fold(0.0f64, |a, b| a.max(b));
+                GLOBAL_MAX_VOLUME.with(|volume| volume.set(max_vol));
             });
-            
+
             // Обновляем статус
             set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
         };
@@ -615,4 +810,4 @@ async fn start_websocket_stream(
             GLOBAL_IS_STREAMING.with(|streaming| streaming.set(false));
         }
     });
-} 
+}

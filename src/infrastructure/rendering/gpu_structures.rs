@@ -82,6 +82,16 @@ impl CandleVertex {
             color_type: 7.0,   // специальный цвет для current price
         }
     }
+
+    /// 📊 Создать vertex для volume bars
+    pub fn volume_vertex(x: f32, y: f32, is_bullish: bool) -> Self {
+        Self {
+            position_x: x,
+            position_y: y,
+            element_type: 5.0, // volume bar
+            color_type: if is_bullish { 1.0 } else { 0.0 }, // тот же цвет что и у свечей
+        }
+    }
     
     /// Дескриптор вершинного буфера для wgpu
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {

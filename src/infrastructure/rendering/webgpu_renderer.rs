@@ -382,11 +382,11 @@ impl WebGpuRenderer {
             return (vec![], ChartUniforms::new());
         }
 
-        // Реже логируем для производительности
-        if candles.len() % 50 == 0 {
+        // ⚡ Производительность: логируем реже
+        if candles.len() % 100 == 0 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("🔧 Creating geometry for {} candles", candles.len())
+                &format!("🔧 Creating optimized geometry for {} candles", candles.len())
             );
         }
 
@@ -454,14 +454,14 @@ impl WebGpuRenderer {
         let candle_width = (step_size * 0.8).max(0.002).min(0.02); // 80% от step_size, но не больше 0.02 и не меньше 0.002
         
         for (i, candle) in visible_candles.iter().enumerate() {
-            // Position X в NDC space [-1, 1] - новые свечи справа
+            // Position X in NDC space [-1, 1] - новые свечи справа
             let x = -1.0 + (i as f32 + 0.5) * step_size;
 
-            // Нормализация Y - используем почти весь экран [-0.8, 0.8]
+            // Нормализация Y - используем верхнюю часть экрана [-0.5, 0.8] для свечей
             let price_range = max_price - min_price;
             let price_norm = |price: f64| -> f32 {
                 let normalized = (price as f32 - min_price) / price_range;
-                -0.8 + normalized * 1.6 // Map to [-0.8, 0.8]
+                -0.5 + normalized * 1.3 // Map to [-0.5, 0.8] - освобождаем место для volume
             };
 
             let open_y = price_norm(candle.ohlcv.open.value());
@@ -541,7 +541,7 @@ impl WebGpuRenderer {
         if let Some(last_candle) = visible_candles.last() {
             let current_price = last_candle.ohlcv.close.value() as f32;
             let price_range = max_price - min_price;
-            let price_y = -0.8 + ((current_price - min_price) / price_range) * 1.6;
+            let price_y = -0.5 + ((current_price - min_price) / price_range) * 1.3; // Та же область что и свечи
             
             // Сплошная горизонтальная линия через весь экран
             let line_thickness = 0.002;
@@ -556,6 +556,12 @@ impl WebGpuRenderer {
             ];
             vertices.extend_from_slice(&price_line);
         }
+
+        // 📊 Добавляем сетку графика для профессионального вида
+        vertices.extend(self.create_grid_lines(min_price, max_price, visible_candles.len()));
+
+        // 📊 Добавляем volume bars под графиком
+        vertices.extend(self.create_volume_bars(visible_candles));
 
         // 📈 Добавляем скользящие средние (SMA20 и EMA12)
         vertices.extend(self.create_moving_averages(visible_candles, min_price, max_price));
@@ -672,6 +678,125 @@ impl WebGpuRenderer {
             );
         }
 
+        vertices
+    }
+
+    /// 📊 Создать сетку графика (горизонтальные и вертикальные линии)
+    fn create_grid_lines(&self, min_price: f32, max_price: f32, candle_count: usize) -> Vec<CandleVertex> {
+        let mut vertices = Vec::new();
+        let line_thickness = 0.001; // Тонкие линии сетки
+        
+        // Горизонтальные линии сетки (ценовые уровни)
+        let price_range = max_price - min_price;
+        let num_price_lines = 8; // 8 горизонтальных линий
+        
+        for i in 1..num_price_lines {
+            let price_level = min_price + (price_range * i as f32 / num_price_lines as f32);
+            let y = -0.5 + ((price_level - min_price) / price_range) * 1.3; // Та же область что и свечи
+            
+            // Горизонтальная линия через весь график
+            let horizontal_line = vec![
+                CandleVertex::grid_vertex(-1.0, y - line_thickness),
+                CandleVertex::grid_vertex(1.0, y - line_thickness),
+                CandleVertex::grid_vertex(-1.0, y + line_thickness),
+                
+                CandleVertex::grid_vertex(1.0, y - line_thickness),
+                CandleVertex::grid_vertex(1.0, y + line_thickness),
+                CandleVertex::grid_vertex(-1.0, y + line_thickness),
+            ];
+            vertices.extend_from_slice(&horizontal_line);
+        }
+        
+        // Вертикальные линии сетки (временные интервалы) - покрывают весь график
+        if candle_count > 0 {
+            let step_size = 2.0 / candle_count as f32;
+            let num_vertical_lines = 10; // 10 вертикальных линий
+            let vertical_step = candle_count / num_vertical_lines;
+            
+            for i in 1..num_vertical_lines {
+                let candle_index = i * vertical_step;
+                if candle_index < candle_count {
+                    let x = -1.0 + (candle_index as f32 + 0.5) * step_size;
+                    
+                    // Вертикальная линия через весь график (включая volume область)
+                    let vertical_line = vec![
+                        CandleVertex::grid_vertex(x - line_thickness, -1.0), // От самого низа
+                        CandleVertex::grid_vertex(x + line_thickness, -1.0),
+                        CandleVertex::grid_vertex(x - line_thickness, 0.8),  // До верха свечей
+                        
+                        CandleVertex::grid_vertex(x + line_thickness, -1.0),
+                        CandleVertex::grid_vertex(x + line_thickness, 0.8),
+                        CandleVertex::grid_vertex(x - line_thickness, 0.8),
+                    ];
+                    vertices.extend_from_slice(&vertical_line);
+                }
+            }
+        }
+        
+        get_logger().info(
+            LogComponent::Infrastructure("WebGpuRenderer"),
+            &format!("📊 Generated {} grid vertices", vertices.len())
+        );
+        
+        vertices
+    }
+
+    /// 📊 Создать volume bars под основным графиком
+    fn create_volume_bars(&self, candles: &[crate::domain::market_data::Candle]) -> Vec<CandleVertex> {
+        if candles.is_empty() {
+            return Vec::new();
+        }
+        
+        let mut vertices = Vec::new();
+        let candle_count = candles.len();
+        
+        // Находим максимальный объем для нормализации
+        let max_volume = candles.iter()
+            .map(|c| c.ohlcv.volume.value() as f32)
+            .fold(0.0f32, |a, b| a.max(b));
+            
+        if max_volume <= 0.0 {
+            return Vec::new();
+        }
+        
+        // Volume область занимает нижнюю часть экрана [-1.0, -0.6]
+        let volume_top = -0.6;
+        let volume_bottom = -1.0;
+        let volume_height = volume_top - volume_bottom;
+        
+        let step_size = 2.0 / candle_count as f32;
+        let bar_width = (step_size * 0.8).max(0.002); // 80% от step_size
+        
+        for (i, candle) in candles.iter().enumerate() {
+            let x = -1.0 + (i as f32 + 0.5) * step_size;
+            let volume_normalized = (candle.ohlcv.volume.value() as f32) / max_volume;
+            let bar_height = volume_height * volume_normalized;
+            let bar_top = volume_bottom + bar_height;
+            
+            let half_width = bar_width * 0.5;
+            
+            // Определяем цвет volume bar: зеленый если цена выросла, красный если упала
+            let is_bullish = candle.ohlcv.close.value() >= candle.ohlcv.open.value();
+            
+            // Volume bar как прямоугольник (2 треугольника)
+            let volume_bar = vec![
+                CandleVertex::volume_vertex(x - half_width, volume_bottom, is_bullish),
+                CandleVertex::volume_vertex(x + half_width, volume_bottom, is_bullish),
+                CandleVertex::volume_vertex(x - half_width, bar_top, is_bullish),
+                
+                CandleVertex::volume_vertex(x + half_width, volume_bottom, is_bullish),
+                CandleVertex::volume_vertex(x + half_width, bar_top, is_bullish),
+                CandleVertex::volume_vertex(x - half_width, bar_top, is_bullish),
+            ];
+            vertices.extend_from_slice(&volume_bar);
+        }
+        
+        get_logger().info(
+            LogComponent::Infrastructure("WebGpuRenderer"),
+            &format!("📊 Generated {} volume vertices for {} candles (max volume: {:.2})", 
+                vertices.len(), candles.len(), max_volume)
+        );
+        
         vertices
     }
 
