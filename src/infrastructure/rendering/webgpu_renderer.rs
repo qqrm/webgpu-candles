@@ -2,14 +2,15 @@ use wasm_bindgen::prelude::*;
 use crate::domain::{
     chart::Chart,
     logging::{LogComponent, get_logger},
-
 };
+use crate::domain::market_data::Candle;
 use wgpu::util::DeviceExt;
-use crate::infrastructure::rendering::gpu_structures::{CandleVertex, ChartUniforms};
 use gloo::utils::document;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
 use js_sys;
+use crate::infrastructure::rendering::gpu_structures::{CandleVertex, ChartUniforms};
+use wasm_bindgen::JsValue;
 
 /// Настоящий WebGPU рендерер для свечей
 pub struct WebGpuRenderer {
@@ -29,6 +30,10 @@ pub struct WebGpuRenderer {
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     num_vertices: u32,
+    
+    // 🔍 Параметры зума и панорамирования
+    zoom_level: f64,
+    pan_offset: f64,
 }
 
 /// Состояние видимости линий индикаторов
@@ -260,6 +265,8 @@ impl WebGpuRenderer {
             uniform_buffer,
             uniform_bind_group,
             num_vertices: 0,
+            zoom_level: 1.0,
+            pan_offset: 0.0,
         })
     }
 
@@ -429,10 +436,11 @@ impl WebGpuRenderer {
             return (vec![], ChartUniforms::new());
         }
 
-        // Рендерим последние 300 свечей (как в реальном тикере)
-        let max_visible_candles = 300;
-        let start_index = if candles.len() > max_visible_candles {
-            candles.len() - max_visible_candles
+        // 🔍 Применяем зум - показываем меньше свечей при увеличении зума
+        let base_candles = 300.0;
+        let visible_count = (base_candles / self.zoom_level).max(10.0).min(candles.len() as f64) as usize;
+        let start_index = if candles.len() > visible_count {
+            candles.len() - visible_count
         } else {
             0
         };
@@ -442,16 +450,19 @@ impl WebGpuRenderer {
         if visible_candles.len() % 50 == 0 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("🔧 Rendering {} candles (showing last {} of {})", 
-                    visible_candles.len(), max_visible_candles, candles.len())
+                &format!("🔧 Rendering {} candles (showing last {} of {}) [zoom: {:.2}x]", 
+                    visible_candles.len(), visible_count, candles.len(), self.zoom_level)
             );
         }
 
         // Create vertices for each visible candle
-        let visible_count = visible_candles.len();
         let chart_width = 2.0; // NDC width (-1 to 1)
-        let step_size = chart_width / visible_count as f32; // Размер одной свечи
-        let candle_width = (step_size * 0.8).max(0.002).min(0.02); // 80% от step_size, но не больше 0.02 и не меньше 0.002
+        
+        // 🔍 Применяем зум к размеру свечей
+        let base_step_size = chart_width / visible_candles.len() as f32;
+        let zoom_factor = self.zoom_level.max(0.1).min(10.0) as f32; // Ограничиваем зум
+        let step_size = base_step_size * zoom_factor; // При зуме > 1.0 свечи шире
+        let candle_width = (step_size * 0.8).max(0.002).min(0.1); // Увеличиваем максимальную ширину
         
         for (i, candle) in visible_candles.iter().enumerate() {
             // Position X in NDC space [-1, 1] - новые свечи справа
@@ -1103,6 +1114,100 @@ impl WebGpuRenderer {
         );
 
         Ok(())
+    }
+
+    /// 🔍 Устанавливает параметры зума и панорамирования
+    pub fn set_zoom_params(&mut self, zoom_level: f64, pan_offset: f64) {
+        self.zoom_level = zoom_level;
+        self.pan_offset = pan_offset;
+    }
+
+    fn create_candles(&self, candles: &[Candle]) -> Vec<CandleVertex> {
+        let mut vertices = Vec::new();
+        if candles.is_empty() {
+            return vertices;
+        }
+
+        // 🔍 Применяем зум - показываем меньше свечей при увеличении зума
+        let visible_count = (300.0 / self.zoom_level).max(10.0) as usize;
+        let start_idx = if candles.len() > visible_count {
+            candles.len() - visible_count
+        } else {
+            0
+        };
+        let visible_candles = &candles[start_idx..];
+
+        if visible_candles.is_empty() {
+            return vertices;
+        }
+
+        // Находим мин/макс цены для нормализации
+        let (min_price, max_price) = visible_candles.iter().fold((f64::MAX, f64::MIN), |(min, max), candle| {
+            let low = candle.ohlcv.low.value();
+            let high = candle.ohlcv.high.value();
+            (min.min(low), max.max(high))
+        });
+
+        let price_range = max_price - min_price;
+        if price_range == 0.0 {
+            return vertices;
+        }
+
+        // 🔍 Учитываем панорамирование при расчете step_size
+        let base_step_size = 2.0 / visible_candles.len() as f64;
+        let step_size = base_step_size * self.zoom_level;
+        
+        // 🔍 Применяем панорамирование
+        let pan_factor = self.pan_offset * 0.001; // Чувствительность панорамирования
+
+        for (i, candle) in visible_candles.iter().enumerate() {
+            // 🔍 Позиция X с учетом зума и панорамирования
+            let base_x = -1.0 + (i as f64 + 0.5) * base_step_size;
+            let x = (base_x + pan_factor).clamp(-1.0, 1.0);
+            
+            // Нормализуем цены в диапазон [-0.5, 0.8] (освобождаем место для volume bars)
+            let normalize_price = |price: f64| -> f32 {
+                let normalized = (price - min_price) / price_range;
+                (-0.5 + normalized * 1.3) as f32
+            };
+
+            let open_y = normalize_price(candle.ohlcv.open.value());
+            let high_y = normalize_price(candle.ohlcv.high.value());
+            let low_y = normalize_price(candle.ohlcv.low.value());
+            let close_y = normalize_price(candle.ohlcv.close.value());
+
+            // 🔍 Ширина свечи с учетом зума
+            let candle_width = (step_size * 0.6) as f32;
+
+            // Цвет свечи (зеленый для роста, красный для падения)
+            let color = if candle.ohlcv.close.value() >= candle.ohlcv.open.value() {
+                [0.0, 0.8, 0.0, 1.0] // Зеленый
+            } else {
+                [0.8, 0.0, 0.0, 1.0] // Красный
+            };
+
+            // Создаем геометрию свечи (body + wicks)
+            let x_f32 = x as f32;
+
+            // High-Low wick (тонкая линия)
+            vertices.push(CandleVertex::wick_vertex(x_f32, high_y));
+            vertices.push(CandleVertex::wick_vertex(x_f32, low_y));
+
+            // Open-Close body (толстый прямоугольник)
+            let body_top = open_y.max(close_y);
+            let body_bottom = open_y.min(close_y);
+            let is_bullish = candle.ohlcv.close.value() >= candle.ohlcv.open.value();
+
+            // Левая сторона body
+            vertices.push(CandleVertex::body_vertex(x_f32 - candle_width / 2.0, body_top, is_bullish));
+            vertices.push(CandleVertex::body_vertex(x_f32 - candle_width / 2.0, body_bottom, is_bullish));
+
+            // Правая сторона body
+            vertices.push(CandleVertex::body_vertex(x_f32 + candle_width / 2.0, body_top, is_bullish));
+            vertices.push(CandleVertex::body_vertex(x_f32 + candle_width / 2.0, body_bottom, is_bullish));
+        }
+
+        vertices
     }
 }
 

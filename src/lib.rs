@@ -9,21 +9,31 @@ pub mod app;
 use leptos::*;
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
-pub fn hydrate() {
+#[wasm_bindgen(start)]
+pub fn main() {
     console_error_panic_hook::set_once();
+    
+    // Log that WASM started
+    unsafe { web_sys::console::log_1(&"🚀 WASM module initialized!".into()); }
     
     // Initialize infrastructure services
     crate::infrastructure::initialize_infrastructure_services();
     
-    // Mount Leptos app
+    // Mount Leptos app to body
+    unsafe { web_sys::console::log_1(&"🎯 Mounting Leptos app...".into()); }
+    
+    // Hide the loading screen first
+    if let Some(window) = web_sys::window() {
+        if let Some(document) = window.document() {
+            if let Some(loading_div) = document.get_element_by_id("loading") {
+                let _ = loading_div.set_attribute("style", "display: none;");
+            }
+        }
+    }
+    
     leptos::mount_to_body(|| view! { <crate::app::App/> });
-}
-
-// Export main for compatibility
-#[wasm_bindgen]
-pub fn main() {
-    hydrate();
+    
+    unsafe { web_sys::console::log_1(&"✅ Leptos app mounted!".into()); }
 }
 
 /// Проверка WebGPU поддержки
