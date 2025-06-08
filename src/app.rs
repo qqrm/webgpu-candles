@@ -2,7 +2,7 @@ use leptos::*;
 use leptos::html::Canvas;
 use std::rc::Rc;
 use std::cell::RefCell;
-use wasm_bindgen::JsCast;
+
 use crate::{
     domain::market_data::entities::Candle,
     infrastructure::{
@@ -42,14 +42,24 @@ pub struct TooltipData {
 
 impl TooltipData {
     pub fn new(candle: Candle, x: f64, y: f64) -> Self {
+        let change = candle.ohlcv.close.value() - candle.ohlcv.open.value();
+        let change_pct = (change / candle.ohlcv.open.value()) * 100.0;
+        let trend = if change >= 0.0 { "🟢" } else { "🔴" };
+        
+        // Форматируем время из timestamp
+        let time_str = format!("Time: {}", candle.timestamp.value());
+        
         let formatted_text = format!(
-            "O: ${:.2} | H: ${:.2} | L: ${:.2} | C: ${:.2}\nVolume: {:.2}\nTime: {}",
+            "{} BTC/USDT\n📈 Open:   ${:.2}\n📊 High:   ${:.2}\n📉 Low:    ${:.2}\n💰 Close:  ${:.2}\n📈 Change: ${:.2} ({:.2}%)\n📊 Volume: {:.4}\n{}",
+            trend,
             candle.ohlcv.open.value(),
             candle.ohlcv.high.value(),
             candle.ohlcv.low.value(),
             candle.ohlcv.close.value(),
+            change,
+            change_pct,
             candle.ohlcv.volume.value(),
-            candle.timestamp.value()
+            time_str
         );
         
         Self {
@@ -150,12 +160,44 @@ pub fn App() -> impl IntoView {
                 margin-bottom: 20px;
             }
             
+            .chart-wrapper {
+                position: relative;
+                display: inline-block;
+            }
+            
+            .price-scale {
+                position: absolute;
+                right: -60px;
+                top: 0;
+                height: 100%;
+                width: 80px;
+                pointer-events: none;
+            }
+            
+            .current-price-label {
+                position: absolute;
+                right: 0;
+                transform: translateY(-50%);
+                background: #f39c12;
+                color: white;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: bold;
+                white-space: nowrap;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
+            
+            .price-value {
+                font-family: 'Courier New', monospace;
+            }
+            
             .tooltip {
                 position: absolute;
                 background: rgba(0, 0, 0, 0.9);
                 color: white;
-                padding: 12px;
-                border-radius: 8px;
+                padding: 8px 12px;
+                border-radius: 6px;
                 font-size: 12px;
                 font-family: 'Courier New', monospace;
                 white-space: pre-line;
@@ -165,6 +207,7 @@ pub fn App() -> impl IntoView {
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
                 backdrop-filter: blur(5px);
                 line-height: 1.4;
+                transform: translate(10px, -100%);
             }
             
             .status {
@@ -227,7 +270,6 @@ pub fn App() -> impl IntoView {
         <div class="bitcoin-chart-app">
             <Header />
             <ChartContainer />
-            <Tooltip />
             <DebugConsole />
         </div>
     }
@@ -336,20 +378,66 @@ fn ChartContainer() -> impl IntoView {
         });
     });
 
-    // 🎯 TODO: Добавим mouse events для tooltip позже
-    // let handle_mouse_move = move |_event: web_sys::MouseEvent| {
-    //     // Mouse hover tooltip будет добавлен в следующей итерации
-    // };
+    // 🎯 Mouse events для tooltip
+    let handle_mouse_move = {
+        let candles_clone = candles.clone();
+        move |event: web_sys::MouseEvent| {
+            // Упрощенная версия без getBoundingClientRect
+            let mouse_x = event.offset_x() as f64;
+            let mouse_y = event.offset_y() as f64;
+            
+            // Конвертируем в NDC координаты (предполагаем canvas 800x500)
+            let canvas_width = 800.0;
+            let canvas_height = 500.0;
+            let ndc_x = (mouse_x / canvas_width) * 2.0 - 1.0;
+            let _ndc_y = 1.0 - (mouse_y / canvas_height) * 2.0;
+            
+            candles_clone.with(|candles_data| {
+                if !candles_data.is_empty() {
+                    let max_visible = 300;
+                    let start_idx = if candles_data.len() > max_visible {
+                        candles_data.len() - max_visible
+                    } else { 0 };
+                    let visible = &candles_data[start_idx..];
+                    
+                    let step_size = 2.0 / visible.len() as f64;
+                    let candle_idx = ((ndc_x + 1.0) / step_size).floor() as usize;
+                    
+                    if candle_idx < visible.len() {
+                        let candle = &visible[candle_idx];
+                        let tooltip_data = TooltipData::new(candle.clone(), mouse_x, mouse_y);
+                        
+                        TOOLTIP_DATA.with(|data| data.set(Some(tooltip_data)));
+                        TOOLTIP_VISIBLE.with(|visible| visible.set(true));
+                    } else {
+                        TOOLTIP_VISIBLE.with(|visible| visible.set(false));
+                    }
+                } else {
+                    TOOLTIP_VISIBLE.with(|visible| visible.set(false));
+                }
+            });
+        }
+    };
+    
+    let handle_mouse_leave = move |_event: web_sys::MouseEvent| {
+        TOOLTIP_VISIBLE.with(|visible| visible.set(false));
+    };
 
     view! {
         <div class="chart-container">
-            <canvas 
-                id="chart-canvas"
-                node_ref=canvas_ref
-                width="800"
-                height="500"
-                style="border: 2px solid #4a5d73; border-radius: 10px; background: #2c3e50;"
-            />
+            <div class="chart-wrapper">
+                <canvas 
+                    id="chart-canvas"
+                    node_ref=canvas_ref
+                    width="800"
+                    height="500"
+                    style="border: 2px solid #4a5d73; border-radius: 10px; background: #2c3e50; cursor: crosshair;"
+                    on:mousemove=handle_mouse_move
+                    on:mouseleave=handle_mouse_leave
+                />
+                <PriceScale />
+                <ChartTooltip />
+            </div>
             <div class="status">
                 {move || status.get()}
             </div>
@@ -357,9 +445,24 @@ fn ChartContainer() -> impl IntoView {
     }
 }
 
-/// 🎯 Tooltip компонент
+/// 💰 Ценовая шкала справа от графика
 #[component]
-fn Tooltip() -> impl IntoView {
+fn PriceScale() -> impl IntoView {
+    let current_price = GLOBAL_CURRENT_PRICE.with(|price| *price);
+    
+    view! {
+        <div class="price-scale">
+            // Показываем текущую цену
+            <div class="current-price-label" style=format!("top: 50%")>
+                <span class="price-value">{move || format!("${:.2}", current_price.get())}</span>
+            </div>
+        </div>
+    }
+}
+
+/// 🎯 Chart Tooltip компонент - теперь внутри chart-wrapper
+#[component]
+fn ChartTooltip() -> impl IntoView {
     let tooltip_visible = TOOLTIP_VISIBLE.with(|visible| *visible);
     let tooltip_data = TOOLTIP_DATA.with(|data| *data);
 
@@ -370,7 +473,7 @@ fn Tooltip() -> impl IntoView {
             style:left=move || {
                 tooltip_data.with(|data| {
                     if let Some(tooltip) = data {
-                        format!("{}px", tooltip.x + 10.0)
+                        format!("{}px", tooltip.x)
                     } else {
                         "0px".to_string()
                     }
@@ -379,7 +482,7 @@ fn Tooltip() -> impl IntoView {
             style:top=move || {
                 tooltip_data.with(|data| {
                     if let Some(tooltip) = data {
-                        format!("{}px", tooltip.y - 50.0)
+                        format!("{}px", tooltip.y)
                     } else {
                         "0px".to_string()
                     }

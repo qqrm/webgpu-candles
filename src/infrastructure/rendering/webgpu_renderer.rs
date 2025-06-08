@@ -2,10 +2,10 @@ use wasm_bindgen::prelude::*;
 use crate::domain::{
     chart::Chart,
     logging::{LogComponent, get_logger},
-    market_data::services::MarketAnalysisService,
+
 };
 use wgpu::util::DeviceExt;
-use crate::infrastructure::rendering::gpu_structures::{CandleVertex, ChartUniforms, CandleGeometry, IndicatorType};
+use crate::infrastructure::rendering::gpu_structures::{CandleVertex, ChartUniforms};
 use gloo::utils::document;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
@@ -396,7 +396,7 @@ impl WebGpuRenderer {
         let mut vertices = vec![];
         let candle_count = candles.len();
         let chart_width = 2.0; // NDC width (-1 to 1)
-        let chart_height = 2.0; // NDC height (-1 to 1)
+        let _chart_height = 2.0; // NDC height (-1 to 1)
 
         // Find price range
         let mut min_price = f32::MAX;
@@ -540,11 +540,34 @@ impl WebGpuRenderer {
             }
         }
 
+        // Добавляем сплошную линию текущей цены
+        if let Some(last_candle) = visible_candles.last() {
+            let current_price = last_candle.ohlcv.close.value();
+            let price_range = max_price - min_price;
+            let price_y = -0.8 + ((current_price - min_price) / price_range) * 1.6;
+            
+            // Сплошная горизонтальная линия через весь экран
+            let line_thickness = 0.002;
+            let price_line = vec![
+                CandleVertex::current_price_vertex(-1.0, price_y - line_thickness),
+                CandleVertex::current_price_vertex(1.0, price_y - line_thickness),
+                CandleVertex::current_price_vertex(-1.0, price_y + line_thickness),
+                
+                CandleVertex::current_price_vertex(1.0, price_y - line_thickness),
+                CandleVertex::current_price_vertex(1.0, price_y + line_thickness),
+                CandleVertex::current_price_vertex(-1.0, price_y + line_thickness),
+            ];
+            vertices.extend_from_slice(&price_line);
+        }
+
+        // 📈 Добавляем скользящие средние (SMA20 и EMA12)
+        vertices.extend(self.create_moving_averages(visible_candles, min_price, max_price));
+
         // Логируем только если много вершин
         if vertices.len() > 1000 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("✅ Generated {} vertices for {} visible candles", vertices.len(), visible_candles.len())
+                &format!("✅ Generated {} vertices for {} visible candles + indicators", vertices.len(), visible_candles.len())
             );
         }
 
@@ -576,18 +599,97 @@ impl WebGpuRenderer {
         (vertices, uniforms)
     }
 
+    /// 📈 Создать геометрию для скользящих средних
+    fn create_moving_averages(&self, candles: &[crate::domain::market_data::Candle], min_price: f32, max_price: f32) -> Vec<CandleVertex> {
+        use crate::infrastructure::rendering::gpu_structures::{CandleGeometry, IndicatorType};
+        
+        if candles.len() < 20 {
+            return Vec::new(); // Недостаточно данных для SMA20
+        }
+
+        let mut vertices = Vec::new();
+        let candle_count = candles.len();
+        let step_size = 2.0 / candle_count as f32;
+        let price_range = max_price - min_price;
+
+        // Функция для нормализации цены в NDC координаты
+        let price_to_ndc = |price: f32| -> f32 {
+            -0.8 + ((price - min_price) / price_range) * 1.6
+        };
+
+        // Расчёт SMA20 (Simple Moving Average 20)
+        let mut sma20_points = Vec::new();
+        for i in 19..candle_count { // Начинаем с 20-й свечи
+            let sum: f32 = candles[i-19..=i].iter()
+                .map(|c| c.ohlcv.close.value() as f32)
+                .sum();
+            let sma20 = sum / 20.0;
+            
+            let x = -1.0 + (i as f32 + 0.5) * step_size;
+            let y = price_to_ndc(sma20);
+            sma20_points.push((x, y));
+        }
+
+        // Расчёт EMA12 (Exponential Moving Average 12)
+        let mut ema12_points = Vec::new();
+        if candle_count >= 12 {
+            let multiplier = 2.0 / (12.0 + 1.0); // EMA multiplier
+            let mut ema = candles[0].ohlcv.close.value() as f32; // Начальное значение
+            
+            for i in 1..candle_count {
+                let close = candles[i].ohlcv.close.value() as f32;
+                ema = (close * multiplier) + (ema * (1.0 - multiplier));
+                
+                if i >= 11 { // Показываем EMA только после 12 свечей
+                    let x = -1.0 + (i as f32 + 0.5) * step_size;
+                    let y = price_to_ndc(ema);
+                    ema12_points.push((x, y));
+                }
+            }
+        }
+
+        // Создаём геометрию для линий
+        if !sma20_points.is_empty() {
+            let sma20_vertices = CandleGeometry::create_indicator_line_vertices(
+                &sma20_points, 
+                IndicatorType::SMA20, 
+                0.003 // Толщина линии
+            );
+            vertices.extend(sma20_vertices);
+        }
+
+        if !ema12_points.is_empty() {
+            let ema12_vertices = CandleGeometry::create_indicator_line_vertices(
+                &ema12_points, 
+                IndicatorType::EMA12, 
+                0.003 // Толщина линии
+            );
+            vertices.extend(ema12_vertices);
+        }
+
+        if !vertices.is_empty() {
+            get_logger().info(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                &format!("📈 Generated {} SMA20 points, {} EMA12 points, {} total MA vertices", 
+                    sma20_points.len(), ema12_points.len(), vertices.len())
+            );
+        }
+
+        vertices
+    }
+
     /// Получить информацию о производительности
     pub fn get_performance_info(&self) -> String {
         "{\"backend\":\"WebGPU\",\"parallel\":true,\"status\":\"ready\",\"gpu_threads\":\"unlimited\"}".to_string()
     }
 
     /// Переключить видимость линии индикатора
-    pub fn toggle_line_visibility(&mut self, line_name: &str) {
+    pub fn toggle_line_visibility(&mut self, _line_name: &str) {
         // Implementation needed
     }
 
     /// Проверить попадание в область чекбокса легенды
-    pub fn check_legend_checkbox_click(&self, mouse_x: f32, mouse_y: f32) -> Option<String> {
+    pub fn check_legend_checkbox_click(&self, _mouse_x: f32, _mouse_y: f32) -> Option<String> {
         // Implementation needed
         None
     }

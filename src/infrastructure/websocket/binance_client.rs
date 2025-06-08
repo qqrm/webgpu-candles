@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 use gloo_net::websocket::futures::WebSocket;
 use serde::Deserialize;
-use futures::{StreamExt, SinkExt};
+use futures::StreamExt;
 use crate::domain::{
     market_data::{
         entities::{Candle, OHLCV},

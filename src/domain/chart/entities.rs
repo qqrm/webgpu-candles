@@ -1,5 +1,5 @@
 use crate::domain::market_data::{Candle, CandleSeries};
-use super::value_objects::{ChartType, Viewport, Color};
+use super::value_objects::{ChartType, Viewport};
 
 /// Доменная сущность - График
 #[derive(Debug, Clone)]
