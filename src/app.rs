@@ -534,7 +534,7 @@ fn DebugConsole() -> impl IntoView {
                 </button>
                 <button 
                     on:click=move |_| {
-                        logs.set(Vec::new());
+                        GLOBAL_LOGS.with(|logs| logs.set(Vec::new()));
                         get_logger().info(
                             LogComponent::Presentation("DebugConsole"),
                             "🗑️ Log history cleared"
@@ -571,68 +571,48 @@ async fn start_websocket_stream(
     // Устанавливаем статус стрима
     GLOBAL_IS_STREAMING.with(|streaming| streaming.set(true));
     
-    // Сначала загружаем исторические данные
-    match crate::infrastructure::http::BinanceHttpClient::new()
-        .get_recent_candles(&symbol, interval, 200).await 
-    {
-        Ok(historical_candles) => {
-            set_candles.set(historical_candles.clone());
-            set_status.set(format!("✅ Loaded {} historical candles", historical_candles.len()));
-            
-            // Обновляем глобальные сигналы с историческими данными
-            GLOBAL_CANDLE_COUNT.with(|count| count.set(historical_candles.len()));
-            if let Some(last_candle) = historical_candles.last() {
-                GLOBAL_CURRENT_PRICE.with(|price| price.set(last_candle.ohlcv.close.value() as f64));
-            }
-            
-            // Теперь запускаем WebSocket
-            let mut ws_client = BinanceWebSocketClient::new(symbol, interval);
-            
-            spawn_local(async move {
-                let handler = move |candle: Candle| {
-                    // Обновляем цену в глобальном сигнале
-                    GLOBAL_CURRENT_PRICE.with(|price| {
-                        price.set(candle.ohlcv.close.value() as f64);
-                    });
-                    
-                    // Реактивно обновляем данные в Leptos!
-                    set_candles.update(|candles| {
-                        let new_timestamp = candle.timestamp.value();
-                        
-                        if let Some(last_candle) = candles.last_mut() {
-                            if last_candle.timestamp.value() == new_timestamp {
-                                // Обновляем существующую свечу
-                                *last_candle = candle;
-                            } else if new_timestamp > last_candle.timestamp.value() {
-                                // Добавляем новую свечу
-                                candles.push(candle);
-                                
-                                // Ограничиваем до 300 свечей
-                                while candles.len() > 300 {
-                                    candles.remove(0);
-                                }
-                            }
-                        } else {
-                            candles.push(candle);
-                        }
-                        
-                        // Обновляем счетчик свечей
-                        GLOBAL_CANDLE_COUNT.with(|count| count.set(candles.len()));
-                    });
-                    
-                    // Обновляем статус
-                    set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
-                };
-
-                if let Err(e) = ws_client.start_stream(handler).await {
-                    set_status.set(format!("❌ WebSocket error: {}", e));
-                    GLOBAL_IS_STREAMING.with(|streaming| streaming.set(false));
-                }
+    // Запускаем WebSocket сразу - только реальное время!
+    let mut ws_client = BinanceWebSocketClient::new(symbol, interval);
+    
+    spawn_local(async move {
+        let handler = move |candle: Candle| {
+            // Обновляем цену в глобальном сигнале
+            GLOBAL_CURRENT_PRICE.with(|price| {
+                price.set(candle.ohlcv.close.value() as f64);
             });
-        }
-        Err(e) => {
-            set_status.set(format!("❌ Failed to load historical data: {:?}", e));
+            
+            // Реактивно обновляем данные в Leptos!
+            set_candles.update(|candles| {
+                let new_timestamp = candle.timestamp.value();
+                
+                if let Some(last_candle) = candles.last_mut() {
+                    if last_candle.timestamp.value() == new_timestamp {
+                        // Обновляем существующую свечу
+                        *last_candle = candle;
+                    } else if new_timestamp > last_candle.timestamp.value() {
+                        // Добавляем новую свечу
+                        candles.push(candle);
+                        
+                        // Ограничиваем до 300 свечей
+                        while candles.len() > 300 {
+                            candles.remove(0);
+                        }
+                    }
+                } else {
+                    candles.push(candle);
+                }
+                
+                // Обновляем счетчик свечей
+                GLOBAL_CANDLE_COUNT.with(|count| count.set(candles.len()));
+            });
+            
+            // Обновляем статус
+            set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
+        };
+
+        if let Err(e) = ws_client.start_stream(handler).await {
+            set_status.set(format!("❌ WebSocket error: {}", e));
             GLOBAL_IS_STREAMING.with(|streaming| streaming.set(false));
         }
-    }
+    });
 } 

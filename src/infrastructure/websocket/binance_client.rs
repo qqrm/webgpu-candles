@@ -79,15 +79,15 @@ impl BinanceWebSocketClient {
         let kline = &kline_data.kline;
         
         // Парсим цены
-        let open = kline.open.parse::<f32>()
+        let open = kline.open.parse::<f64>()
             .map_err(|_| "Invalid open price")?;
-        let high = kline.high.parse::<f32>()
+        let high = kline.high.parse::<f64>()
             .map_err(|_| "Invalid high price")?;
-        let low = kline.low.parse::<f32>()
+        let low = kline.low.parse::<f64>()
             .map_err(|_| "Invalid low price")?;
-        let close = kline.close.parse::<f32>()
+        let close = kline.close.parse::<f64>()
             .map_err(|_| "Invalid close price")?;
-        let volume = kline.volume.parse::<f32>()
+        let volume = kline.volume.parse::<f64>()
             .map_err(|_| "Invalid volume")?;
 
         // Создаем OHLCV

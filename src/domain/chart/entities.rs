@@ -75,10 +75,10 @@ impl Chart {
         if let Some((min_price, max_price)) = self.data.price_range() {
             // Добавляем отступы для лучшей визуализации (5% сверху и снизу)
             let price_range = max_price.value() - min_price.value();
-            let padding = price_range * 0.05;
+            let padding = (price_range * 0.05) as f32;
             
-            self.viewport.min_price = (min_price.value() - padding).max(0.1); // Минимум $0.1
-            self.viewport.max_price = max_price.value() + padding;
+            self.viewport.min_price = (min_price.value() as f32 - padding).max(0.1); // Минимум $0.1
+            self.viewport.max_price = max_price.value() as f32 + padding;
             
             // Обновляем временной диапазон
             let candles = self.data.get_candles();
@@ -93,8 +93,8 @@ impl Chart {
     fn update_viewport(&mut self) {
         if let Some((min_price, max_price)) = self.data.price_range() {
             let padding = (max_price.value() - min_price.value()) * 0.1; // 10% padding
-            self.viewport.min_price = min_price.value() - padding;
-            self.viewport.max_price = max_price.value() + padding;
+            self.viewport.min_price = min_price.value() as f32 - padding as f32;
+            self.viewport.max_price = max_price.value() as f32 + padding as f32;
         }
 
         let candles = self.data.get_candles();

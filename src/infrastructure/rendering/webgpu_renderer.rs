@@ -58,10 +58,7 @@ impl WebGpuRenderer {
         if let Some(window) = web_sys::window() {
             unsafe {
                 let navigator = window.navigator();
-                match js_sys::Reflect::has(&navigator, &"gpu".into()) {
-                    Ok(has_gpu) => has_gpu,
-                    Err(_) => false,
-                }
+                js_sys::Reflect::has(&navigator, &"gpu".into()).unwrap_or(false)
             }
         } else {
             false
@@ -462,8 +459,8 @@ impl WebGpuRenderer {
 
             // Нормализация Y - используем почти весь экран [-0.8, 0.8]
             let price_range = max_price - min_price;
-            let price_norm = |price: f32| -> f32 {
-                let normalized = (price - min_price) / price_range;
+            let price_norm = |price: f64| -> f32 {
+                let normalized = (price as f32 - min_price) / price_range;
                 -0.8 + normalized * 1.6 // Map to [-0.8, 0.8]
             };
 
@@ -542,7 +539,7 @@ impl WebGpuRenderer {
 
         // Добавляем сплошную линию текущей цены
         if let Some(last_candle) = visible_candles.last() {
-            let current_price = last_candle.ohlcv.close.value();
+            let current_price = last_candle.ohlcv.close.value() as f32;
             let price_range = max_price - min_price;
             let price_y = -0.8 + ((current_price - min_price) / price_range) * 1.6;
             

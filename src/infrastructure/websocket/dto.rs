@@ -68,11 +68,11 @@ impl BinanceKline {
             .map_err(|e| JsValue::from_str(&format!("Parse volume error: {}", e)))?;
 
         let ohlcv = OHLCV::new(
-            Price::from(open),
-            Price::from(high),
-            Price::from(low),
-            Price::from(close),
-            Volume::from(volume),
+            Price::from(open as f64),
+            Price::from(high as f64),
+            Price::from(low as f64),
+            Price::from(close as f64),
+            Volume::from(volume as f64),
         );
 
         // Валидация данных

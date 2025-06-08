@@ -54,12 +54,12 @@ impl MarketAnalysisService {
         let mut sma_values = Vec::new();
         
         for i in (period - 1)..candles.len() {
-            let sum: f32 = candles[i - period + 1..=i]
+                        let sum: f64 = candles[i - period + 1..=i]
                 .iter()
                 .map(|candle| candle.ohlcv.close.value())
                 .sum();
-            
-            sma_values.push(Price::from(sum / period as f32));
+
+            sma_values.push(Price::from(sum / period as f64));
         }
 
         sma_values
@@ -72,14 +72,14 @@ impl MarketAnalysisService {
         }
 
         let mut ema_values = Vec::new();
-        let alpha = 2.0 / (period as f32 + 1.0); // Сглаживающий коэффициент
+        let alpha = 2.0 / (period as f64 + 1.0); // Сглаживающий коэффициент
         
         // Первое значение EMA = простое среднее за первые period свечей
-        let first_sma: f32 = candles[0..period]
+                let first_sma: f64 = candles[0..period]
             .iter()
             .map(|candle| candle.ohlcv.close.value())
-            .sum::<f32>() / period as f32;
-        
+            .sum::<f64>() / period as f64;
+
         ema_values.push(Price::from(first_sma));
         
         // Вычисляем остальные значения EMA
@@ -143,13 +143,13 @@ impl MarketAnalysisService {
     }
 
     /// Вычисляет волатильность (стандартное отклонение доходности)
-    pub fn calculate_volatility(&self, candles: &[Candle], period: usize) -> Option<f32> {
+    pub fn calculate_volatility(&self, candles: &[Candle], period: usize) -> Option<f64> {
         if candles.len() < period + 1 {
             return None;
         }
 
         // Вычисляем доходности
-        let returns: Vec<f32> = candles
+        let returns: Vec<f64> = candles
             .windows(2)
             .map(|pair| {
                 let prev_close = pair[0].ohlcv.close.value();
@@ -166,13 +166,13 @@ impl MarketAnalysisService {
         let recent_returns = &returns[returns.len() - period..];
         
         // Вычисляем среднюю доходность
-        let mean_return: f32 = recent_returns.iter().sum::<f32>() / period as f32;
+        let mean_return: f64 = recent_returns.iter().sum::<f64>() / period as f64;
         
         // Вычисляем дисперсию
-        let variance: f32 = recent_returns
+        let variance: f64 = recent_returns
             .iter()
             .map(|r| (r - mean_return).powi(2))
-            .sum::<f32>() / period as f32;
+            .sum::<f64>() / period as f64;
 
         Some(variance.sqrt())
     }

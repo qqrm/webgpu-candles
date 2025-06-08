@@ -1,85 +1,126 @@
-# 🚀 Simplified Rust WASM Architecture - Real-time Bitcoin Chart
+# 🦀 Bitcoin Chart WASM - Актуальная архитектура v4.0
 
-## 📋 Текущая структура - Leptos + WebGPU + WebSocket
+## 📊 Что у нас есть сейчас
+
+**Real-time Bitcoin торговый график с WebGPU + Leptos + WebSocket**
+
+- ✅ Живые данные от Binance WebSocket
+- ✅ WebGPU рендеринг (60 FPS)
+- ✅ Скользящие средние: SMA20, EMA12
+- ✅ Сплошная линия текущей цены
+- ✅ Интерактивный tooltip
+- ✅ Профессиональный вид (как TradingView)
+
+## 🗂️ Файловая структура
 
 ```
 src/
-├── app.rs                   # Leptos App с реактивными компонентами
-├── lib.rs                   # Leptos инициализация
-├── candle_shader.wgsl       # WebGPU шейдеры
-├── domain/                  # Упрощенный домен
-│   ├── chart/              
+├── app.rs                  # Leptos UI компоненты + реактивность
+├── lib.rs                  # WASM exports (hydrate, main)
+├── candle_shader.wgsl      # WebGPU шейдеры для свечей
+├── domain/
+│   ├── chart/
 │   │   ├── entities.rs     # Chart, ChartData
-│   │   └── value_objects.rs # Viewport, Color
-│   ├── market_data/        
+│   │   └── value_objects.rs # ChartType, Viewport
+│   ├── market_data/
 │   │   ├── entities.rs     # Candle, CandleSeries
-│   │   ├── value_objects.rs # OHLCV, Price, Volume
-│   │   └── services.rs     # CandleDataService, ValidationService
-│   ├── logging.rs          # Logger trait
-│   └── errors.rs           # DomainError
-├── infrastructure/         
-│   ├── websocket/          # WebSocket для реального времени
-│   │   ├── binance_client.rs
-│   │   ├── binance_http_client.rs
-│   │   └── dto.rs
-│   ├── rendering/          # WebGPU рендеринг
-│   │   ├── webgpu_renderer.rs
-│   │   └── gpu_structures.rs
-│   ├── mod.rs              # ConsoleLogger, LeptosLogger
-│   └── http.rs
-└── presentation/           
-    └── mod.rs              # Экспорты
+│   │   ├── value_objects.rs # OHLCV, Price, Volume, Symbol
+│   │   └── services.rs     # Validation, data operations
+│   ├── logging.rs          # Logger abstractions
+│   └── errors.rs           # AppError (simplified)
+└── infrastructure/
+    ├── websocket/
+    │   ├── binance_client.rs # WebSocket клиент Binance
+    │   └── dto.rs           # JSON DTO structures
+    ├── rendering/
+    │   ├── webgpu_renderer.rs # WebGPU рендерер
+    │   └── gpu_structures.rs  # GPU vertex structures
+    └── mod.rs               # Infrastructure services
 ```
 
-## 🗑️ Упрощение (55% меньше кода)
+## ⚡ Поток данных
 
-**Удалили:**
-- `repositories.rs` - Repository Pattern без реализаций
-- `events.rs` - Event System без использования  
-- `chart/services.rs` - Неиспользуемые Domain Services
-- `application/use_cases/` - Сложные Use Cases
-- `unified_wasm_api.rs` - Заменен на Leptos
+```
+Binance WebSocket → BinanceClient → Leptos Signals → WebGPU → Canvas
+                                          ↓
+                                    Tooltip + UI Updates
+```
 
-**Результат:** 34 → 25 файлов, domain код 18KB → 8KB
+## 🧩 Ключевые компоненты
 
-## 🆕 Leptos - Pure Rust Frontend
+### **app.rs - Leptos Frontend**
+- `App()` - главный компонент с CSS
+- `Header()` - цена, количество свечей, статус
+- `ChartContainer()` - WebGPU рендеринг + mouse events
+- `ChartTooltip()` - интерактивный tooltip
+- `DebugConsole()` - логи с pause/clear
 
-**Реактивные глобальные сигналы:**
+### **webgpu_renderer.rs - GPU рендеринг**
+- Рендеринг свечей (зеленые/красные)
+- Скользящие средние (SMA20, EMA12)
+- Сплошная линия цены (желтая)
+- 300-свечной скроллинг буфер
+
+### **binance_client.rs - WebSocket**
+- Подключение к `wss://stream.binance.com`
+- Парсинг kline events
+- Обновление Leptos сигналов
+
+## 📡 Глобальные сигналы
+
 ```rust
-GLOBAL_CURRENT_PRICE   // Текущая цена BTC
-GLOBAL_CANDLE_COUNT    // Количество свечей
-GLOBAL_IS_STREAMING    // Статус WebSocket
-GLOBAL_LOGS           // Логи для debug консоли
+GLOBAL_CURRENT_PRICE: f64    // Текущая цена BTC
+GLOBAL_CANDLE_COUNT: usize   // Количество свечей
+GLOBAL_IS_STREAMING: bool    // WebSocket статус
+TOOLTIP_DATA: TooltipData    // Данные tooltip
+GLOBAL_LOGS: Vec<String>     // Debug логи
 ```
 
-**Компоненты:**
-- `Header` - статистика в реальном времени
-- `ChartContainer` - WebGPU рендеринг
-- `DebugConsole` - логи с паузой
+## 🎨 Визуальные элементы
 
-## 🌊 WebSocket Integration
+- **Свечи**: Зеленые (рост) / Красные (падение)
+- **SMA20**: Красная линия (простое среднее 20 периодов) 
+- **EMA12**: Фиолетовая линия (экспоненциальное среднее 12 периодов)
+- **Цена**: Сплошная желтая линия + оранжевый лейбл
+- **Tooltip**: Черный с OHLC + Volume + % change
 
-WebSocket клиент получает данные от Binance и обновляет Leptos сигналы → UI автоматически обновляется
+## 🔧 Технические детали
 
+**WebGPU Pipeline:**
+- Вершинный буфер: 100k вершин
+- Шейдеры: `candle_shader.wgsl`
+- Координаты: NDC [-1, 1]
+- Цвета: через uniform buffer
+
+**WebSocket:**
+- Interval: 1m candles
+- Symbol: BTCUSDT  
+- Auto-reconnect при ошибках
+
+**Leptos:**
+- SSR отключен (client-only)
+- Реактивные updates
+- CSS встроенный
+
+## 📦 Сборка
+
+```bash
+# Development
+cargo build --target wasm32-unknown-unknown
+
+# Release
+wasm-pack build --target web --release
+
+# Serve
+python -m http.server 8080
 ```
-Binance WebSocket → BinanceClient → GLOBAL_SIGNALS → Leptos UI → WebGPU
-```
 
-## 🏛️ Принципы архитектуры
+## 🎯 Статус проекта
 
-1. **Простота** - убрали все лишнее, только нужные абстракции
-2. **Реактивность** - Leptos сигналы для автообновлений  
-3. **Производительность** - WebGPU на GPU, WebSocket в реальном времени
-4. **Pure Rust** - никакого JavaScript, все на Rust
+**Готово:**
+- Real-time торговый график ✅
+- Технические индикаторы ✅  
+- Профессиональный UI ✅
+- WebGPU производительность ✅
 
-## ⚡ Текущие возможности
-
-- [x] WebSocket подключение к Binance (реальное время)
-- [x] WebGPU рендеринг свечей (GPU ускорение) 
-- [x] Leptos UI с автообновлениями
-- [x] Debug консоль с логами
-- [x] Статистика: цена, количество свечей, статус WebSocket
-
----
-
-**Упрощенная архитектура: реальное время + WebGPU + Pure Rust frontend** 🔥 
+**Архитектура:** Простая, чистая, работающая 🚀 

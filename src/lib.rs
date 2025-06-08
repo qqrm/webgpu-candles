@@ -1,227 +1,42 @@
-use wasm_bindgen::prelude::*;
-use leptos::*;
+// === 🦀 LEPTOS BITCOIN CHART WASM ===
+// Clean Architecture v3.0 - только нужные модули!
 
 pub mod domain;
-pub mod infrastructure;
-pub mod presentation;
+pub mod infrastructure; 
 pub mod app;
 
-// Главный компонент Leptos
-pub use app::App;
+// === WASM EXPORTS ===
+use leptos::*;
+use wasm_bindgen::prelude::*;
 
-use domain::logging::{LogComponent, get_logger};
-
-/// 🦀 Leptos инициализация приложения
 #[wasm_bindgen]
 pub fn hydrate() {
-    // Настройка panic hook для лучших ошибок
     console_error_panic_hook::set_once();
     
-    // Инициализируем логгер
-    initialize_logging();
+    // Initialize infrastructure services
+    crate::infrastructure::initialize_infrastructure_services();
     
-    get_logger().info(
-        LogComponent::Presentation("LeptosInit"),
-        "🚀 Leptos Bitcoin Chart App starting..."
-    );
-
-    // Вставляем CSS стили
-    inject_styles();
-
-    // Монтируем Leptos приложение
-    leptos::mount_to_body(|| {
-        view! { <App/> }
-    });
+    // Mount Leptos app
+    leptos::mount_to_body(|| view! { <crate::app::App/> });
 }
 
-/// Initialize DDD logging architecture with Leptos bridge
-fn initialize_logging() {
-    // 🌉 Используем Leptos bridge logger для отображения логов в Debug Console
-    let leptos_logger = Box::new(app::LeptosLogger);
-    domain::logging::init_logger(leptos_logger);
-    
-    let browser_time_provider = Box::new(infrastructure::services::BrowserTimeProvider::new());
-    domain::logging::init_time_provider(browser_time_provider);
-    
-    get_logger().info(
-        LogComponent::Presentation("LeptosInit"),
-        "🚀 Leptos Bridge Logger initialized successfully"
-    );
+// Export main for compatibility
+#[wasm_bindgen]
+pub fn main() {
+    hydrate();
 }
 
-/// 🎨 CSS стили встроенные в Rust
-fn inject_styles() {
-    let css = r#"
-        :root {
-            --bg-dark: #2c3e50;
-            --bg-card: #34495e;
-            --text-primary: #ffffff;
-            --text-secondary: #bdc3c7;
-            --accent-green: #4ade80;
-            --accent-red: #ef4444;
-            --border-color: #4a5d73;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg-dark);
-            color: var(--text-primary);
-            line-height: 1.6;
-        }
-
-        .bitcoin-chart-app {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding: 20px;
-            background: var(--bg-card);
-            border-radius: 15px;
-            border: 1px solid var(--border-color);
-        }
-
-        .header h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 10px;
-        }
-
-        .price-info {
-            display: flex;
-            justify-content: center;
-            gap: 30px;
-            margin-top: 15px;
-            flex-wrap: wrap;
-        }
-
-        .price-item {
-            text-align: center;
-        }
-
-        .price-value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--accent-green);
-        }
-
-        .price-label {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-
-        .chart-container {
-            background: var(--bg-card);
-            border-radius: 15px;
-            padding: 25px;
-            border: 1px solid var(--border-color);
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .status {
-            margin-top: 15px;
-            color: var(--accent-green);
-            font-weight: bold;
-        }
-
-        .debug-console {
-            background: var(--bg-card);
-            border-radius: 15px;
-            border: 1px solid var(--border-color);
-            overflow: hidden;
-        }
-
-        .debug-header {
-            background: #1a1a1a;
-            padding: 10px 15px;
-            font-weight: bold;
-            color: var(--accent-green);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .debug-btn {
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: bold;
-            background: var(--accent-green);
-            color: white;
-            margin-left: 5px;
-            transition: opacity 0.2s;
-        }
-
-        .debug-btn:hover {
-            opacity: 0.8;
-        }
-
-        .debug-log {
-            height: 200px;
-            overflow-y: auto;
-            padding: 10px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.4;
-            background: #1a1a1a;
-            color: #00ff88;
-        }
-
-        .log-line {
-            padding: 2px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-
-        /* Responsive design */
-        @media (max-width: 768px) {
-            .bitcoin-chart-app {
-                padding: 10px;
-            }
-            
-            .price-info {
-                gap: 15px;
-            }
-            
-            .header h1 {
-                font-size: 2rem;
-            }
-            
-            canvas {
-                width: 100% !important;
-                height: 400px !important;
-            }
-        }
-    "#;
-
-    // Добавляем CSS в head
-    if let Some(window) = web_sys::window() {
-        if let Some(document) = window.document() {
-            if let Some(head) = document.head() {
-                let style = document.create_element("style").unwrap();
-                style.set_text_content(Some(css));
-                let _ = head.append_child(&style);
-            }
-        }
-    }
+/// Проверка WebGPU поддержки
+#[wasm_bindgen]
+pub async fn is_webgpu_supported() -> bool {
+    crate::infrastructure::WebGpuRenderer::is_webgpu_supported().await
 }
 
-// Совместимость с существующим API
-#[wasm_bindgen(start)]
-pub fn initialize() {
-    initialize_logging();
+/// Получить производительность рендерера
+#[wasm_bindgen]
+pub fn get_renderer_performance() -> String {
+    // Заглушка - возвращаем статическую информацию
+    "{\"backend\":\"WebGPU\",\"status\":\"ready\",\"fps\":60}".to_string()
 }
 
-// Demo functions removed - functionality moved to Leptos components 
+// Clean WASM exports only 

@@ -5,11 +5,19 @@ use std::cmp::Ordering;
 
 /// Value Object - Цена с автогенерацией
 #[derive(Debug, Clone, Copy, PartialEq, From, Into, Deref, DerefMut, Constructor, Serialize, Deserialize)]
-pub struct Price(f32);
+pub struct Price(f64);
 
 impl Price {
-    pub fn value(&self) -> f32 {
+    pub fn value(&self) -> f64 {
         self.0
+    }
+    
+    pub fn validate(value: f64) -> Result<Self, String> {
+        if value.is_finite() && value >= 0.0 {
+            Ok(Self(value))
+        } else {
+            Err(format!("Invalid price: {}", value))
+        }
     }
 }
 
@@ -21,11 +29,19 @@ impl PartialOrd for Price {
 
 /// Value Object - Объем с автогенерацией
 #[derive(Debug, Clone, Copy, PartialEq, From, Into, Deref, DerefMut, Constructor, Serialize, Deserialize)]
-pub struct Volume(f32);
+pub struct Volume(f64);
 
 impl Volume {
-    pub fn value(&self) -> f32 {
+    pub fn value(&self) -> f64 {
         self.0
+    }
+    
+    pub fn validate(value: f64) -> Result<Self, String> {
+        if value.is_finite() && value >= 0.0 {
+            Ok(Self(value))
+        } else {
+            Err(format!("Invalid volume: {}", value))
+        }
     }
 }
 
@@ -45,6 +61,10 @@ impl Timestamp {
     /// Создание из миллисекунд (для совместимости)
     pub fn from_millis(value: u64) -> Self {
         Self(value)
+    }
+    
+    pub fn from_milliseconds(millis: u64) -> Result<Self, String> {
+        Ok(Self(millis))
     }
 }
 
@@ -94,13 +114,9 @@ impl From<&str> for Symbol {
     }
 }
 
-/// Value Object - Временной интервал с полной автогенерацией
+/// Value Object - Временной интервал (только нужные варианты)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, StrumDisplay, EnumIter, EnumString, AsRefStr, Serialize, Deserialize)]
 pub enum TimeInterval {
-    #[strum(serialize = "1s")]
-    #[serde(rename = "1s")]
-    OneSecond,
-    
     #[strum(serialize = "1m")]
     #[serde(rename = "1m")]
     OneMinute,
@@ -113,10 +129,6 @@ pub enum TimeInterval {
     #[serde(rename = "15m")]
     FifteenMinutes,
     
-    #[strum(serialize = "30m")]
-    #[serde(rename = "30m")]
-    ThirtyMinutes,
-    
     #[strum(serialize = "1h")]
     #[serde(rename = "1h")]
     OneHour,
@@ -128,14 +140,6 @@ pub enum TimeInterval {
     #[strum(serialize = "1d")]
     #[serde(rename = "1d")]
     OneDay,
-    
-    #[strum(serialize = "1w")]
-    #[serde(rename = "1w")]
-    OneWeek,
-    
-    #[strum(serialize = "1M")]
-    #[serde(rename = "1M")]
-    OneMonth,
 }
 
 impl TimeInterval {
@@ -145,16 +149,12 @@ impl TimeInterval {
 
     pub fn duration_ms(&self) -> u64 {
         match self {
-            Self::OneSecond => 1000,
             Self::OneMinute => 60 * 1000,
             Self::FiveMinutes => 5 * 60 * 1000,
             Self::FifteenMinutes => 15 * 60 * 1000,
-            Self::ThirtyMinutes => 30 * 60 * 1000,
             Self::OneHour => 60 * 60 * 1000,
             Self::FourHours => 4 * 60 * 60 * 1000,
             Self::OneDay => 24 * 60 * 60 * 1000,
-            Self::OneWeek => 7 * 24 * 60 * 60 * 1000,
-            Self::OneMonth => 30 * 24 * 60 * 60 * 1000, // Приблизительно
         }
     }
 } 
