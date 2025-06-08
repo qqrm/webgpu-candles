@@ -18,9 +18,9 @@ pub struct CandleVertex {
     pub position_x: f32,
     /// Позиция Y (цена в нормализованных координатах)  
     pub position_y: f32,
-    /// Тип элемента: 0 = тело свечи, 1 = фитиль, 2 = линия индикатора
+    /// Тип элемента: 0 = тело свечи, 1 = фитиль, 2 = линия индикатора, 3 = сетка, 4 = current price line
     pub element_type: f32,
-    /// Цвет/индикатор: для свечей 0/1, для индикаторов: 2=SMA20, 3=SMA50, 4=SMA200, 5=EMA12, 6=EMA26  
+    /// Цвет/индикатор: для свечей 0/1, для индикаторов: 2=SMA20, 3=SMA50, 4=SMA200, 5=EMA12, 6=EMA26, 7 = current price
     pub color_type: f32,
 }
 
@@ -70,6 +70,16 @@ impl CandleVertex {
             position_y: y,
             element_type: 3.0, // сетка
             color_type: 0.2,   // очень светлый серый цвет
+        }
+    }
+
+    /// 💰 Создать vertex для линии текущей цены
+    pub fn current_price_vertex(x: f32, y: f32) -> Self {
+        Self {
+            position_x: x,
+            position_y: y,
+            element_type: 4.0, // current price line
+            color_type: 7.0,   // специальный цвет для current price
         }
     }
     
@@ -134,6 +144,8 @@ pub struct ChartUniforms {
     pub ema12_color: [f32; 4],
     /// Цвет EMA 26 (ema26_r, ema26_g, ema26_b, ema26_a)
     pub ema26_color: [f32; 4],
+    /// 💰 Цвет текущей цены (current_price_r, current_price_g, current_price_b, current_price_a)
+    pub current_price_color: [f32; 4],
     /// Параметры рендеринга (candle_width, spacing, line_width, _padding)
     pub render_params: [f32; 4],
 }
@@ -163,6 +175,7 @@ impl ChartUniforms {
             sma200_color: [0.2, 0.4, 0.8, 1.0],          // Синий
             ema12_color: [0.8, 0.2, 0.8, 1.0],           // Фиолетовый
             ema26_color: [0.0, 0.8, 0.8, 1.0],           // Голубой
+            current_price_color: [1.0, 1.0, 0.0, 0.8],   // 💰 Ярко-желтый с прозрачностью
             render_params: [8.0, 2.0, 1.0, 0.0],         // width, spacing, line_width, padding
         }
     }
@@ -242,6 +255,22 @@ impl CandleGeometry {
         }
         
         vertices
+    }
+
+    /// 💰 Создать vertices для линии текущей цены
+    pub fn create_current_price_line(current_price_y: f32, line_width: f32) -> Vec<CandleVertex> {
+        let half_width = line_width * 0.5;
+        
+        // Горизонтальная линия через весь экран
+        vec![
+            CandleVertex::current_price_vertex(-1.0, current_price_y - half_width),
+            CandleVertex::current_price_vertex(1.0, current_price_y - half_width),
+            CandleVertex::current_price_vertex(-1.0, current_price_y + half_width),
+            
+            CandleVertex::current_price_vertex(1.0, current_price_y - half_width),
+            CandleVertex::current_price_vertex(1.0, current_price_y + half_width),
+            CandleVertex::current_price_vertex(-1.0, current_price_y + half_width),
+        ]
     }
     
     /// Создать vertices для линии индикатора - улучшенный алгоритм для сплошных линий

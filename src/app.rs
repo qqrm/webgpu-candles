@@ -2,6 +2,7 @@ use leptos::*;
 use leptos::html::Canvas;
 use std::rc::Rc;
 use std::cell::RefCell;
+use wasm_bindgen::JsCast;
 use crate::{
     domain::market_data::entities::Candle,
     infrastructure::{
@@ -24,6 +25,40 @@ thread_local! {
     static GLOBAL_CURRENT_PRICE: RwSignal<f64> = create_rw_signal(0.0);
     static GLOBAL_CANDLE_COUNT: RwSignal<usize> = create_rw_signal(0);
     static GLOBAL_IS_STREAMING: RwSignal<bool> = create_rw_signal(false);
+    
+    // 🎯 Tooltip данные
+    static TOOLTIP_DATA: RwSignal<Option<TooltipData>> = create_rw_signal(None);
+    static TOOLTIP_VISIBLE: RwSignal<bool> = create_rw_signal(false);
+}
+
+/// 🎯 Данные для tooltip
+#[derive(Clone, Debug)]
+pub struct TooltipData {
+    pub candle: Candle,
+    pub x: f64,
+    pub y: f64,
+    pub formatted_text: String,
+}
+
+impl TooltipData {
+    pub fn new(candle: Candle, x: f64, y: f64) -> Self {
+        let formatted_text = format!(
+            "O: ${:.2} | H: ${:.2} | L: ${:.2} | C: ${:.2}\nVolume: {:.2}\nTime: {}",
+            candle.ohlcv.open.value(),
+            candle.ohlcv.high.value(),
+            candle.ohlcv.low.value(),
+            candle.ohlcv.close.value(),
+            candle.ohlcv.volume.value(),
+            candle.timestamp.value()
+        );
+        
+        Self {
+            candle,
+            x,
+            y,
+            formatted_text,
+        }
+    }
 }
 
 /// 🌉 Bridge logger для подключения domain::logging к Leptos сигналам
@@ -62,9 +97,137 @@ impl crate::domain::logging::Logger for LeptosLogger {
 #[component]
 pub fn App() -> impl IntoView {
     view! {
+        <style>
+            {r#"
+            .bitcoin-chart-app {
+                font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+                min-height: 100vh;
+                padding: 20px;
+                color: white;
+            }
+            
+            .header {
+                text-align: center;
+                margin-bottom: 20px;
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(10px);
+                padding: 20px;
+                border-radius: 15px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            
+            .price-info {
+                display: flex;
+                justify-content: center;
+                gap: 40px;
+                margin-top: 15px;
+            }
+            
+            .price-item {
+                text-align: center;
+            }
+            
+            .price-value {
+                font-size: 24px;
+                font-weight: 700;
+                color: #72c685;
+                text-shadow: 0 0 10px rgba(114, 198, 133, 0.3);
+            }
+            
+            .price-label {
+                font-size: 12px;
+                color: #a0a0a0;
+                margin-top: 5px;
+            }
+            
+            .chart-container {
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 20px;
+            }
+            
+            .tooltip {
+                position: absolute;
+                background: rgba(0, 0, 0, 0.9);
+                color: white;
+                padding: 12px;
+                border-radius: 8px;
+                font-size: 12px;
+                font-family: 'Courier New', monospace;
+                white-space: pre-line;
+                pointer-events: none;
+                z-index: 1000;
+                border: 1px solid #4a5d73;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+                backdrop-filter: blur(5px);
+                line-height: 1.4;
+            }
+            
+            .status {
+                color: #72c685;
+                font-size: 14px;
+                text-align: center;
+            }
+            
+            .debug-console {
+                background: rgba(0, 0, 0, 0.8);
+                border-radius: 10px;
+                padding: 15px;
+                max-height: 300px;
+                overflow-y: auto;
+                border: 1px solid #4a5d73;
+            }
+            
+            .debug-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+                color: #72c685;
+                font-weight: bold;
+            }
+            
+            .debug-btn {
+                background: #4a5d73;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 12px;
+                margin-left: 5px;
+            }
+            
+            .debug-btn:hover {
+                background: #5a6d83;
+            }
+            
+            .debug-log {
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
+                line-height: 1.3;
+            }
+            
+            .log-line {
+                color: #e0e0e0;
+                margin: 2px 0;
+                padding: 1px 5px;
+                border-radius: 3px;
+            }
+            
+            .log-line:hover {
+                background: rgba(255, 255, 255, 0.1);
+            }
+            "#}
+        </style>
         <div class="bitcoin-chart-app">
             <Header />
             <ChartContainer />
+            <Tooltip />
             <DebugConsole />
         </div>
     }
@@ -159,7 +322,7 @@ fn ChartContainer() -> impl IntoView {
                             chart.data.add_candle(candle.clone());
                         }
 
-                        // Рендерим
+                        // Рендерим реальные свечи (WebGPU работает!)
                         if let Ok(webgpu_renderer) = renderer_rc.try_borrow() {
                             if let Err(e) = webgpu_renderer.render(&chart) {
                                 set_status.set(format!("❌ Render error: {:?}", e));
@@ -173,6 +336,11 @@ fn ChartContainer() -> impl IntoView {
         });
     });
 
+    // 🎯 TODO: Добавим mouse events для tooltip позже
+    // let handle_mouse_move = move |_event: web_sys::MouseEvent| {
+    //     // Mouse hover tooltip будет добавлен в следующей итерации
+    // };
+
     view! {
         <div class="chart-container">
             <canvas 
@@ -185,6 +353,48 @@ fn ChartContainer() -> impl IntoView {
             <div class="status">
                 {move || status.get()}
             </div>
+        </div>
+    }
+}
+
+/// 🎯 Tooltip компонент
+#[component]
+fn Tooltip() -> impl IntoView {
+    let tooltip_visible = TOOLTIP_VISIBLE.with(|visible| *visible);
+    let tooltip_data = TOOLTIP_DATA.with(|data| *data);
+
+    view! {
+        <div 
+            class="tooltip"
+            style:display=move || if tooltip_visible.get() { "block" } else { "none" }
+            style:left=move || {
+                tooltip_data.with(|data| {
+                    if let Some(tooltip) = data {
+                        format!("{}px", tooltip.x + 10.0)
+                    } else {
+                        "0px".to_string()
+                    }
+                })
+            }
+            style:top=move || {
+                tooltip_data.with(|data| {
+                    if let Some(tooltip) = data {
+                        format!("{}px", tooltip.y - 50.0)
+                    } else {
+                        "0px".to_string()
+                    }
+                })
+            }
+        >
+            {move || {
+                tooltip_data.with(|data| {
+                    if let Some(tooltip) = data {
+                        tooltip.formatted_text.clone()
+                    } else {
+                        String::new()
+                    }
+                })
+            }}
         </div>
     }
 }

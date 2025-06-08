@@ -11,6 +11,7 @@ struct ChartUniforms {
     sma200_color: vec4<f32>,      // Цвет SMA 200 (синий)
     ema12_color: vec4<f32>,       // Цвет EMA 12 (фиолетовый)
     ema26_color: vec4<f32>,       // Цвет EMA 26 (голубой)
+    current_price_color: vec4<f32>, // 💰 Цвет текущей цены (ярко-желтый)
     render_params: vec4<f32>,     // candle_width, spacing, line_width, _padding
 }
 
@@ -21,8 +22,8 @@ var<uniform> uniforms: ChartUniforms;
 struct VertexInput {
     @location(0) position_x: f32,    // X позиция в нормализованных координатах
     @location(1) position_y: f32,    // Y позиция в нормализованных координатах
-    @location(2) element_type: f32,  // 0.0 = тело свечи, 1.0 = фитиль
-    @location(3) color_type: f32,    // 0.0 = медвежья, 1.0 = бычья, 0.5 = фитиль
+    @location(2) element_type: f32,  // 0.0 = тело свечи, 1.0 = фитиль, 2.0 = индикатор, 3.0 = сетка, 4.0 = current price
+    @location(3) color_type: f32,    // 0.0 = медвежья, 1.0 = бычья, 0.5 = фитиль, 2-6 = индикаторы, 7.0 = current price
 }
 
 // Выходные данные вершинного шейдера
@@ -36,8 +37,9 @@ struct VertexOutput {
 fn vs_main(vertex: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     
-    // Простое преобразование позиции (уже в NDC координатах)
-    out.clip_position = vec4<f32>(vertex.position_x, vertex.position_y, 0.0, 1.0);
+    // Применяем матрицу преобразования к позиции
+    let position = vec4<f32>(vertex.position_x, vertex.position_y, 0.0, 1.0);
+    out.clip_position = uniforms.view_proj_matrix * position;
     
     // Определяем цвет на основе типа элемента и цвета
     if (vertex.element_type < 0.5) {
@@ -63,9 +65,18 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         } else {
             out.color = uniforms.ema26_color; // EMA 26 - голубой
         }
-    } else {
+    } else if (vertex.element_type < 3.5) {
         // Сетка графика
         out.color = vec4<f32>(0.3, 0.3, 0.3, 0.3); // Очень светло-серый, полупрозрачный
+    } else if (vertex.element_type < 4.5) {
+        // 💰 Линия текущей цены
+        out.color = uniforms.current_price_color; // Ярко-желтый
+    } else if (vertex.element_type > 98.0) {
+        // УЛЬТРА-ПРОСТОЙ ТЕСТ - яркий красный цвет
+        out.color = vec4<f32>(1.0, 0.0, 0.0, 1.0); // Красный
+    } else {
+        // Неизвестный элемент - белый
+        out.color = vec4<f32>(1.0, 1.0, 1.0, 1.0);
     }
     
     out.element_type = vertex.element_type;
@@ -75,23 +86,6 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Можно добавить дополнительные эффекты на основе element_type
-    var final_color = in.color;
-    
-    // Разная прозрачность для разных элементов
-    if (in.element_type < 0.5) {
-        // Тело свечи - полностью непрозрачное
-        final_color.a = 1.0;
-    } else if (in.element_type < 1.5) {
-        // Фитиль - чуть прозрачнее
-        final_color.a = 0.8;
-    } else if (in.element_type < 2.5) {
-        // Индикаторы - яркие
-        final_color.a = 0.9;
-    } else {
-        // Сетка - очень прозрачная
-        final_color.a = 0.2;
-    }
-    
-    return final_color;
+    // Упрощенный fragment shader - просто возвращаем цвет от vertex shader
+    return vec4<f32>(in.color.rgb, 1.0); // Используем цвет от vertex shader, но принудительно альфа = 1.0
 } 
