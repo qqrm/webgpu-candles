@@ -62,6 +62,12 @@ src/
 
 For more architectural details see [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Демо
+
+Актуальная статическая версия собирается через GitHub Actions и доступна
+по адресу <https://qqrm.github.io/webgpu-candles/>. Файлы публикуются в
+каталог [`docs/`](docs/).
+
 ## Docker
 
 Собрать и запустить образ можно так:
