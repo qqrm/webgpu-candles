@@ -150,21 +150,30 @@ impl TimeProvider for BasicTimeProvider {
 #[macro_export]
 macro_rules! log_trace {
     ($component:expr, $($arg:tt)*) => {
-        $crate::domain::logging::get_logger().trace($component, &format!($($arg)*));
+        #[cfg(debug_assertions)]
+        {
+            $crate::domain::logging::get_logger().trace($component, &format!($($arg)*));
+        }
     };
 }
 
 #[macro_export]
 macro_rules! log_debug {
     ($component:expr, $($arg:tt)*) => {
-        $crate::domain::logging::get_logger().debug($component, &format!($($arg)*));
+        #[cfg(debug_assertions)]
+        {
+            $crate::domain::logging::get_logger().debug($component, &format!($($arg)*));
+        }
     };
 }
 
 #[macro_export]
 macro_rules! log_info {
     ($component:expr, $($arg:tt)*) => {
-        $crate::domain::logging::get_logger().info($component, &format!($($arg)*));
+        #[cfg(debug_assertions)]
+        {
+            $crate::domain::logging::get_logger().info($component, &format!($($arg)*));
+        }
     };
 }
 

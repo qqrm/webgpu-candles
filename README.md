@@ -64,9 +64,10 @@ For more architectural details see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Docker
 
+Собрать и запустить образ можно так:
 ```bash
 docker build -t webgpu-candles .
 docker run --rm -p 8080:80 webgpu-candles
 ```
-
 (в контейнере используется nginx, поэтому порт 80 маппится на 8080 хоста).
+
