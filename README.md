@@ -79,5 +79,5 @@ docker run --rm -p 8080:80 webgpu-candles
 
 
 ## License
-Этот проект распространяется по лицензии MIT. Подробнее см. файл [LICENSE](LICENSE).
+Этот проект распространяется по лицензии [MIT License](LICENSE).
 
