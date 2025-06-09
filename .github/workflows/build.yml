@@ -1,0 +1,27 @@
+name: build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - name: Install trunk
+        run: cargo install trunk
+      - name: Build
+        run: trunk build --release --dist docs
+      - name: Commit docs
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add docs
+          git commit -m "Update docs" || echo "No changes"
+          git push
+
