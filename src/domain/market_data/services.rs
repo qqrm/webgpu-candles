@@ -178,4 +178,32 @@ impl MarketAnalysisService {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::{entities::Candle, value_objects::*};
+
+    fn simple_candle(ts: u64, price: f64) -> Candle {
+        Candle::new(
+            Timestamp::from(ts),
+            OHLCV::new(
+                Price::from(price),
+                Price::from(price),
+                Price::from(price),
+                Price::from(price),
+                Volume::from(1.0),
+            ),
+        )
+    }
+
+    #[test]
+    fn sma_computation() {
+        let service = MarketAnalysisService::new();
+        let candles: Vec<Candle> = (0..5).map(|i| simple_candle(i, (i + 1) as f64)).collect();
+        let sma = service.calculate_sma(&candles, 3);
+        assert_eq!(sma.len(), 3);
+        assert!((sma[0].value() - 2.0).abs() < 1e-6);
+    }
+}
+
 // DataValidationService removed - validation is handled in MarketAnalysisService.validate_candle() 

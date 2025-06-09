@@ -1,7 +1,7 @@
 use super::*;
 
 impl WebGpuRenderer {
-    fn create_geometry(&self, chart: &Chart) -> (Vec<CandleVertex>, ChartUniforms) {
+    pub(super) fn create_geometry(&self, chart: &Chart) -> (Vec<CandleVertex>, ChartUniforms) {
         let candles = chart.data.get_candles();
         if candles.is_empty() {
             get_logger().info(
