@@ -61,3 +61,23 @@ src/
 ```
 
 For more architectural details see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Docker
+
+Собрать и запустить образ можно так:
+
+```bash
+docker build -t webgpu-candles .
+docker run --rm -p 8080:80 webgpu-candles
+```
+
+## Building and Testing
+
+Собрать проект и запустить тесты можно и напрямую через Cargo (нужна nightly‑версия Rust):
+
+```bash
+rustup default nightly
+rustup target add wasm32-unknown-unknown
+cargo build --target wasm32-unknown-unknown
+cargo test --target wasm32-unknown-unknown
+```

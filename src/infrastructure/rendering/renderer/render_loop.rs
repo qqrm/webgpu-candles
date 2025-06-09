@@ -1,4 +1,5 @@
 use super::*;
+use crate::log_info;
 
 impl WebGpuRenderer {
     pub fn render(&self, chart: &Chart) -> Result<(), JsValue> {
@@ -6,9 +7,10 @@ impl WebGpuRenderer {
 
         // Логируем только каждые 100 кадров для производительности
         if candle_count % 100 == 0 {
-            get_logger().info(
+            log_info!(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("📊 Chart has {} candles to render", candle_count),
+                "📊 Chart has {} candles to render",
+                candle_count
             );
         }
 
