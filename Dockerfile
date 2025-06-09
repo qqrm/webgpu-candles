@@ -1,19 +1,19 @@
 FROM rust:latest AS builder
 
-# Install wasm target and wasm-pack
+# Устанавливаем целевую платформу и Trunk
 RUN rustup target add wasm32-unknown-unknown && \
-    apt-get update && apt-get install -y --no-install-recommends curl && \
-    curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && \
-    rm -rf /var/lib/apt/lists/*
+    cargo install --locked trunk
 
 WORKDIR /app
 COPY . .
 
-RUN wasm-pack build --target web --release
+# Сборка проекта через Trunk
+RUN trunk build --release
 
 FROM nginx:alpine
 WORKDIR /usr/share/nginx/html
-COPY index.html .
-COPY --from=builder /app/pkg ./pkg
+# Копируем готовый dist каталог
+COPY --from=builder /app/dist/ ./
 
+EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]

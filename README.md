@@ -7,6 +7,8 @@ A demonstration Bitcoin candlestick chart built with **WebGPU** for rendering an
 ```bash
 # Add the WebAssembly compilation target
 rustup target add wasm32-unknown-unknown
+# Install Trunk for building and serving
+cargo install trunk
 ```
 
 Install either [Trunk](https://trunkrs.dev/) or [wasm-pack](https://rustwasm.github.io/wasm-pack/) depending on your preferred workflow.

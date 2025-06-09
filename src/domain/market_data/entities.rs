@@ -132,3 +132,42 @@ impl CandleSeries {
         Some((min_price, max_price))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::value_objects::*;
+
+    fn sample_candle(ts: u64, open: f64, high: f64, low: f64, close: f64) -> Candle {
+        Candle::new(
+            Timestamp::from(ts),
+            OHLCV::new(
+                Price::from(open),
+                Price::from(high),
+                Price::from(low),
+                Price::from(close),
+                Volume::from(1.0),
+            ),
+        )
+    }
+
+    #[test]
+    fn candle_direction() {
+        let bullish = sample_candle(1, 1.0, 2.0, 0.5, 1.5);
+        assert!(bullish.is_bullish());
+        assert!(!bullish.is_bearish());
+
+        let bearish = sample_candle(2, 1.5, 2.0, 1.0, 1.0);
+        assert!(bearish.is_bearish());
+        assert!(!bearish.is_bullish());
+    }
+
+    #[test]
+    fn series_inserts_sorted() {
+        let mut series = CandleSeries::new(10);
+        series.add_candle(sample_candle(2, 1.0, 2.0, 0.5, 1.5));
+        series.add_candle(sample_candle(1, 0.8, 1.8, 0.7, 1.2));
+        assert_eq!(series.get_candles()[0].timestamp.value(), 1);
+        assert_eq!(series.get_candles()[1].timestamp.value(), 2);
+    }
+}

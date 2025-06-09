@@ -9,8 +9,9 @@ pub mod app;
 use leptos::*;
 use wasm_bindgen::prelude::*;
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(start)]
-pub fn main() {
+pub fn start_app() {
     console_error_panic_hook::set_once();
     
     // Log that WASM started
@@ -37,12 +38,14 @@ pub fn main() {
 }
 
 /// Проверка WebGPU поддержки
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub async fn is_webgpu_supported() -> bool {
     crate::infrastructure::WebGpuRenderer::is_webgpu_supported().await
 }
 
 /// Получить производительность рендерера
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn get_renderer_performance() -> String {
     // Заглушка - возвращаем статическую информацию
