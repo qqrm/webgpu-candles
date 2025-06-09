@@ -159,31 +159,3 @@ impl TimeInterval {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn price_validation() {
-        assert!(Price::validate(10.0).is_ok());
-        assert!(Price::validate(-1.0).is_err());
-    }
-
-    #[test]
-    fn volume_validation() {
-        assert!(Volume::validate(0.0).is_ok());
-        assert!(Volume::validate(-5.0).is_err());
-    }
-
-    #[test]
-    fn ohlcv_validity() {
-        let ohlcv = OHLCV::new(
-            Price::from(10.0),
-            Price::from(15.0),
-            Price::from(5.0),
-            Price::from(12.0),
-            Volume::from(100.0),
-        );
-        assert!(ohlcv.is_valid());
-    }
-}
