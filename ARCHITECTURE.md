@@ -105,6 +105,9 @@ GLOBAL_LOGS: Vec<String>     // Debug логи
 ## 📦 Сборка
 
 ```bash
+# Установите wasm32 таргет один раз
+rustup target add wasm32-unknown-unknown
+
 # Development
 cargo build --target wasm32-unknown-unknown
 
