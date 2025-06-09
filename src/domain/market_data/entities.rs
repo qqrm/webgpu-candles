@@ -1,5 +1,6 @@
 pub use super::value_objects::{Timestamp, OHLCV, Price, Volume};
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 
 /// Доменная сущность - Свеча
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -37,21 +38,21 @@ impl Candle {
 /// Доменная сущность - Временной ряд свечей
 #[derive(Debug, Clone)]
 pub struct CandleSeries {
-    candles: Vec<Candle>,
+    candles: VecDeque<Candle>,
     max_size: usize,
 }
 
 impl CandleSeries {
     pub fn new(max_size: usize) -> Self {
         Self {
-            candles: Vec::new(),
+            candles: VecDeque::new(),
             max_size,
         }
     }
 
     pub fn add_candle(&mut self, candle: Candle) {
         // Проверяем, обновляем ли мы существующую свечу или добавляем новую
-        if let Some(last_candle) = self.candles.last_mut() {
+        if let Some(last_candle) = self.candles.back_mut() {
             if last_candle.timestamp == candle.timestamp {
                 *last_candle = candle;
                 return;
@@ -65,20 +66,22 @@ impl CandleSeries {
             }
         }
 
-        self.candles.push(candle);
+        self.candles.push_back(candle);
         
         // Ограничиваем размер для производительности
         if self.candles.len() > self.max_size {
-            self.candles.remove(0);
+            self.candles.pop_front();
         }
     }
 
     /// Вставка свечи с сохранением сортировки по времени
     fn insert_candle_sorted(&mut self, candle: Candle) {
         // Находим правильную позицию для вставки
-        let insert_pos = self.candles
-            .binary_search_by(|c| c.timestamp.value().cmp(&candle.timestamp.value()))
-            .unwrap_or_else(|pos| pos);
+        let insert_pos = self
+            .candles
+            .iter()
+            .position(|c| c.timestamp.value() >= candle.timestamp.value())
+            .unwrap_or(self.candles.len());
         
         // Если свеча с таким timestamp уже существует, заменяем её
         if insert_pos < self.candles.len() && 
@@ -90,16 +93,16 @@ impl CandleSeries {
         
         // Ограничиваем размер
         if self.candles.len() > self.max_size {
-            self.candles.remove(0);
+            self.candles.pop_front();
         }
     }
 
-    pub fn get_candles(&self) -> &[Candle] {
+    pub fn get_candles(&self) -> &VecDeque<Candle> {
         &self.candles
     }
 
     pub fn latest(&self) -> Option<&Candle> {
-        self.candles.last()
+        self.candles.back()
     }
 
     pub fn count(&self) -> usize {
@@ -108,7 +111,7 @@ impl CandleSeries {
 
     /// Получить последнюю цену закрытия
     pub fn get_latest_price(&self) -> Option<&Price> {
-        self.candles.last().map(|candle| &candle.ohlcv.close)
+        self.candles.back().map(|candle| &candle.ohlcv.close)
     }
 
     /// Получить ценовой диапазон всех свечей
