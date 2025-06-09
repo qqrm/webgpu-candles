@@ -83,8 +83,8 @@ impl Chart {
             // Обновляем временной диапазон
             let candles = self.data.get_candles();
             if !candles.is_empty() {
-                self.viewport.start_time = candles.first().unwrap().timestamp.value() as f64;
-                self.viewport.end_time = candles.last().unwrap().timestamp.value() as f64;
+                self.viewport.start_time = candles.front().unwrap().timestamp.value() as f64;
+                self.viewport.end_time = candles.back().unwrap().timestamp.value() as f64;
             }
         }
     }
@@ -99,8 +99,8 @@ impl Chart {
 
         let candles = self.data.get_candles();
         if !candles.is_empty() {
-            self.viewport.start_time = candles.first().unwrap().timestamp.as_f64();
-            self.viewport.end_time = candles.last().unwrap().timestamp.as_f64();
+            self.viewport.start_time = candles.front().unwrap().timestamp.as_f64();
+            self.viewport.end_time = candles.back().unwrap().timestamp.as_f64();
         }
     }
 

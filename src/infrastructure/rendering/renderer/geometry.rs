@@ -32,14 +32,18 @@ impl WebGpuRenderer {
         } else {
             0
         };
-        let visible_candles = &candles[start_index..];
+        let visible_candles: Vec<Candle> = candles
+            .iter()
+            .skip(start_index)
+            .cloned()
+            .collect();
 
         let mut vertices = Vec::with_capacity(visible_candles.len() * 24);
 
         // Find price range
         let mut min_price = f32::MAX;
         let mut max_price = f32::MIN;
-        for candle in visible_candles {
+        for candle in &visible_candles {
             min_price = min_price.min(candle.ohlcv.low.value() as f32);
             max_price = max_price.max(candle.ohlcv.high.value() as f32);
         }
@@ -206,10 +210,10 @@ impl WebGpuRenderer {
         vertices.extend(self.create_grid_lines(min_price, max_price, visible_candles.len()));
 
         // 📊 Добавляем volume bars под графиком
-        vertices.extend(self.create_volume_bars(visible_candles));
+        vertices.extend(self.create_volume_bars(&visible_candles));
 
         // 📈 Добавляем скользящие средние (SMA20 и EMA12)
-        vertices.extend(self.create_moving_averages(visible_candles, min_price, max_price));
+        vertices.extend(self.create_moving_averages(&visible_candles, min_price, max_price));
 
         // Логируем только если много вершин
         if vertices.len() > 1000 {
