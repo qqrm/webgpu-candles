@@ -1,8 +1,6 @@
-pub mod webgpu_renderer;
 pub mod gpu_structures;
-pub mod webgpu;
+pub mod renderer;
 
 // Re-exports for convenient access - WebGPU only! 🚀
-pub use webgpu::*;
-pub use webgpu_renderer::WebGpuRenderer;
-pub use gpu_structures::*; 
+pub use gpu_structures::*;
+pub use renderer::WebGpuRenderer;

@@ -33,7 +33,7 @@ src/
     │   ├── binance_client.rs # WebSocket клиент Binance
     │   └── dto.rs           # JSON DTO structures
     ├── rendering/
-    │   ├── webgpu_renderer.rs # WebGPU рендерер
+    │   ├── renderer/          # WebGPU рендерер по частям
     │   └── gpu_structures.rs  # GPU vertex structures
     └── mod.rs               # Infrastructure services
 ```
@@ -55,7 +55,7 @@ Binance WebSocket → BinanceClient → Leptos Signals → WebGPU → Canvas
 - `ChartTooltip()` - интерактивный tooltip
 - `DebugConsole()` - логи с pause/clear
 
-### **webgpu_renderer.rs - GPU рендеринг**
+### **renderer** - GPU рендеринг
 - Рендеринг свечей (зеленые/красные)
 - Скользящие средние (SMA20, EMA12)
 - Сплошная линия цены (желтая)
@@ -105,6 +105,9 @@ GLOBAL_LOGS: Vec<String>     // Debug логи
 ## 📦 Сборка
 
 ```bash
+# Установите wasm32 таргет один раз
+rustup target add wasm32-unknown-unknown
+
 # Development
 cargo build --target wasm32-unknown-unknown
 

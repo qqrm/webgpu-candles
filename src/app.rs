@@ -1,23 +1,20 @@
 // src/app.rs
 
+use js_sys;
 use leptos::html::Canvas;
 use leptos::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use wasm_bindgen_futures::spawn_local;
-use js_sys;
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
 
 use crate::{
     domain::{
         chart::Chart,
         logging::{LogComponent, get_logger, init_logger, init_time_provider},
-        market_data::{TimeInterval, value_objects::Symbol, Candle},
+        market_data::{Candle, TimeInterval, value_objects::Symbol},
     },
-    infrastructure::{
-        rendering::WebGpuRenderer,
-        websocket::BinanceWebSocketClient,
-    },
+    infrastructure::{rendering::WebGpuRenderer, websocket::BinanceWebSocketClient},
 };
 
 // 🔗 Глобальные сигналы для логов (bridge к domain::logging)
@@ -30,16 +27,59 @@ thread_local! {
     static GLOBAL_CANDLE_COUNT: RwSignal<usize> = create_rw_signal(0);
     static GLOBAL_IS_STREAMING: RwSignal<bool> = create_rw_signal(false);
     static GLOBAL_MAX_VOLUME: RwSignal<f64> = create_rw_signal(0.0);
+    static LOADING_MORE: RwSignal<bool> = create_rw_signal(false);
 
     // 🎯 Tooltip данные
     static TOOLTIP_DATA: RwSignal<Option<TooltipData>> = create_rw_signal(None);
     static TOOLTIP_VISIBLE: RwSignal<bool> = create_rw_signal(false);
-    
+
     // 🔍 Зум и панорамирование
     static ZOOM_LEVEL: RwSignal<f64> = create_rw_signal(1.0);
     static PAN_OFFSET: RwSignal<f64> = create_rw_signal(0.0);
     static IS_DRAGGING: RwSignal<bool> = create_rw_signal(false);
     static LAST_MOUSE_X: RwSignal<f64> = create_rw_signal(0.0);
+}
+
+/// 📈 Запрашивает дополнительную историю и добавляет в начало списка
+fn fetch_more_history(
+    set_candles: WriteSignal<Vec<Candle>>,
+    candles: ReadSignal<Vec<Candle>>,
+    set_status: WriteSignal<String>,
+) {
+    if LOADING_MORE.with(|l| l.get()) {
+        return;
+    }
+
+    let oldest_ts = candles.with(|c| c.first().map(|c| c.timestamp.value()));
+    let end_time = match oldest_ts {
+        Some(ts) if ts > 0 => ts - 1,
+        _ => return,
+    };
+
+    LOADING_MORE.with(|l| l.set(true));
+
+    spawn_local(async move {
+        let client = BinanceWebSocketClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
+        match client.fetch_historical_data_before(end_time, 300).await {
+            Ok(mut new_candles) => {
+                new_candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
+                set_candles.update(|existing| {
+                    for candle in new_candles.iter() {
+                        if !existing.iter().any(|e| e.timestamp == candle.timestamp) {
+                            existing.insert(0, candle.clone());
+                        }
+                    }
+                    while existing.len() > 1000 {
+                        existing.pop();
+                    }
+                });
+                set_status.set(format!("📈 Loaded {} older candles", new_candles.len()));
+            }
+            Err(e) => set_status.set(format!("❌ Failed to load more data: {}", e)),
+        }
+
+        LOADING_MORE.with(|l| l.set(false));
+    });
 }
 
 /// 🎯 Данные для tooltip
@@ -95,9 +135,10 @@ impl crate::domain::logging::TimeProvider for WebTimeProvider {
 
     fn format_timestamp(&self, timestamp: u64) -> String {
         let date = js_sys::Date::new(&(timestamp as f64).into());
-        format!("{:02}:{:02}:{:02}.{:03}", 
-            date.get_hours(), 
-            date.get_minutes(), 
+        format!(
+            "{:02}:{:02}:{:02}.{:03}",
+            date.get_hours(),
+            date.get_minutes(),
             date.get_seconds(),
             date.get_milliseconds()
         )
@@ -136,25 +177,29 @@ impl crate::domain::logging::Logger for LeptosLogger {
 pub fn app() -> impl IntoView {
     // 🚀 Инициализируем глобальный логгер при старте приложения
     use crate::domain::logging::{init_logger, init_time_provider};
-    
+
     // Добавляем console.log для диагностики
-    unsafe { web_sys::console::log_1(&"🚀 Starting Bitcoin Chart App".into()); }
-    
+    unsafe {
+        web_sys::console::log_1(&"🚀 Starting Bitcoin Chart App".into());
+    }
+
     // Инициализируем логгер только один раз
     std::sync::Once::new().call_once(|| {
         // Создаем и устанавливаем Leptos логгер
         init_logger(Box::new(LeptosLogger));
-        
-        // Создаем и устанавливаем Web time provider  
+
+        // Создаем и устанавливаем Web time provider
         init_time_provider(Box::new(WebTimeProvider));
-        
-        unsafe { web_sys::console::log_1(&"✅ Logger initialized".into()); }
-        
+
+        unsafe {
+            web_sys::console::log_1(&"✅ Logger initialized".into());
+        }
+
         get_logger().info(
             LogComponent::Presentation("App"),
-            "🚀 Global logger and time provider initialized!"
+            "🚀 Global logger and time provider initialized!",
         );
-        
+
         // Тестовые логи для проверки
         get_logger().debug(LogComponent::Domain("Test"), "Debug test message");
         get_logger().info(LogComponent::Application("Test"), "Info test message");
@@ -162,7 +207,9 @@ pub fn app() -> impl IntoView {
         get_logger().error(LogComponent::Presentation("Test"), "Error test message");
     });
 
-    unsafe { web_sys::console::log_1(&"📦 Creating view...".into()); }
+    unsafe {
+        web_sys::console::log_1(&"📦 Creating view...".into());
+    }
 
     view! {
         <style>
@@ -428,33 +475,30 @@ fn TimeScale(candles: ReadSignal<Vec<Candle>>) -> impl IntoView {
         if candles.is_empty() {
             return vec![];
         }
-        
+
         let max_visible = 300;
         let visible = if candles.len() > max_visible {
             &candles[candles.len() - max_visible..]
         } else {
             &candles[..]
         };
-        
+
         // Показываем 5 временных меток
         let num_labels = 5;
         let mut labels = Vec::new();
-        
+
         for i in 0..num_labels {
             let index = (i * visible.len()) / (num_labels - 1);
             if let Some(candle) = visible.get(index.min(visible.len() - 1)) {
                 let timestamp = candle.timestamp.value();
                 // Конвертируем timestamp в читаемое время
                 let date = js_sys::Date::new(&(timestamp as f64).into());
-                let time_str = format!("{:02}:{:02}", 
-                    date.get_hours(), 
-                    date.get_minutes()
-                );
+                let time_str = format!("{:02}:{:02}", date.get_hours(), date.get_minutes());
                 let position_percent = (i as f64 / (num_labels as f64 - 1.0)) * 100.0;
                 labels.push((time_str, position_percent));
             }
         }
-        
+
         labels
     };
 
@@ -488,24 +532,30 @@ fn ChartContainer() -> impl IntoView {
     create_effect(move |_| {
         if canvas_ref.get().is_some() {
             spawn_local(async move {
-                unsafe { web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into()); }
+                unsafe {
+                    web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
+                }
                 set_status.set("🚀 Initializing WebGPU renderer...".to_string());
-                
+
                 // Детальная диагностика WebGPU
-                unsafe { web_sys::console::log_1(&"🏗️ Creating WebGPU renderer...".into()); }
+                unsafe {
+                    web_sys::console::log_1(&"🏗️ Creating WebGPU renderer...".into());
+                }
                 get_logger().info(
                     LogComponent::Infrastructure("WebGPU"),
-                    "🔍 Starting WebGPU initialization..."
+                    "🔍 Starting WebGPU initialization...",
                 );
 
-                unsafe { web_sys::console::log_1(&"⚡ About to call WebGpuRenderer::new...".into()); }
+                unsafe {
+                    web_sys::console::log_1(&"⚡ About to call WebGpuRenderer::new...".into());
+                }
                 match WebGpuRenderer::new("chart-canvas", 800, 500).await {
                     Ok(webgpu_renderer) => {
                         get_logger().info(
                             LogComponent::Infrastructure("WebGPU"),
-                            "✅ WebGPU renderer created successfully"
+                            "✅ WebGPU renderer created successfully",
                         );
-                        
+
                         let renderer_rc = Rc::new(RefCell::new(webgpu_renderer));
                         set_renderer.set(Some(renderer_rc));
                         set_status.set("✅ WebGPU renderer ready".to_string());
@@ -513,28 +563,28 @@ fn ChartContainer() -> impl IntoView {
                         // Запускаем WebSocket после инициализации renderer
                         get_logger().info(
                             LogComponent::Infrastructure("WebSocket"),
-                            "🌐 Starting WebSocket stream..."
+                            "🌐 Starting WebSocket stream...",
                         );
                         start_websocket_stream(set_candles, set_status).await;
                     }
                     Err(e) => {
                         get_logger().error(
                             LogComponent::Infrastructure("WebGPU"),
-                            &format!("❌ WebGPU initialization failed: {:?}", e)
+                            &format!("❌ WebGPU initialization failed: {:?}", e),
                         );
                         set_status.set(format!("❌ WebGPU failed: {:?}\n💡 Try Chrome Canary with --enable-unsafe-webgpu flag", e));
-                        
+
                         // Fallback: показываем хотя бы данные без графика
                         get_logger().info(
                             LogComponent::Infrastructure("Fallback"),
-                            "🔄 Starting fallback mode without WebGPU..."
+                            "🔄 Starting fallback mode without WebGPU...",
                         );
-                        
+
                         // Создаем тестовые данные для демонстрации
                         let mut test_candles = Vec::new();
                         let base_price = 90000.0;
                         let base_time = js_sys::Date::now() as u64;
-                        
+
                         for i in 0..50 {
                             let price_variation = (i as f64 * 0.1).sin() * 1000.0;
                             let open = base_price + price_variation;
@@ -542,7 +592,7 @@ fn ChartContainer() -> impl IntoView {
                             let high = open.max(close) + 100.0;
                             let low = open.min(close) - 100.0;
                             let volume = 100.0 + (i as f64 * 0.2).cos() * 50.0;
-                            
+
                             let candle = Candle::new(
                                 crate::domain::market_data::Timestamp::from(base_time + i * 60000),
                                 crate::domain::market_data::OHLCV::new(
@@ -555,9 +605,10 @@ fn ChartContainer() -> impl IntoView {
                             );
                             test_candles.push(candle);
                         }
-                        
+
                         set_candles.set(test_candles);
-                        set_status.set("🎯 Demo mode: Using test data (WebSocket disabled)".to_string());
+                        set_status
+                            .set("🎯 Demo mode: Using test data (WebSocket disabled)".to_string());
                     }
                 }
             });
@@ -600,6 +651,8 @@ fn ChartContainer() -> impl IntoView {
     // 🎯 Mouse events для tooltip
     let handle_mouse_move = {
         let candles_clone = candles.clone();
+        let set_candles_clone = set_candles;
+        let status_clone = set_status.clone();
         move |event: web_sys::MouseEvent| {
             let mouse_x = event.offset_x() as f64;
             let mouse_y = event.offset_y() as f64;
@@ -616,6 +669,7 @@ fn ChartContainer() -> impl IntoView {
                         });
                         last_x.set(mouse_x);
                     });
+                    fetch_more_history(set_candles_clone, candles_clone, status_clone);
                     return; // При драге не показываем tooltip
                 }
             });
@@ -663,13 +717,19 @@ fn ChartContainer() -> impl IntoView {
     // 🔍 Зум колесиком мыши - упрощенная версия без эффектов
     let handle_wheel = {
         let candles_clone = candles.clone();
+        let set_candles_clone = set_candles;
         let renderer_clone = renderer.clone();
+        let status_clone = set_status.clone();
         move |event: web_sys::WheelEvent| {
-            unsafe { web_sys::console::log_1(&format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into()); }
-            
+            unsafe {
+                web_sys::console::log_1(
+                    &format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into(),
+                );
+            }
+
             let delta_y = event.delta_y();
             let zoom_factor = if delta_y < 0.0 { 1.1 } else { 0.9 }; // Zoom in/out
-            
+
             ZOOM_LEVEL.with(|zoom| {
                 let old_zoom = zoom.with_untracked(|z| *z);
                 zoom.update(|z| {
@@ -677,54 +737,69 @@ fn ChartContainer() -> impl IntoView {
                     *z = z.max(0.1).min(10.0); // Ограничиваем зум от 0.1x до 10x
                 });
                 let new_zoom = zoom.with_untracked(|z| *z);
-                unsafe { web_sys::console::log_1(&format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into()); }
-                
+                unsafe {
+                    web_sys::console::log_1(
+                        &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
+                    );
+                }
+
                 // Сразу применяем зум без эффектов
                 candles_clone.with_untracked(|candles_data| {
                     if !candles_data.is_empty() {
-                                                 renderer_clone.with_untracked(|renderer_opt| {
-                             if let Some(renderer_rc) = renderer_opt {
-                                 if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
-                                     // ✅ Устанавливаем зум параметры в renderer
-                                     webgpu_renderer.set_zoom_params(new_zoom, PAN_OFFSET.with(|p| p.with_untracked(|val| *val)));
-                                     
-                                     let mut chart = Chart::new(
-                                         "wheel-zoom-chart".to_string(),
-                                         crate::domain::chart::ChartType::Candlestick,
-                                         1000,
-                                     );
-                                     
-                                     for candle in candles_data.iter() {
-                                         chart.data.add_candle(candle.clone());
-                                     }
-                                     
-                                     // 🔍 Теперь рендерим с применением зума
-                                     let _ = webgpu_renderer.render(&chart);
-                                     
-                                     get_logger().info(
-                                         LogComponent::Infrastructure("ZoomWheel"),
-                                         &format!("✅ Applied zoom {:.2}x to WebGPU renderer", new_zoom)
-                                     );
-                                 }
-                             }
-                         });
+                        renderer_clone.with_untracked(|renderer_opt| {
+                            if let Some(renderer_rc) = renderer_opt {
+                                if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
+                                    // ✅ Устанавливаем зум параметры в renderer
+                                    webgpu_renderer.set_zoom_params(
+                                        new_zoom,
+                                        PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
+                                    );
+
+                                    let mut chart = Chart::new(
+                                        "wheel-zoom-chart".to_string(),
+                                        crate::domain::chart::ChartType::Candlestick,
+                                        1000,
+                                    );
+
+                                    for candle in candles_data.iter() {
+                                        chart.data.add_candle(candle.clone());
+                                    }
+
+                                    // 🔍 Теперь рендерим с применением зума
+                                    let _ = webgpu_renderer.render(&chart);
+
+                                    get_logger().info(
+                                        LogComponent::Infrastructure("ZoomWheel"),
+                                        &format!(
+                                            "✅ Applied zoom {:.2}x to WebGPU renderer",
+                                            new_zoom
+                                        ),
+                                    );
+                                }
+                            }
+                        });
                     }
                 });
             });
-            
+
             get_logger().info(
                 LogComponent::Presentation("ChartZoom"),
-                &format!("🔍 Zoom level: {:.2}x", ZOOM_LEVEL.with(|z| z.with_untracked(|z_val| *z_val)))
+                &format!(
+                    "🔍 Zoom level: {:.2}x",
+                    ZOOM_LEVEL.with(|z| z.with_untracked(|z_val| *z_val))
+                ),
             );
+            fetch_more_history(set_candles_clone, candles_clone, status_clone);
         }
     };
 
     // 🖱️ Начало панорамирования
     let handle_mouse_down = move |event: web_sys::MouseEvent| {
-        if event.button() == 0 { // Левая кнопка мыши
+        if event.button() == 0 {
+            // Левая кнопка мыши
             IS_DRAGGING.with(|dragging| dragging.set(true));
             LAST_MOUSE_X.with(|last_x| last_x.set(event.offset_x() as f64));
-            
+
             // Даем canvas фокус для клавиатурных событий
             if let Some(target) = event.target() {
                 if let Ok(canvas) = target.dyn_into::<web_sys::HtmlCanvasElement>() {
@@ -734,7 +809,7 @@ fn ChartContainer() -> impl IntoView {
         }
     };
 
-    // 🖱️ Конец панорамирования  
+    // 🖱️ Конец панорамирования
     let handle_mouse_up = move |_event: web_sys::MouseEvent| {
         IS_DRAGGING.with(|dragging| dragging.set(false));
     };
@@ -742,98 +817,107 @@ fn ChartContainer() -> impl IntoView {
     // ⌨️ Клавиши для зума (+/- и PageUp/PageDown)
     let handle_keydown = {
         let candles_clone = candles.clone();
+        let set_candles_clone = set_candles;
         let renderer_clone = renderer.clone();
+        let status_clone = set_status.clone();
         move |event: web_sys::KeyboardEvent| {
-        let key = event.key();
-        let mut zoom_changed = false;
-        
-        match key.as_str() {
-            "+" | "=" => {
-                event.prevent_default();
-                ZOOM_LEVEL.with(|zoom| {
-                    zoom.update(|z| {
-                        *z *= 1.2;
-                        *z = z.min(10.0);
+            let key = event.key();
+            let mut zoom_changed = false;
+
+            match key.as_str() {
+                "+" | "=" => {
+                    event.prevent_default();
+                    ZOOM_LEVEL.with(|zoom| {
+                        zoom.update(|z| {
+                            *z *= 1.2;
+                            *z = z.min(10.0);
+                        });
                     });
-                });
-                zoom_changed = true;
-            }
-            "-" | "_" => {
-                event.prevent_default();
-                ZOOM_LEVEL.with(|zoom| {
-                    zoom.update(|z| {
-                        *z *= 0.8;
-                        *z = z.max(0.1);
-                    });
-                });
-                zoom_changed = true;
-            }
-            "PageUp" => {
-                event.prevent_default();
-                ZOOM_LEVEL.with(|zoom| {
-                    zoom.update(|z| {
-                        *z *= 1.5;
-                        *z = z.min(10.0);
-                    });
-                });
-                zoom_changed = true;
-            }
-            "PageDown" => {
-                event.prevent_default();
-                ZOOM_LEVEL.with(|zoom| {
-                    zoom.update(|z| {
-                        *z *= 0.67;
-                        *z = z.max(0.1);
-                    });
-                });
-                zoom_changed = true;
-            }
-            _ => {}
-        }
-        
-        if zoom_changed {
-            let new_zoom = ZOOM_LEVEL.with(|z| z.with_untracked(|z_val| *z_val));
-            unsafe { web_sys::console::log_1(&format!("⌨️ Keyboard zoom: {:.2}x", new_zoom).into()); }
-            
-            // Применяем зум к renderer для клавиатурных команд
-            candles_clone.with_untracked(|candles_data| {
-                if !candles_data.is_empty() {
-                    renderer_clone.with_untracked(|renderer_opt| {
-                        if let Some(renderer_rc) = renderer_opt {
-                            if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
-                                webgpu_renderer.set_zoom_params(new_zoom, PAN_OFFSET.with(|p| p.with_untracked(|val| *val)));
-                                
-                                let mut chart = Chart::new(
-                                    "keyboard-zoom-chart".to_string(),
-                                    crate::domain::chart::ChartType::Candlestick,
-                                    1000,
-                                );
-                                
-                                for candle in candles_data.iter() {
-                                    chart.data.add_candle(candle.clone());
-                                }
-                                
-                                let _ = webgpu_renderer.render(&chart);
-                                
-                                get_logger().info(
-                                    LogComponent::Infrastructure("KeyboardZoom"),
-                                    &format!("⌨️ Applied keyboard zoom {:.2}x to WebGPU renderer", new_zoom)
-                                );
-                            }
-                        }
-                    });
+                    zoom_changed = true;
                 }
-            });
-            
-            get_logger().info(
-                LogComponent::Presentation("KeyboardZoom"),
-                &format!("⌨️ Zoom level: {:.2}x", new_zoom)
-            );
-        }
+                "-" | "_" => {
+                    event.prevent_default();
+                    ZOOM_LEVEL.with(|zoom| {
+                        zoom.update(|z| {
+                            *z *= 0.8;
+                            *z = z.max(0.1);
+                        });
+                    });
+                    zoom_changed = true;
+                }
+                "PageUp" => {
+                    event.prevent_default();
+                    ZOOM_LEVEL.with(|zoom| {
+                        zoom.update(|z| {
+                            *z *= 1.5;
+                            *z = z.min(10.0);
+                        });
+                    });
+                    zoom_changed = true;
+                }
+                "PageDown" => {
+                    event.prevent_default();
+                    ZOOM_LEVEL.with(|zoom| {
+                        zoom.update(|z| {
+                            *z *= 0.67;
+                            *z = z.max(0.1);
+                        });
+                    });
+                    zoom_changed = true;
+                }
+                _ => {}
+            }
+
+            if zoom_changed {
+                let new_zoom = ZOOM_LEVEL.with(|z| z.with_untracked(|z_val| *z_val));
+                unsafe {
+                    web_sys::console::log_1(&format!("⌨️ Keyboard zoom: {:.2}x", new_zoom).into());
+                }
+
+                // Применяем зум к renderer для клавиатурных команд
+                candles_clone.with_untracked(|candles_data| {
+                    if !candles_data.is_empty() {
+                        renderer_clone.with_untracked(|renderer_opt| {
+                            if let Some(renderer_rc) = renderer_opt {
+                                if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
+                                    webgpu_renderer.set_zoom_params(
+                                        new_zoom,
+                                        PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
+                                    );
+
+                                    let mut chart = Chart::new(
+                                        "keyboard-zoom-chart".to_string(),
+                                        crate::domain::chart::ChartType::Candlestick,
+                                        1000,
+                                    );
+
+                                    for candle in candles_data.iter() {
+                                        chart.data.add_candle(candle.clone());
+                                    }
+
+                                    let _ = webgpu_renderer.render(&chart);
+
+                                    get_logger().info(
+                                        LogComponent::Infrastructure("KeyboardZoom"),
+                                        &format!(
+                                            "⌨️ Applied keyboard zoom {:.2}x to WebGPU renderer",
+                                            new_zoom
+                                        ),
+                                    );
+                                }
+                            }
+                        });
+                    }
+                });
+
+                get_logger().info(
+                    LogComponent::Presentation("KeyboardZoom"),
+                    &format!("⌨️ Zoom level: {:.2}x", new_zoom),
+                );
+                fetch_more_history(set_candles_clone, candles_clone, status_clone);
+            }
         }
     };
-
-
 
     // Эффект зума удален - теперь зум обрабатывается прямо в wheel handler
 
@@ -860,16 +944,16 @@ fn ChartContainer() -> impl IntoView {
                     <ChartTooltip />
                 </div>
             </div>
-            
+
             // Временная шкала под графиком
             <div style="display: flex; justify-content: center; margin-top: 10px;">
                 <TimeScale candles=candles />
             </div>
-            
+
             <div class="status">
                 {move || status.get()}
             </div>
-            
+
             // Подсказки по управлению
             <div style="text-align: center; margin-top: 10px; font-size: 12px; color: #888;">
                 "🔍 Zoom: Mouse wheel, +/- keys, PageUp/PageDown | 🖱️ Pan: Left click + drag | 🎯 Tooltip: Mouse hover"
@@ -889,22 +973,22 @@ fn PriceScale() -> impl IntoView {
         if price <= 0.0 {
             return vec![];
         }
-        
+
         // Примерный диапазон цен (±3% от текущей цены)
         let min_price = price * 0.97;
         let max_price = price * 1.03;
         let price_range = max_price - min_price;
-        
+
         // 8 ценовых уровней (как в сетке)
         let num_levels = 8;
         let mut levels = Vec::new();
-        
+
         for i in 0..=num_levels {
             let level_price = min_price + (price_range * i as f64 / num_levels as f64);
             let position_percent = (i as f64 / num_levels as f64) * 100.0;
             levels.push((level_price, position_percent));
         }
-        
+
         levels.reverse(); // Сверху вниз
         levels
     };
@@ -916,15 +1000,15 @@ fn PriceScale() -> impl IntoView {
                 each=price_levels
                 key=|(_price, pos)| (*pos * 100.0) as i64
                 children=|(price, position)| view! {
-                    <div 
-                        class="price-level" 
+                    <div
+                        class="price-level"
                         style=format!("position: absolute; top: {}%; right: 5px; transform: translateY(-50%); font-size: 11px; color: #888; background: rgba(0,0,0,0.7); padding: 2px 4px; border-radius: 2px;", position)
                     >
                         {format!("{:.2}", price)}
                     </div>
                 }
             />
-            
+
             // Показываем текущую цену (более заметно)
             <div class="current-price-label" style=format!("top: 50%")>
                 <span class="price-value">{move || format!("${:.2}", current_price.get())}</span>
@@ -985,7 +1069,7 @@ fn DebugConsole() -> impl IntoView {
     // Логируем инициализацию компонента
     get_logger().info(
         LogComponent::Presentation("DebugConsole"),
-        "🎯 Debug console component initialized"
+        "🎯 Debug console component initialized",
     );
 
     view! {
@@ -1050,41 +1134,42 @@ async fn start_websocket_stream(
 
     // Устанавливаем статус стрима
     GLOBAL_IS_STREAMING.with(|streaming| streaming.set(false));
-    
+
     // 📈 Сначала загружаем исторические данные
     set_status.set("📈 Loading historical data...".to_string());
-    
+
     match ws_client.fetch_historical_data(300).await {
         Ok(historical_candles) => {
             get_logger().info(
                 LogComponent::Presentation("WebSocketStream"),
-                &format!("✅ Loaded {} historical candles", historical_candles.len())
+                &format!("✅ Loaded {} historical candles", historical_candles.len()),
             );
-            
+
             // Загружаем исторические данные в UI
             set_candles.set(historical_candles.clone());
-            
+
             // Обновляем глобальные сигналы с историческими данными
             GLOBAL_CANDLE_COUNT.with(|count| count.set(historical_candles.len()));
-            
+
             if let Some(last_candle) = historical_candles.last() {
                 GLOBAL_CURRENT_PRICE.with(|price| {
                     price.set(last_candle.ohlcv.close.value());
                 });
             }
-            
+
             // Вычисляем максимальный объем из истории
-            let max_vol = historical_candles.iter()
+            let max_vol = historical_candles
+                .iter()
                 .map(|c| c.ohlcv.volume.value())
                 .fold(0.0f64, |a, b| a.max(b));
             GLOBAL_MAX_VOLUME.with(|volume| volume.set(max_vol));
-            
+
             set_status.set("✅ Historical data loaded. Starting real-time stream...".to_string());
         }
         Err(e) => {
             get_logger().error(
                 LogComponent::Presentation("WebSocketStream"),
-                &format!("❌ Failed to load historical data: {}", e)
+                &format!("❌ Failed to load historical data: {}", e),
             );
             set_status.set("⚠️ Historical data failed. Starting real-time only...".to_string());
         }
@@ -1094,7 +1179,8 @@ async fn start_websocket_stream(
     set_status.set("🔌 Starting WebSocket stream...".to_string());
     GLOBAL_IS_STREAMING.with(|streaming| streaming.set(true));
 
-    let mut ws_client = BinanceWebSocketClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
+    let mut ws_client =
+        BinanceWebSocketClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
 
     spawn_local(async move {
         let handler = move |candle: Candle| {
@@ -1126,9 +1212,10 @@ async fn start_websocket_stream(
 
                 // Обновляем счетчик свечей
                 GLOBAL_CANDLE_COUNT.with(|count| count.set(candles.len()));
-                
+
                 // Обновляем максимальный объем
-                let max_vol = candles.iter()
+                let max_vol = candles
+                    .iter()
                     .map(|c| c.ohlcv.volume.value())
                     .fold(0.0f64, |a, b| a.max(b));
                 GLOBAL_MAX_VOLUME.with(|volume| volume.set(max_vol));
