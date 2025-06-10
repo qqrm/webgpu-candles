@@ -20,12 +20,8 @@ use crate::{
     },
 };
 
-// 🔗 Глобальные сигналы для логов (bridge к domain::logging)
+// 🔗 Глобальные сигналы для real-time данных
 thread_local! {
-    static GLOBAL_LOGS: RwSignal<Vec<String>> = create_rw_signal(Vec::new());
-    static IS_LOG_PAUSED: RwSignal<bool> = create_rw_signal(false);
-
-    // 🌐 Глобальные сигналы для real-time данных
     static GLOBAL_CURRENT_PRICE: RwSignal<f64> = create_rw_signal(0.0);
     static GLOBAL_CANDLE_COUNT: RwSignal<usize> = create_rw_signal(0);
     static GLOBAL_IS_STREAMING: RwSignal<bool> = create_rw_signal(false);
@@ -129,87 +125,21 @@ impl TooltipData {
     }
 }
 
-/// 🌉 Bridge logger для подключения domain::logging к Leptos сигналам
-pub struct LeptosLogger;
 
-/// ⏰ Web time provider для domain::logging
-pub struct WebTimeProvider;
-
-/// Минимальный уровень логирования для LeptosLogger
-const MIN_LOG_LEVEL: LogLevel = LogLevel::Warn;
-
-impl crate::domain::logging::TimeProvider for WebTimeProvider {
-    fn current_timestamp(&self) -> u64 {
-        js_sys::Date::now() as u64
-    }
-
-    fn format_timestamp(&self, timestamp: u64) -> String {
-        let date = js_sys::Date::new(&(timestamp as f64).into());
-        format!(
-            "{:02}:{:02}:{:02}.{:03}",
-            date.get_hours(),
-            date.get_minutes(),
-            date.get_seconds(),
-            date.get_milliseconds()
-        )
-    }
-}
-
-impl crate::domain::logging::Logger for LeptosLogger {
-    fn log(&self, entry: crate::domain::logging::LogEntry) {
-        use crate::domain::logging::get_time_provider;
-
-        if entry.level < MIN_LOG_LEVEL {
-            return;
-        }
-
-        let timestamp_str = get_time_provider().format_timestamp(entry.timestamp);
-        let formatted = format!(
-            "[{}] {} {}: {}",
-            timestamp_str, entry.level, entry.component, entry.message
-        );
-
-        // Обновляем глобальные Leptos сигналы!
-        GLOBAL_LOGS.with(|logs| {
-            IS_LOG_PAUSED.with(|paused| {
-                if !paused.get() {
-                    logs.update(|log_vec| {
-                        log_vec.push(formatted);
-                        // Ограничиваем до 100 логов
-                        while log_vec.len() > 100 {
-                            log_vec.remove(0);
-                        }
-                    });
-                }
-            });
-        });
-    }
-}
 
 /// 🦀 Главный компонент Bitcoin Chart на Leptos
 #[component]
 pub fn app() -> impl IntoView {
     // 🚀 Инициализируем глобальный логгер при старте приложения
-    use crate::domain::logging::{init_logger, init_time_provider};
+    use crate::domain::logging::get_logger;
 
     // Добавляем console.log для диагностики
     web_sys::console::log_1(&"🚀 Starting Bitcoin Chart App".into());
 
-    // Инициализируем логгер только один раз
-    std::sync::Once::new().call_once(|| {
-        // Создаем и устанавливаем Leptos логгер
-        init_logger(Box::new(LeptosLogger));
-
-        // Создаем и устанавливаем Web time provider
-        init_time_provider(Box::new(WebTimeProvider));
-
-        web_sys::console::log_1(&"✅ Logger initialized".into());
-
-        get_logger().info(
-            LogComponent::Presentation("App"),
-            "🚀 Global logger and time provider initialized!",
-        );
-    });
+    get_logger().info(
+        LogComponent::Presentation("App"),
+        "🚀 Starting Bitcoin Chart App",
+    );
 
     web_sys::console::log_1(&"📦 Creating view...".into());
 
@@ -323,61 +253,12 @@ pub fn app() -> impl IntoView {
                 text-align: center;
             }
             
-            .debug-console {
-                background: rgba(0, 0, 0, 0.8);
-                border-radius: 10px;
-                padding: 15px;
-                max-height: 300px;
-                overflow-y: auto;
-                border: 1px solid #4a5d73;
-            }
-            
-            .debug-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 10px;
-                color: #72c685;
-                font-weight: bold;
-            }
-            
-            .debug-btn {
-                background: #4a5d73;
-                color: white;
-                border: none;
-                padding: 5px 10px;
-                border-radius: 5px;
-                cursor: pointer;
-                font-size: 12px;
-                margin-left: 5px;
-            }
-            
-            .debug-btn:hover {
-                background: #5a6d83;
-            }
-            
-            .debug-log {
-                font-family: 'Courier New', monospace;
-                font-size: 11px;
-                line-height: 1.3;
-            }
-            
-            .log-line {
-                color: #e0e0e0;
-                margin: 2px 0;
-                padding: 1px 5px;
-                border-radius: 3px;
-            }
-            
-            .log-line:hover {
-                background: rgba(255, 255, 255, 0.1);
-            }
+
             "#}
         </style>
         <div class="bitcoin-chart-app">
             <Header />
             <ChartContainer />
-            <DebugConsole />
         </div>
     }
 }
@@ -1038,68 +919,6 @@ fn ChartTooltip() -> impl IntoView {
                     }
                 })
             }}
-        </div>
-    }
-}
-
-/// 🎯 Отладочная консоль с bridge к domain::logging
-#[component]
-fn DebugConsole() -> impl IntoView {
-    // Используем глобальные сигналы вместо локальных!
-    let logs = GLOBAL_LOGS.with(|logs| *logs);
-    let is_paused = IS_LOG_PAUSED.with(|paused| *paused);
-
-    // Логируем инициализацию компонента
-    get_logger().info(
-        LogComponent::Presentation("DebugConsole"),
-        "🎯 Debug console component initialized",
-    );
-
-    view! {
-        <div class="debug-console">
-            <div class="debug-header">
-                <span>"🐛 Domain Logger Console"</span>
-                <button
-                    on:click=move |_| {
-                        is_paused.update(|p| *p = !*p);
-                        if is_paused.get() {
-                            get_logger().info(
-                                LogComponent::Presentation("DebugConsole"),
-                                "🛑 Logging paused"
-                            );
-                        } else {
-                            get_logger().info(
-                                LogComponent::Presentation("DebugConsole"),
-                                "▶️ Logging resumed"
-                            );
-                        }
-                    }
-                    class="debug-btn"
-                >
-                    {move || if is_paused.get() { "▶️ Resume" } else { "⏸️ Pause" }}
-                </button>
-                <button
-                    on:click=move |_| {
-                        GLOBAL_LOGS.with(|logs| logs.set(Vec::new()));
-                        get_logger().info(
-                            LogComponent::Presentation("DebugConsole"),
-                            "🗑️ Log history cleared"
-                        );
-                    }
-                    class="debug-btn"
-                >
-                    "🗑️ Clear"
-                </button>
-            </div>
-            <div class="debug-log">
-                <For
-                    each=move || logs.get()
-                    key=|log| log.clone()
-                    children=move |log| {
-                        view! { <div class="log-line">{log}</div> }
-                    }
-                />
-            </div>
         </div>
     }
 }

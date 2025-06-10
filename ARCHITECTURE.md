@@ -54,7 +54,6 @@ Binance WebSocket → BinanceClient → Leptos Signals → WebGPU → Canvas
 - `Header()` - цена, количество свечей, статус
 - `ChartContainer()` - WebGPU рендеринг + mouse events
 - `ChartTooltip()` - интерактивный tooltip
-- `DebugConsole()` - логи с pause/clear
 
 ### **renderer** - GPU рендеринг
 - Рендеринг свечей (зеленые/красные)
