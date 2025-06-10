@@ -15,7 +15,10 @@ use crate::{
         market_data::{Candle, TimeInterval, value_objects::Symbol},
     },
     infrastructure::{
-        rendering::{WebGpuRenderer, renderer::{set_global_renderer, with_global_renderer}},
+        rendering::{
+            WebGpuRenderer,
+            renderer::{set_global_renderer, with_global_renderer},
+        },
         websocket::BinanceWebSocketClient,
     },
 };
@@ -375,11 +378,7 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
 fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
     let time_labels = move || {
         let zoom = ZOOM_LEVEL.with(|z| z.get_untracked());
-        let candles = chart.with(|c| {
-            c.get_series_for_zoom(zoom)
-                .get_candles()
-                .clone()
-        });
+        let candles = chart.with(|c| c.get_series_for_zoom(zoom).get_candles().clone());
         if candles.is_empty() {
             return vec![];
         }
@@ -610,6 +609,18 @@ fn ChartContainer() -> impl IntoView {
                     if need_history {
                         fetch_more_history(chart_signal, status_clone);
                     }
+
+                    chart_signal.with_untracked(|ch| {
+                        if ch.get_candle_count() > 0 {
+                            with_global_renderer(|r| {
+                                r.set_zoom_params(
+                                    ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)),
+                                    PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
+                                );
+                                let _ = r.render(ch);
+                            });
+                        }
+                    });
                 } else {
                     // Конвертируем в NDC координаты (предполагаем canvas 800x500)
                     let canvas_width = 800.0;
