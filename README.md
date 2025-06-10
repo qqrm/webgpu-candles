@@ -19,8 +19,8 @@ Trunk compiles the project and automatically injects the generated WASM into `in
 
 ```bash
 trunk serve       # dev server on http://localhost:8080
-# or
-trunk build       # build to ./dist
+# или
+trunk build --dist dist-local
 ```
 
 When using Trunk, open **`index.html`** (served automatically when using `trunk serve`). The file contains a Trunk hook so the WASM is loaded for you:
