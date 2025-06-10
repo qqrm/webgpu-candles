@@ -130,8 +130,6 @@ impl TooltipData {
     }
 }
 
-
-
 /// 🦀 Главный компонент Bitcoin Chart на Leptos
 #[component]
 pub fn app() -> impl IntoView {
@@ -552,7 +550,8 @@ fn ChartContainer() -> impl IntoView {
                     LAST_MOUSE_X.with(|last_x| {
                         let delta_x = mouse_x - last_x.get();
                         PAN_OFFSET.with(|offset| {
-                            let pan_sensitivity = ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)) * 0.001;
+                            let pan_sensitivity =
+                                ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)) * 0.001;
                             offset.update(|o| *o += delta_x * pan_sensitivity);
                         });
                         last_x.set(mouse_x);
@@ -596,7 +595,8 @@ fn ChartContainer() -> impl IntoView {
 
                             if candle_idx < visible.len() {
                                 let candle = visible[candle_idx];
-                                let tooltip_data = TooltipData::new(candle.clone(), mouse_x, mouse_y);
+                                let tooltip_data =
+                                    TooltipData::new(candle.clone(), mouse_x, mouse_y);
 
                                 TOOLTIP_DATA.with(|data| data.set(Some(tooltip_data)));
                                 TOOLTIP_VISIBLE.with(|visible| visible.set(true));

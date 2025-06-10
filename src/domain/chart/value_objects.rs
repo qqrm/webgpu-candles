@@ -1,5 +1,5 @@
 use derive_more::Display;
-use strum::{EnumIter, EnumString, AsRefStr};
+use strum::{AsRefStr, EnumIter, EnumString};
 
 /// Value Object - Тип графика
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display, EnumIter, EnumString, AsRefStr)]
@@ -53,7 +53,11 @@ impl Default for Viewport {
 
 impl Viewport {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height, ..Default::default() }
+        Self {
+            width,
+            height,
+            ..Default::default()
+        }
     }
 
     pub fn time_range(&self) -> f64 {
@@ -68,7 +72,7 @@ impl Viewport {
         let current_range = self.time_range();
         let new_range = current_range / factor as f64;
         let center_time = self.start_time + current_range * center_x as f64;
-        
+
         self.start_time = center_time - new_range / 2.0;
         self.end_time = center_time + new_range / 2.0;
     }
@@ -85,14 +89,18 @@ impl Viewport {
 
     /// Конвертирует временную координату в экранную X координату
     pub fn time_to_x(&self, timestamp: f64) -> f32 {
-        if self.time_range() == 0.0 { return 0.0; }
+        if self.time_range() == 0.0 {
+            return 0.0;
+        }
         let normalized = (timestamp - self.start_time) / self.time_range();
         (normalized * self.width as f64) as f32
     }
 
     /// Конвертирует цену в экранную Y координату
     pub fn price_to_y(&self, price: f32) -> f32 {
-        if self.price_range() == 0.0 { return self.height as f32 / 2.0; }
+        if self.price_range() == 0.0 {
+            return self.height as f32 / 2.0;
+        }
         let normalized = (price - self.min_price) / self.price_range();
         self.height as f32 * (1.0 - normalized) // Инвертируем Y
     }
@@ -147,12 +155,42 @@ impl Color {
     }
 
     /// Предустановленные цвета
-    pub const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-    pub const WHITE: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
-    pub const RED: Color = Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 };
-    pub const GREEN: Color = Color { r: 0.0, g: 1.0, b: 0.0, a: 1.0 };
-    pub const BLUE: Color = Color { r: 0.0, g: 0.0, b: 1.0, a: 1.0 };
-    pub const TRANSPARENT: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+    pub const BLACK: Color = Color {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const WHITE: Color = Color {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
+    pub const RED: Color = Color {
+        r: 1.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const GREEN: Color = Color {
+        r: 0.0,
+        g: 1.0,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const BLUE: Color = Color {
+        r: 0.0,
+        g: 0.0,
+        b: 1.0,
+        a: 1.0,
+    };
+    pub const TRANSPARENT: Color = Color {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 0.0,
+    };
 }
 
 // Конструкторы для цветовых кортежей
@@ -177,4 +215,4 @@ impl From<u32> for Color {
 // Removed ChartStyle - styling is handled directly in WebGPU renderer
 
 // Removed unused value objects: Point, Rect, Dimensions, CursorPosition
-// These are replaced by simple tuples like (f32, f32) in the actual implementation 
+// These are replaced by simple tuples like (f32, f32) in the actual implementation

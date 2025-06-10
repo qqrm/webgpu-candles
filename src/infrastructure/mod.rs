@@ -1,9 +1,9 @@
-pub mod websocket;
 pub mod rendering;
+pub mod websocket;
 
 /// Infrastructure services
 pub mod services {
-    use crate::domain::logging::{Logger, LogEntry, LogLevel, TimeProvider, LogComponent};
+    use crate::domain::logging::{LogComponent, LogEntry, LogLevel, Logger, TimeProvider};
     use gloo::console;
 
     /// Console logger implementation using gloo
@@ -28,10 +28,16 @@ pub mod services {
             let timestamp = time_provider.format_timestamp(entry.timestamp);
             match &entry.metadata {
                 Some(metadata) => {
-                    format!("[{}] {} {} | {} | {}", timestamp, entry.level, entry.component, entry.message, metadata)
+                    format!(
+                        "[{}] {} {} | {} | {}",
+                        timestamp, entry.level, entry.component, entry.message, metadata
+                    )
                 }
                 None => {
-                    format!("[{}] {} {} | {}", timestamp, entry.level, entry.component, entry.message)
+                    format!(
+                        "[{}] {} {} | {}",
+                        timestamp, entry.level, entry.component, entry.message
+                    )
                 }
             }
         }
@@ -42,7 +48,7 @@ pub mod services {
             if entry.level >= self.min_level {
                 use crate::domain::logging::get_time_provider;
                 let formatted = self.format_log_entry(&entry, get_time_provider());
-                
+
                 // Use gloo console methods
                 match entry.level {
                     LogLevel::Trace | LogLevel::Debug => console::debug!("{}", formatted),
@@ -88,7 +94,7 @@ pub mod services {
 
     /// Initialize infrastructure services
     pub fn initialize_infrastructure_services() {
-        use crate::domain::logging::{init_logger, init_time_provider, get_logger};
+        use crate::domain::logging::{get_logger, init_logger, init_time_provider};
 
         // Initialize services
         let console_logger = ConsoleLogger::new_production();
@@ -100,11 +106,11 @@ pub mod services {
         // Log successful initialization
         get_logger().info(
             LogComponent::Infrastructure("Services"),
-            "Infrastructure services initialized successfully"
+            "Infrastructure services initialized successfully",
         );
     }
 }
 
 pub use rendering::*;
+pub use services::*;
 pub use websocket::*;
-pub use services::*; 

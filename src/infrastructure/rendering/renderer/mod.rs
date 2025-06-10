@@ -6,12 +6,12 @@ use crate::domain::{
 use crate::infrastructure::rendering::gpu_structures::{CandleVertex, ChartUniforms};
 use gloo::utils::document;
 use js_sys;
+use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use web_sys::HtmlCanvasElement;
 use wgpu::util::DeviceExt;
-use std::cell::RefCell;
-use std::rc::Rc;
 thread_local! {
     static GLOBAL_RENDERER: RefCell<Option<Rc<RefCell<WebGpuRenderer>>>> = const { RefCell::new(None) };
 }
@@ -93,5 +93,5 @@ impl Default for LineVisibility {
 mod geometry;
 pub use geometry::{BASE_CANDLES, candle_x_position};
 mod initialization;
-mod render_loop;
 mod performance;
+mod render_loop;

@@ -1,7 +1,7 @@
-use crate::domain::market_data::{Candle, CandleSeries, TimeInterval, Volume};
-use crate::domain::market_data::services::Aggregator;
-use std::collections::HashMap;
 use super::value_objects::{ChartType, Viewport};
+use crate::domain::market_data::services::Aggregator;
+use crate::domain::market_data::{Candle, CandleSeries, TimeInterval, Volume};
+use std::collections::HashMap;
 
 /// Доменная сущность - График
 #[derive(Debug, Clone)]
@@ -41,7 +41,7 @@ impl Chart {
     pub fn set_historical_data(&mut self, mut candles: Vec<Candle>) {
         // Сортируем по времени для стабильности
         candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
-        
+
         // Создаем новую серию с исходным лимитом
         let limit = self
             .series
@@ -58,7 +58,7 @@ impl Chart {
             }
             self.update_aggregates(candle);
         }
-        
+
         // Обновляем viewport
         self.update_viewport_for_data();
     }
@@ -122,16 +122,16 @@ impl Chart {
     fn update_viewport(&mut self) {
         if let Some(base) = self.series.get(&TimeInterval::OneMinute) {
             if let Some((min_price, max_price)) = base.price_range() {
-            let padding = (max_price.value() - min_price.value()) * 0.1; // 10% padding
-            self.viewport.min_price = min_price.value() as f32 - padding as f32;
-            self.viewport.max_price = max_price.value() as f32 + padding as f32;
-            let candles = base.get_candles();
-            if !candles.is_empty() {
-                self.viewport.start_time = candles.front().unwrap().timestamp.as_f64();
-                self.viewport.end_time = candles.back().unwrap().timestamp.as_f64();
+                let padding = (max_price.value() - min_price.value()) * 0.1; // 10% padding
+                self.viewport.min_price = min_price.value() as f32 - padding as f32;
+                self.viewport.max_price = max_price.value() as f32 + padding as f32;
+                let candles = base.get_candles();
+                if !candles.is_empty() {
+                    self.viewport.start_time = candles.front().unwrap().timestamp.as_f64();
+                    self.viewport.end_time = candles.back().unwrap().timestamp.as_f64();
+                }
             }
         }
-    }
     }
 
     pub fn zoom(&mut self, factor: f32, center_x: f32) {
@@ -184,9 +184,8 @@ impl Chart {
                             last.ohlcv.low = candle.ohlcv.low;
                         }
                         last.ohlcv.close = candle.ohlcv.close;
-                        last.ohlcv.volume = Volume::from(
-                            last.ohlcv.volume.value() + candle.ohlcv.volume.value(),
-                        );
+                        last.ohlcv.volume =
+                            Volume::from(last.ohlcv.volume.value() + candle.ohlcv.volume.value());
                         continue;
                     }
                 }
@@ -208,10 +207,7 @@ pub struct Indicator {
 
 impl Indicator {
     pub fn new(id: String, indicator_type: IndicatorType) -> Self {
-        Self {
-            id,
-            indicator_type,
-        }
+        Self { id, indicator_type }
     }
 }
 
@@ -225,6 +221,6 @@ pub enum IndicatorType {
 
 // Removed unused complex structures:
 // - IndicatorParameters, IndicatorStyle, PriceSource, LineStyle
-// - RenderLayer, RenderElement 
+// - RenderLayer, RenderElement
 // - CandlestickStyle, TextStyle, FontWeight, ShapeType, ShapeStyle
-// These are handled directly in the WebGPU renderer for better performance 
+// These are handled directly in the WebGPU renderer for better performance

@@ -2,7 +2,7 @@
 #[derive(Debug, Clone)]
 pub enum AppError {
     NetworkError(String),
-    RenderingError(String), 
+    RenderingError(String),
     ValidationError(String),
 }
 
@@ -20,4 +20,4 @@ impl std::error::Error for AppError {}
 
 // Simple convenience type aliases
 pub type NetworkResult<T> = Result<T, AppError>;
-pub type RenderingResult<T> = Result<T, AppError>; 
+pub type RenderingResult<T> = Result<T, AppError>;

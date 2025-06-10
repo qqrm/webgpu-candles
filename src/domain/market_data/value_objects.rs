@@ -1,17 +1,19 @@
-use derive_more::{Display, From, Into, Deref, DerefMut, Constructor};
-use strum::{EnumIter, EnumString, AsRefStr, Display as StrumDisplay};
-use serde::{Serialize, Deserialize};
+use derive_more::{Constructor, Deref, DerefMut, Display, From, Into};
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+use strum::{AsRefStr, Display as StrumDisplay, EnumIter, EnumString};
 
 /// Value Object - Цена с автогенерацией
-#[derive(Debug, Clone, Copy, PartialEq, From, Into, Deref, DerefMut, Constructor, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, From, Into, Deref, DerefMut, Constructor, Serialize, Deserialize,
+)]
 pub struct Price(f64);
 
 impl Price {
     pub fn value(&self) -> f64 {
         self.0
     }
-    
+
     pub fn validate(value: f64) -> Result<Self, String> {
         if value.is_finite() && value >= 0.0 {
             Ok(Self(value))
@@ -28,14 +30,16 @@ impl PartialOrd for Price {
 }
 
 /// Value Object - Объем с автогенерацией
-#[derive(Debug, Clone, Copy, PartialEq, From, Into, Deref, DerefMut, Constructor, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, From, Into, Deref, DerefMut, Constructor, Serialize, Deserialize,
+)]
 pub struct Volume(f64);
 
 impl Volume {
     pub fn value(&self) -> f64 {
         self.0
     }
-    
+
     pub fn validate(value: f64) -> Result<Self, String> {
         if value.is_finite() && value >= 0.0 {
             Ok(Self(value))
@@ -46,7 +50,20 @@ impl Volume {
 }
 
 /// Value Object - Временная метка с автогенерацией
-#[derive(Debug, Clone, Copy, PartialEq, Eq, From, Into, Deref, DerefMut, Constructor, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    From,
+    Into,
+    Deref,
+    DerefMut,
+    Constructor,
+    Serialize,
+    Deserialize,
+)]
 pub struct Timestamp(u64);
 
 impl Timestamp {
@@ -62,7 +79,7 @@ impl Timestamp {
     pub fn from_millis(value: u64) -> Self {
         Self(value)
     }
-    
+
     pub fn from_milliseconds(millis: u64) -> Result<Self, String> {
         Ok(Self(millis))
     }
@@ -115,28 +132,41 @@ impl From<&str> for Symbol {
 }
 
 /// Value Object - Временной интервал (только нужные варианты)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, StrumDisplay, EnumIter, EnumString, AsRefStr, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    StrumDisplay,
+    EnumIter,
+    EnumString,
+    AsRefStr,
+    Serialize,
+    Deserialize,
+)]
 pub enum TimeInterval {
     #[strum(serialize = "1m")]
     #[serde(rename = "1m")]
     OneMinute,
-    
+
     #[strum(serialize = "5m")]
     #[serde(rename = "5m")]
     FiveMinutes,
-    
+
     #[strum(serialize = "15m")]
     #[serde(rename = "15m")]
     FifteenMinutes,
-    
+
     #[strum(serialize = "1h")]
     #[serde(rename = "1h")]
     OneHour,
-    
+
     #[strum(serialize = "4h")]
     #[serde(rename = "4h")]
     FourHours,
-    
+
     #[strum(serialize = "1d")]
     #[serde(rename = "1d")]
     OneDay,
@@ -158,4 +188,3 @@ impl TimeInterval {
         }
     }
 }
-

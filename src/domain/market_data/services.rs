@@ -1,10 +1,10 @@
-use crate::domain::market_data::{Candle, Price, Volume, OHLCV, Timestamp, TimeInterval};
+use crate::domain::market_data::{Candle, OHLCV, Price, TimeInterval, Timestamp, Volume};
 
 /// Структура для хранения данных скользящих средних
 #[derive(Debug, Clone)]
 pub struct MovingAveragesData {
     pub sma_20: Vec<Price>,
-    pub sma_50: Vec<Price>, 
+    pub sma_50: Vec<Price>,
     pub sma_200: Vec<Price>,
     pub ema_12: Vec<Price>,
     pub ema_26: Vec<Price>,
@@ -27,18 +27,18 @@ impl MarketAnalysisService {
     /// Валидация свечи - production-ready validation
     pub fn validate_candle(&self, candle: &Candle) -> bool {
         // 1. Базовая валидация OHLC логики
-        let ohlc_valid = candle.ohlcv.high.value() >= candle.ohlcv.low.value() &&
-                        candle.ohlcv.high.value() >= candle.ohlcv.open.value() &&
-                        candle.ohlcv.high.value() >= candle.ohlcv.close.value() &&
-                        candle.ohlcv.low.value() <= candle.ohlcv.open.value() &&
-                        candle.ohlcv.low.value() <= candle.ohlcv.close.value();
+        let ohlc_valid = candle.ohlcv.high.value() >= candle.ohlcv.low.value()
+            && candle.ohlcv.high.value() >= candle.ohlcv.open.value()
+            && candle.ohlcv.high.value() >= candle.ohlcv.close.value()
+            && candle.ohlcv.low.value() <= candle.ohlcv.open.value()
+            && candle.ohlcv.low.value() <= candle.ohlcv.close.value();
 
         // 2. Валидация положительных значений
-        let positive_values = candle.ohlcv.open.value() > 0.0 &&
-                             candle.ohlcv.high.value() > 0.0 &&
-                             candle.ohlcv.low.value() > 0.0 &&
-                             candle.ohlcv.close.value() > 0.0 &&
-                             candle.ohlcv.volume.value() >= 0.0;
+        let positive_values = candle.ohlcv.open.value() > 0.0
+            && candle.ohlcv.high.value() > 0.0
+            && candle.ohlcv.low.value() > 0.0
+            && candle.ohlcv.close.value() > 0.0
+            && candle.ohlcv.volume.value() >= 0.0;
 
         // 3. Валидация разумных пределов для BTC/USDT
         let reasonable_price_range = candle.ohlcv.low.value() > 1.0 && // Минимум $1
@@ -58,9 +58,9 @@ impl MarketAnalysisService {
         }
 
         let mut sma_values = Vec::new();
-        
+
         for i in (period - 1)..candles.len() {
-                        let sum: f64 = candles[i - period + 1..=i]
+            let sum: f64 = candles[i - period + 1..=i]
                 .iter()
                 .map(|candle| candle.ohlcv.close.value())
                 .sum();
@@ -79,15 +79,16 @@ impl MarketAnalysisService {
 
         let mut ema_values = Vec::new();
         let alpha = 2.0 / (period as f64 + 1.0); // Сглаживающий коэффициент
-        
+
         // Первое значение EMA = простое среднее за первые period свечей
-                let first_sma: f64 = candles[0..period]
+        let first_sma: f64 = candles[0..period]
             .iter()
             .map(|candle| candle.ohlcv.close.value())
-            .sum::<f64>() / period as f64;
+            .sum::<f64>()
+            / period as f64;
 
         ema_values.push(Price::from(first_sma));
-        
+
         // Вычисляем остальные значения EMA
         for candle in candles.iter().skip(period) {
             let current_price = candle.ohlcv.close.value();
@@ -170,15 +171,16 @@ impl MarketAnalysisService {
 
         // Берем последние period доходностей
         let recent_returns = &returns[returns.len() - period..];
-        
+
         // Вычисляем среднюю доходность
         let mean_return: f64 = recent_returns.iter().sum::<f64>() / period as f64;
-        
+
         // Вычисляем дисперсию
         let variance: f64 = recent_returns
             .iter()
             .map(|r| (r - mean_return).powi(2))
-            .sum::<f64>() / period as f64;
+            .sum::<f64>()
+            / period as f64;
 
         Some(variance.sqrt())
     }
@@ -206,7 +208,8 @@ impl Aggregator {
             .fold(open.value(), f64::min);
         let volume_sum: f64 = candles.iter().map(|c| c.ohlcv.volume.value()).sum();
 
-        let start = candles.first()?.timestamp.value() / interval.duration_ms() * interval.duration_ms();
+        let start =
+            candles.first()?.timestamp.value() / interval.duration_ms() * interval.duration_ms();
         Some(Candle::new(
             Timestamp::from(start),
             OHLCV::new(
@@ -220,5 +223,4 @@ impl Aggregator {
     }
 }
 
-
-// DataValidationService removed - validation is handled in MarketAnalysisService.validate_candle() 
+// DataValidationService removed - validation is handled in MarketAnalysisService.validate_candle()

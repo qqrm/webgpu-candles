@@ -40,8 +40,8 @@ impl WebGpuRenderer {
             return Ok(());
         }
 
-        let geometry_needs_update =
-            candle_count != self.cached_candle_count || (self.zoom_level - self.cached_zoom_level).abs() > f64::EPSILON;
+        let geometry_needs_update = candle_count != self.cached_candle_count
+            || (self.zoom_level - self.cached_zoom_level).abs() > f64::EPSILON;
 
         if geometry_needs_update {
             let (vertices, uniforms) = self.create_geometry(chart);

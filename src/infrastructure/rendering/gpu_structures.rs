@@ -34,7 +34,7 @@ impl CandleVertex {
             color_type: if is_bullish { 1.0 } else { 0.0 },
         }
     }
-    
+
     /// Создать vertex для фитиля свечи
     pub fn wick_vertex(x: f32, y: f32) -> Self {
         Self {
@@ -44,7 +44,7 @@ impl CandleVertex {
             color_type: 0.5,   // нейтральный цвет для фитиля
         }
     }
-    
+
     /// Создать vertex для линии индикатора
     pub fn indicator_vertex(x: f32, y: f32, indicator_type: IndicatorType) -> Self {
         let color_type = match indicator_type {
@@ -54,7 +54,7 @@ impl CandleVertex {
             IndicatorType::EMA12 => 5.0,
             IndicatorType::EMA26 => 6.0,
         };
-        
+
         Self {
             position_x: x,
             position_y: y,
@@ -62,7 +62,7 @@ impl CandleVertex {
             color_type,
         }
     }
-    
+
     /// Создать vertex для сетки графика
     pub fn grid_vertex(x: f32, y: f32) -> Self {
         Self {
@@ -88,11 +88,11 @@ impl CandleVertex {
         Self {
             position_x: x,
             position_y: y,
-            element_type: 5.0, // volume bar
+            element_type: 5.0,                              // volume bar
             color_type: if is_bullish { 1.0 } else { 0.0 }, // тот же цвет что и у свечей
         }
     }
-    
+
     /// Дескриптор вершинного буфера для wgpu
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
@@ -177,16 +177,16 @@ impl ChartUniforms {
             ],
             viewport: [800.0, 600.0, 0.0, 100.0],
             time_range: [0.0, 0.0, 0.0, 0.0],
-            bullish_color: [0.455, 0.780, 0.529, 1.0],   // #74c787 - buy
-            bearish_color: [0.882, 0.424, 0.282, 1.0],   // #e16c48 - sell
-            wick_color: [0.6, 0.6, 0.6, 1.0],            // Серый
-            sma20_color: [1.0, 0.0, 0.0, 1.0],           // Ярко-красный
-            sma50_color: [1.0, 0.8, 0.0, 1.0],           // Желтый
-            sma200_color: [0.2, 0.4, 0.8, 1.0],          // Синий
-            ema12_color: [0.8, 0.2, 0.8, 1.0],           // Фиолетовый
-            ema26_color: [0.0, 0.8, 0.8, 1.0],           // Голубой
-            current_price_color: [1.0, 1.0, 0.0, 0.8],   // 💰 Ярко-желтый с прозрачностью
-            render_params: [8.0, 2.0, 1.0, 0.0],         // width, spacing, line_width, padding
+            bullish_color: [0.455, 0.780, 0.529, 1.0], // #74c787 - buy
+            bearish_color: [0.882, 0.424, 0.282, 1.0], // #e16c48 - sell
+            wick_color: [0.6, 0.6, 0.6, 1.0],          // Серый
+            sma20_color: [1.0, 0.0, 0.0, 1.0],         // Ярко-красный
+            sma50_color: [1.0, 0.8, 0.0, 1.0],         // Желтый
+            sma200_color: [0.2, 0.4, 0.8, 1.0],        // Синий
+            ema12_color: [0.8, 0.2, 0.8, 1.0],         // Фиолетовый
+            ema26_color: [0.0, 0.8, 0.8, 1.0],         // Голубой
+            current_price_color: [1.0, 1.0, 0.0, 0.8], // 💰 Ярко-желтый с прозрачностью
+            render_params: [8.0, 2.0, 1.0, 0.0],       // width, spacing, line_width, padding
         }
     }
 }
@@ -213,77 +213,73 @@ impl CandleGeometry {
         let mut vertices = Vec::new();
         let is_bullish = close > open;
         let half_width = width * 0.5;
-        
+
         // Определяем координаты тела свечи
         let body_top = if is_bullish { close_y } else { open_y };
         let body_bottom = if is_bullish { open_y } else { close_y };
-        
+
         // Создаем прямоугольник для тела свечи (2 треугольника = 6 вершин)
         let body_vertices = [
             // Первый треугольник
             CandleVertex::body_vertex(x_normalized - half_width, body_bottom, is_bullish),
             CandleVertex::body_vertex(x_normalized + half_width, body_bottom, is_bullish),
             CandleVertex::body_vertex(x_normalized - half_width, body_top, is_bullish),
-            
             // Второй треугольник
             CandleVertex::body_vertex(x_normalized + half_width, body_bottom, is_bullish),
             CandleVertex::body_vertex(x_normalized + half_width, body_top, is_bullish),
             CandleVertex::body_vertex(x_normalized - half_width, body_top, is_bullish),
         ];
-        
+
         vertices.extend_from_slice(&body_vertices);
-        
+
         // Создаем линии для фитилей (верхний и нижний)
         let wick_width = width * 0.1; // Фитиль тоньше тела
         let wick_half = wick_width * 0.5;
-        
+
         // Верхний фитиль (если есть)
         if high_y > body_top {
             let upper_wick = [
                 CandleVertex::wick_vertex(x_normalized - wick_half, body_top),
                 CandleVertex::wick_vertex(x_normalized + wick_half, body_top),
                 CandleVertex::wick_vertex(x_normalized - wick_half, high_y),
-                
                 CandleVertex::wick_vertex(x_normalized + wick_half, body_top),
                 CandleVertex::wick_vertex(x_normalized + wick_half, high_y),
                 CandleVertex::wick_vertex(x_normalized - wick_half, high_y),
             ];
             vertices.extend_from_slice(&upper_wick);
         }
-        
+
         // Нижний фитиль (если есть)
         if low_y < body_bottom {
             let lower_wick = [
                 CandleVertex::wick_vertex(x_normalized - wick_half, low_y),
                 CandleVertex::wick_vertex(x_normalized + wick_half, low_y),
                 CandleVertex::wick_vertex(x_normalized - wick_half, body_bottom),
-                
                 CandleVertex::wick_vertex(x_normalized + wick_half, low_y),
                 CandleVertex::wick_vertex(x_normalized + wick_half, body_bottom),
                 CandleVertex::wick_vertex(x_normalized - wick_half, body_bottom),
             ];
             vertices.extend_from_slice(&lower_wick);
         }
-        
+
         vertices
     }
 
     /// 💰 Создать vertices для линии текущей цены
     pub fn create_current_price_line(current_price_y: f32, line_width: f32) -> Vec<CandleVertex> {
         let half_width = line_width * 0.5;
-        
+
         // Горизонтальная линия через весь экран
         vec![
             CandleVertex::current_price_vertex(-1.0, current_price_y - half_width),
             CandleVertex::current_price_vertex(1.0, current_price_y - half_width),
             CandleVertex::current_price_vertex(-1.0, current_price_y + half_width),
-            
             CandleVertex::current_price_vertex(1.0, current_price_y - half_width),
             CandleVertex::current_price_vertex(1.0, current_price_y + half_width),
             CandleVertex::current_price_vertex(-1.0, current_price_y + half_width),
         ]
     }
-    
+
     /// Создать vertices для линии индикатора - улучшенный алгоритм для сплошных линий
     pub fn create_indicator_line_vertices(
         points: &[(f32, f32)], // (x_normalized, y_normalized) точки
@@ -293,46 +289,45 @@ impl CandleGeometry {
         if points.len() < 2 {
             return Vec::new();
         }
-        
+
         let mut vertices = Vec::new();
         let half_width = (line_width * 0.3).max(0.001); // Тоньше линии для лучшего вида
-        
+
         // Создаем непрерывную линию как triangle strip
         for i in 0..(points.len() - 1) {
             let (x1, y1) = points[i];
             let (x2, y2) = points[i + 1];
-            
+
             // Вычисляем перпендикулярный вектор для правильной толщины линии
             let dx = x2 - x1;
             let dy = y2 - y1;
             let length = (dx * dx + dy * dy).sqrt();
-            
+
             // Нормализованный перпендикулярный вектор
             let (perp_x, perp_y) = if length > 0.0001 {
                 (-dy / length * half_width, dx / length * half_width)
             } else {
                 (0.0, half_width) // Вертикальная линия
             };
-            
+
             // Создаем прямоугольник как два треугольника без зазоров
             let segment_vertices = [
                 // Первый треугольник
                 CandleVertex::indicator_vertex(x1 - perp_x, y1 - perp_y, indicator_type),
                 CandleVertex::indicator_vertex(x1 + perp_x, y1 + perp_y, indicator_type),
                 CandleVertex::indicator_vertex(x2 - perp_x, y2 - perp_y, indicator_type),
-                
                 // Второй треугольник
                 CandleVertex::indicator_vertex(x1 + perp_x, y1 + perp_y, indicator_type),
                 CandleVertex::indicator_vertex(x2 + perp_x, y2 + perp_y, indicator_type),
                 CandleVertex::indicator_vertex(x2 - perp_x, y2 - perp_y, indicator_type),
             ];
-            
+
             vertices.extend_from_slice(&segment_vertices);
         }
-        
+
         vertices
     }
-    
+
     /// Создать vertices для сетки графика
     pub fn create_grid_vertices(
         _viewport_width: f32,
@@ -342,41 +337,39 @@ impl CandleGeometry {
     ) -> Vec<CandleVertex> {
         let mut vertices = Vec::new();
         let line_width = 0.002; // Тонкие линии сетки
-        
+
         // Вертикальные линии
         for i in 0..=grid_lines_x {
             let x = i as f32 / grid_lines_x as f32 * 2.0 - 1.0; // Нормализация в [-1, 1]
             let half_width = line_width * 0.5;
-            
+
             // Вертикальная линия как тонкий прямоугольник
             vertices.extend_from_slice(&[
                 CandleVertex::wick_vertex(x - half_width, -1.0),
                 CandleVertex::wick_vertex(x + half_width, -1.0),
                 CandleVertex::wick_vertex(x - half_width, 1.0),
-                
                 CandleVertex::wick_vertex(x + half_width, -1.0),
                 CandleVertex::wick_vertex(x + half_width, 1.0),
                 CandleVertex::wick_vertex(x - half_width, 1.0),
             ]);
         }
-        
+
         // Горизонтальные линии
         for i in 0..=grid_lines_y {
             let y = i as f32 / grid_lines_y as f32 * 2.0 - 1.0; // Нормализация в [-1, 1]
             let half_width = line_width * 0.5;
-            
+
             // Горизонтальная линия как тонкий прямоугольник
             vertices.extend_from_slice(&[
                 CandleVertex::wick_vertex(-1.0, y - half_width),
                 CandleVertex::wick_vertex(1.0, y - half_width),
                 CandleVertex::wick_vertex(-1.0, y + half_width),
-                
                 CandleVertex::wick_vertex(1.0, y - half_width),
                 CandleVertex::wick_vertex(1.0, y + half_width),
                 CandleVertex::wick_vertex(-1.0, y + half_width),
             ]);
         }
-        
+
         vertices
     }
 
@@ -392,62 +385,61 @@ impl CandleGeometry {
         let mut vertices = Vec::new();
         let grid_line_width = 0.001; // Очень тонкие линии сетки
         let half_width = grid_line_width * 0.5;
-        
+
         // Вертикальные линии (временная сетка)
-        for i in 1..time_lines { // Пропускаем крайние линии
+        for i in 1..time_lines {
+            // Пропускаем крайние линии
             let x = (i as f32 / time_lines as f32) * chart_width - 1.0;
-            
+
             // Вертикальная линия
             vertices.extend_from_slice(&[
                 CandleVertex::grid_vertex(x - half_width, -1.0),
                 CandleVertex::grid_vertex(x + half_width, -1.0),
                 CandleVertex::grid_vertex(x - half_width, 1.0),
-                
                 CandleVertex::grid_vertex(x + half_width, -1.0),
                 CandleVertex::grid_vertex(x + half_width, 1.0),
                 CandleVertex::grid_vertex(x - half_width, 1.0),
             ]);
         }
-        
+
         // Горизонтальные линии (ценовая сетка)
         let price_range = max_price - min_price;
         let nice_step = Self::calculate_nice_price_step(price_range, price_lines);
-        
+
         // Находим первый красивый уровень цены
         let first_price = ((min_price / nice_step).ceil() * nice_step).max(min_price);
-        
+
         let mut current_price = first_price;
         while current_price <= max_price {
             // Преобразуем цену в координату Y
             let y = -1.0 + ((current_price - min_price) / price_range) * chart_height;
-            
+
             // Горизонтальная линия
             vertices.extend_from_slice(&[
                 CandleVertex::grid_vertex(-1.0, y - half_width),
                 CandleVertex::grid_vertex(1.0, y - half_width),
                 CandleVertex::grid_vertex(-1.0, y + half_width),
-                
                 CandleVertex::grid_vertex(1.0, y - half_width),
                 CandleVertex::grid_vertex(1.0, y + half_width),
                 CandleVertex::grid_vertex(-1.0, y + half_width),
             ]);
-            
+
             current_price += nice_step;
         }
-        
+
         vertices
     }
 
     /// Вычисляет красивый шаг для ценовой сетки
     fn calculate_nice_price_step(price_range: f32, target_lines: u32) -> f32 {
         let raw_step = price_range / target_lines as f32;
-        
+
         // Находим порядок величины
         let magnitude = 10.0_f32.powf(raw_step.log10().floor());
-        
+
         // Нормализуем к диапазону [1, 10)
         let normalized = raw_step / magnitude;
-        
+
         // Выбираем красивое значение
         let nice_normalized = if normalized <= 1.0 {
             1.0
@@ -458,7 +450,7 @@ impl CandleGeometry {
         } else {
             10.0
         };
-        
+
         nice_normalized * magnitude
     }
-} 
+}
