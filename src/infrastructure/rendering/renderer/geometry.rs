@@ -94,15 +94,16 @@ impl WebGpuRenderer {
         // Create vertices for each visible candle
         let chart_width = 2.0; // NDC width (-1 to 1)
 
-        // 🔍 Применяем зум к размеру свечей
+        // 🔍 Применяем зум только к ширине свечи, а позиционирование привязываем к правому краю
         let base_step_size = chart_width / visible_candles.len() as f32;
-        let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32; // Ограничиваем зум
-        let step_size = base_step_size * zoom_factor; // При зуме > 1.0 свечи шире
-        let candle_width = (step_size * 0.8).clamp(0.002, 0.1); // Увеличиваем максимальную ширину
+
+        let zoom_factor = self.zoom_level.max(0.1).min(10.0) as f32;
+        let step_size = base_step_size; // Расстояние между свечами остаётся постоянным
+        let candle_width = (step_size * zoom_factor * 0.8).max(0.002).min(0.1);
 
         for (i, candle) in visible_candles.iter().enumerate() {
-            // Position X in NDC space [-1, 1] - новые свечи справа
-            let x = -1.0 + (i as f32 + 0.5) * step_size;
+            // Позиция X привязана к правому краю
+            let x = 1.0 - (visible_candles.len() as f32 - i as f32 - 0.5) * step_size;
 
             // Нормализация Y - используем верхнюю часть экрана [-0.5, 0.8] для свечей
             let price_range = max_price - min_price;
@@ -436,14 +437,13 @@ impl WebGpuRenderer {
         let volume_bottom = -1.0;
         let volume_height = volume_top - volume_bottom;
 
-        let base_step_size = 2.0 / candle_count as f32;
-        let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
-        let step_size = base_step_size * zoom_factor;
-        let bar_width = (step_size * 0.8).max(0.002); // 80% от step_size
+        let step_size = 2.0 / candle_count as f32;
+        let zoom_factor = self.zoom_level.max(0.1).min(10.0) as f32;
+        let bar_width = (step_size * zoom_factor * 0.8).max(0.002);
         let pan_factor = (self.pan_offset * 0.001) as f32;
 
         for (i, candle) in candles.iter().enumerate() {
-            let base_x = -1.0 + (i as f32 + 0.5) * base_step_size;
+            let base_x = 1.0 - (candle_count as f32 - i as f32 - 0.5) * step_size;
             let x = (base_x + pan_factor).clamp(-1.0, 1.0);
             let volume_normalized = (candle.ohlcv.volume.value() as f32) / max_volume;
             let bar_height = volume_height * volume_normalized;
@@ -473,114 +473,6 @@ impl WebGpuRenderer {
             candles.len(),
             max_volume
         );
-
-        vertices
-    }
-
-    #[allow(dead_code)]
-    fn create_candles(&self, candles: &[Candle]) -> Vec<CandleVertex> {
-        let mut vertices = Vec::with_capacity(candles.len() * 12);
-        if candles.is_empty() {
-            return vertices;
-        }
-
-        // 🔍 Применяем зум - показываем меньше свечей при увеличении зума
-        let visible_count = (300.0 / self.zoom_level).max(10.0) as usize;
-        let start_idx = if candles.len() > visible_count {
-            candles.len() - visible_count
-        } else {
-            0
-        };
-        let visible_candles = &candles[start_idx..];
-
-        if visible_candles.is_empty() {
-            return vertices;
-        }
-
-        // Находим мин/макс цены для нормализации
-        let (min_price, max_price) =
-            visible_candles
-                .iter()
-                .fold((f64::MAX, f64::MIN), |(min, max), candle| {
-                    let low = candle.ohlcv.low.value();
-                    let high = candle.ohlcv.high.value();
-                    (min.min(low), max.max(high))
-                });
-
-        let price_range = max_price - min_price;
-        if price_range == 0.0 {
-            return vertices;
-        }
-
-        // 🔍 Учитываем панорамирование при расчете step_size
-        let base_step_size = 2.0 / visible_candles.len() as f64;
-        let step_size = base_step_size * self.zoom_level;
-
-        // 🔍 Применяем панорамирование
-        let pan_factor = self.pan_offset * 0.001; // Чувствительность панорамирования
-
-        for (i, candle) in visible_candles.iter().enumerate() {
-            // 🔍 Позиция X с учетом зума и панорамирования
-            let base_x = -1.0 + (i as f64 + 0.5) * base_step_size;
-            let x = (base_x + pan_factor).clamp(-1.0, 1.0);
-
-            // Нормализуем цены в диапазон [-0.5, 0.8] (освобождаем место для volume bars)
-            let normalize_price = |price: f64| -> f32 {
-                let normalized = (price - min_price) / price_range;
-                (-0.5 + normalized * 1.3) as f32
-            };
-
-            let open_y = normalize_price(candle.ohlcv.open.value());
-            let high_y = normalize_price(candle.ohlcv.high.value());
-            let low_y = normalize_price(candle.ohlcv.low.value());
-            let close_y = normalize_price(candle.ohlcv.close.value());
-
-            // 🔍 Ширина свечи с учетом зума
-            let candle_width = (step_size * 0.6) as f32;
-
-            // Цвет свечи (зеленый для роста, красный для падения)
-            let _color = if candle.ohlcv.close.value() >= candle.ohlcv.open.value() {
-                [0.0, 0.8, 0.0, 1.0]
-            } else {
-                [0.8, 0.0, 0.0, 1.0]
-            };
-
-            // Создаем геометрию свечи (body + wicks)
-            let x_f32 = x as f32;
-
-            // High-Low wick (тонкая линия)
-            vertices.push(CandleVertex::wick_vertex(x_f32, high_y));
-            vertices.push(CandleVertex::wick_vertex(x_f32, low_y));
-
-            // Open-Close body (толстый прямоугольник)
-            let body_top = open_y.max(close_y);
-            let body_bottom = open_y.min(close_y);
-            let is_bullish = candle.ohlcv.close.value() >= candle.ohlcv.open.value();
-
-            // Левая сторона body
-            vertices.push(CandleVertex::body_vertex(
-                x_f32 - candle_width / 2.0,
-                body_top,
-                is_bullish,
-            ));
-            vertices.push(CandleVertex::body_vertex(
-                x_f32 - candle_width / 2.0,
-                body_bottom,
-                is_bullish,
-            ));
-
-            // Правая сторона body
-            vertices.push(CandleVertex::body_vertex(
-                x_f32 + candle_width / 2.0,
-                body_top,
-                is_bullish,
-            ));
-            vertices.push(CandleVertex::body_vertex(
-                x_f32 + candle_width / 2.0,
-                body_bottom,
-                is_bullish,
-            ));
-        }
 
         vertices
     }

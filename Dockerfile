@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . .
 
 # Сборка проекта через Trunk
-RUN trunk build --release
+RUN trunk build --release --dist dist
 
 FROM nginx:alpine
 WORKDIR /usr/share/nginx/html

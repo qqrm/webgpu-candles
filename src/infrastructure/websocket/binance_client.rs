@@ -46,16 +46,16 @@ struct KlineInfo {
 struct BinanceHistoricalKline(
     u64,     // Open time
     String,  // Open
-    String,  // High  
+    String,  // High
     String,  // Low
     String,  // Close
     String,  // Volume
-    u64,     // Close time
-    String,  // Quote asset volume
-    u32,     // Number of trades
-    String,  // Taker buy base asset volume
-    String,  // Taker buy quote asset volume
-    String,  // Ignore
+    serde::de::IgnoredAny, // Close time
+    serde::de::IgnoredAny, // Quote asset volume
+    serde::de::IgnoredAny, // Number of trades
+    serde::de::IgnoredAny, // Taker buy base asset volume
+    serde::de::IgnoredAny, // Taker buy quote asset volume
+    serde::de::IgnoredAny, // Ignore
 );
 
 impl BinanceWebSocketClient {
