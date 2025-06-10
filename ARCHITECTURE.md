@@ -73,7 +73,6 @@ GLOBAL_CURRENT_PRICE: f64    // Текущая цена BTC
 GLOBAL_CANDLE_COUNT: usize   // Количество свечей
 GLOBAL_IS_STREAMING: bool    // WebSocket статус
 TOOLTIP_DATA: TooltipData    // Данные tooltip
-GLOBAL_LOGS: Vec<String>     // Debug логи
 ```
 
 ## 🎨 Визуальные элементы
@@ -94,8 +93,8 @@ GLOBAL_LOGS: Vec<String>     // Debug логи
 
 **WebSocket:**
 - Interval: 1m candles
-- Symbol: BTCUSDT  
-- Auto-reconnect при ошибках
+- Symbol: BTCUSDT
+- Auto-reconnect с экспоненциальной задержкой (см. [реализацию](src/infrastructure/websocket/binance_client.rs#L146-L223))
 
 **Leptos:**
 - SSR отключен (client-only)

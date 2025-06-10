@@ -3,7 +3,9 @@ use crate::domain::{
     chart::Chart,
     logging::{LogComponent, get_logger},
 };
-use crate::infrastructure::rendering::gpu_structures::{CandleVertex, ChartUniforms};
+use crate::infrastructure::rendering::gpu_structures::{
+    CandleInstance, CandleVertex, ChartUniforms,
+};
 use gloo::utils::document;
 use js_sys;
 use std::cell::RefCell;
@@ -49,12 +51,15 @@ pub struct WebGpuRenderer {
     // Rendering pipeline
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
+    instance_buffer: wgpu::Buffer,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
-    num_vertices: u32,
+    template_vertices: u32,
+    instance_count: u32,
 
     // 🗄️ Кэшированные данные
     cached_vertices: Vec<CandleVertex>,
+    cached_instances: Vec<CandleInstance>,
     cached_uniforms: ChartUniforms,
     cached_candle_count: usize,
     cached_zoom_level: f64,
@@ -94,7 +99,7 @@ impl Default for LineVisibility {
 }
 
 mod geometry;
-pub use geometry::{BASE_CANDLES, candle_x_position};
+pub use geometry::{BASE_CANDLES, BASE_TEMPLATE, candle_x_position};
 mod initialization;
 mod performance;
 mod render_loop;

@@ -19,7 +19,6 @@ use crate::{
             WebGpuRenderer,
             renderer::{set_global_renderer, with_global_renderer},
         },
-
         websocket::BinanceWebSocketClient,
     },
 };
@@ -580,6 +579,7 @@ fn ChartContainer() -> impl IntoView {
     // 🎯 Mouse events для tooltip
     let handle_mouse_move = {
         let chart_signal = chart;
+        let renderer_clone = renderer;
         let status_clone = set_status;
         move |event: web_sys::MouseEvent| {
             let mouse_x = event.offset_x() as f64;
@@ -611,6 +611,22 @@ fn ChartContainer() -> impl IntoView {
                     if need_history {
                         fetch_more_history(chart_signal, status_clone);
                     }
+
+                    chart_signal.with_untracked(|ch| {
+                        if ch.get_candle_count() > 0 {
+                            renderer_clone.with_untracked(|renderer_opt| {
+                                if let Some(renderer_rc) = renderer_opt {
+                                    if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
+                                        webgpu_renderer.set_zoom_params(
+                                            ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)),
+                                            PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
+                                        );
+                                        let _ = webgpu_renderer.render(ch);
+                                    }
+                                }
+                            });
+                        }
+                    });
                 } else {
                     // Конвертируем в NDC координаты (предполагаем canvas 800x500)
                     let canvas_width = 800.0;
