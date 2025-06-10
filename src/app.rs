@@ -128,8 +128,11 @@ impl TooltipData {
 /// 🌉 Bridge logger для подключения domain::logging к Leptos сигналам
 pub struct LeptosLogger;
 
-/// ⏰ Web time provider для domain::logging  
+/// ⏰ Web time provider для domain::logging
 pub struct WebTimeProvider;
+
+/// Минимальный уровень логирования для LeptosLogger
+const MIN_LOG_LEVEL: LogLevel = LogLevel::Warn;
 
 impl crate::domain::logging::TimeProvider for WebTimeProvider {
     fn current_timestamp(&self) -> u64 {
@@ -151,6 +154,10 @@ impl crate::domain::logging::TimeProvider for WebTimeProvider {
 impl crate::domain::logging::Logger for LeptosLogger {
     fn log(&self, entry: crate::domain::logging::LogEntry) {
         use crate::domain::logging::get_time_provider;
+
+        if entry.level < MIN_LOG_LEVEL {
+            return;
+        }
 
         let timestamp_str = get_time_provider().format_timestamp(entry.timestamp);
         let formatted = format!(
@@ -198,14 +205,8 @@ pub fn app() -> impl IntoView {
             LogComponent::Presentation("App"),
             "🚀 Global logger and time provider initialized!",
         );
-
-        // Тестовые логи для проверки
-        get_logger().debug(LogComponent::Domain("Test"), "Debug test message");
-        get_logger().info(LogComponent::Application("Test"), "Info test message");
-        get_logger().warn(LogComponent::Infrastructure("Test"), "Warning test message");
-        get_logger().error(LogComponent::Presentation("Test"), "Error test message");
     });
-
+  
     web_sys::console::log_1(&"📦 Creating view...".into());
 
     view! {
@@ -551,6 +552,7 @@ fn ChartContainer() -> impl IntoView {
                 );
 
                 web_sys::console::log_1(&"⚡ About to call WebGpuRenderer::new...".into());
+
                 match WebGpuRenderer::new("chart-canvas", 800, 500).await {
                     Ok(webgpu_renderer) => {
                         get_logger().info(
@@ -710,6 +712,7 @@ fn ChartContainer() -> impl IntoView {
         let status_clone = set_status.clone();
         move |event: web_sys::WheelEvent| {
             web_sys::console::log_1(&format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into());
+
 
             let delta_y = event.delta_y();
             let zoom_factor = if delta_y < 0.0 { 1.1 } else { 0.9 }; // Zoom in/out

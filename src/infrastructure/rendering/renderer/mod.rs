@@ -30,6 +30,12 @@ pub struct WebGpuRenderer {
     uniform_bind_group: wgpu::BindGroup,
     num_vertices: u32,
 
+    // 🗄️ Кэшированные данные
+    cached_vertices: Vec<CandleVertex>,
+    cached_uniforms: ChartUniforms,
+    cached_candle_count: usize,
+    cached_zoom_level: f64,
+
     // 🔍 Параметры зума и панорамирования
     zoom_level: f64,
     pan_offset: f64,
