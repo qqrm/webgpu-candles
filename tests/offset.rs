@@ -1,6 +1,7 @@
 use price_chart_wasm::infrastructure::rendering::renderer::candle_x_position;
+use wasm_bindgen_test::*;
 
-#[test]
+#[wasm_bindgen_test]
 fn candle_offset_calculation() {
     let visible = 10usize;
     let step = 2.0 / visible as f32;
