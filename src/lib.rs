@@ -48,8 +48,10 @@ pub async fn is_webgpu_supported() -> bool {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn get_renderer_performance() -> String {
-    // Заглушка - возвращаем статическую информацию
-    "{\"backend\":\"WebGPU\",\"status\":\"ready\",\"fps\":60}".to_string()
+    crate::infrastructure::rendering::renderer::with_global_renderer(|r| {
+        r.get_performance_info()
+    })
+    .unwrap_or_else(|| "{\"backend\":\"WebGPU\",\"status\":\"not_ready\"}".to_string())
 }
 
 // Clean WASM exports only

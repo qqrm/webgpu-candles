@@ -220,6 +220,8 @@ impl WebGpuRenderer {
             cached_zoom_level: 1.0,
             zoom_level: 1.0,
             pan_offset: 0.0,
+            last_frame_time: 0.0,
+            fps_samples: Vec::new(),
         })
     }
 
