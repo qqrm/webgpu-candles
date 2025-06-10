@@ -2,7 +2,7 @@ use super::*;
 use crate::log_info;
 
 impl WebGpuRenderer {
-    pub fn render(&self, chart: &Chart) -> Result<(), JsValue> {
+    pub fn render(&mut self, chart: &Chart) -> Result<(), JsValue> {
         let candle_count = chart.data.get_candles().len();
 
         // Логируем только каждые 100 кадров для производительности
@@ -18,19 +18,37 @@ impl WebGpuRenderer {
             return Ok(());
         }
 
-        // Create geometry and uniforms
-        let (vertices, uniforms) = self.create_geometry(chart);
+        let geometry_needs_update =
+            candle_count != self.cached_candle_count || (self.zoom_level - self.cached_zoom_level).abs() > f64::EPSILON;
 
-        if vertices.is_empty() {
+        if geometry_needs_update {
+            let (vertices, uniforms) = self.create_geometry(chart);
+            if vertices.is_empty() {
+                return Ok(());
+            }
+            self.cached_vertices = vertices;
+            self.cached_uniforms = uniforms;
+            self.cached_candle_count = candle_count;
+            self.cached_zoom_level = self.zoom_level;
+
+            self.queue.write_buffer(
+                &self.vertex_buffer,
+                0,
+                bytemuck::cast_slice(&self.cached_vertices),
+            );
+            self.queue.write_buffer(
+                &self.uniform_buffer,
+                0,
+                bytemuck::cast_slice(&[self.cached_uniforms]),
+            );
+            self.num_vertices = self.cached_vertices.len() as u32;
+        }
+
+        if self.cached_vertices.is_empty() {
             return Ok(());
         }
 
-        // Update buffers with new data
-        self.queue
-            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
-        self.queue
-            .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
-        let num_vertices = vertices.len() as u32;
+        let num_vertices = self.cached_vertices.len() as u32;
 
         // Get surface texture and start rendering
         let output = self.surface.get_current_texture().map_err(|e| {

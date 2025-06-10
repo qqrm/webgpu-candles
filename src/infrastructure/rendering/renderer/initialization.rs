@@ -216,6 +216,10 @@ impl WebGpuRenderer {
             uniform_buffer,
             uniform_bind_group,
             num_vertices: 0,
+            cached_vertices: Vec::new(),
+            cached_uniforms: ChartUniforms::new(),
+            cached_candle_count: 0,
+            cached_zoom_level: 1.0,
             zoom_level: 1.0,
             pan_offset: 0.0,
         })
