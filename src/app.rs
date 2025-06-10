@@ -46,7 +46,11 @@ fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
         return;
     }
 
-    let oldest_ts = chart.with(|c| c.data.get_candles().front().map(|c| c.timestamp.value()));
+    let oldest_ts = chart.with(|c| {
+        c.get_series(TimeInterval::OneMinute)
+            .and_then(|s| s.get_candles().front())
+            .map(|c| c.timestamp.value())
+    });
     let end_time = match oldest_ts {
         Some(ts) if ts > 0 => ts - 1,
         _ => return,
@@ -67,7 +71,8 @@ fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
 
                 let new_count = chart.with(|c| c.get_candle_count());
                 let max_volume = chart.with(|c| {
-                    c.data
+                    c.get_series(TimeInterval::OneMinute)
+                        .unwrap()
                         .get_candles()
                         .iter()
                         .map(|c| c.ohlcv.volume.value())
@@ -317,7 +322,11 @@ fn header() -> impl IntoView {
 #[component]
 fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
     let labels = move || {
-        let candles = chart.with(|c| c.data.get_candles().clone());
+        let candles = chart.with(|c| {
+            c.get_series_for_zoom(ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)))
+                .get_candles()
+                .clone()
+        });
         if candles.is_empty() {
             return vec![];
         }
@@ -357,7 +366,11 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
 #[component]
 fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
     let time_labels = move || {
-        let candles = chart.with(|c| c.data.get_candles().clone());
+        let candles = chart.with(|c| {
+            c.get_series_for_zoom(ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)))
+                .get_candles()
+                .clone()
+        });
         if candles.is_empty() {
             return vec![];
         }
@@ -569,7 +582,9 @@ fn ChartContainer() -> impl IntoView {
             let _ndc_y = 1.0 - (mouse_y / canvas_height) * 2.0;
 
             chart_signal.with(|ch| {
-                let candles = ch.data.get_candles();
+                let candles = ch
+                    .get_series_for_zoom(ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)))
+                    .get_candles();
                 if !candles.is_empty() {
                     let max_visible = 300;
                     let start_idx = if candles.len() > max_visible {
@@ -996,7 +1011,8 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
             GLOBAL_CANDLE_COUNT.with(|cnt| cnt.set(count));
 
             let max_vol = chart.with(|c| {
-                c.data
+                c.get_series(TimeInterval::OneMinute)
+                    .unwrap()
                     .get_candles()
                     .iter()
                     .map(|c| c.ohlcv.volume.value())

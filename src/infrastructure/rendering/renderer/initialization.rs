@@ -237,7 +237,9 @@ impl WebGpuRenderer {
 
     pub fn update(&mut self, chart: &Chart) {
         // Simplified update method - just store vertex count for debugging
-        let candles = chart.data.get_candles();
+        let candles = chart
+            .get_series_for_zoom(self.zoom_level)
+            .get_candles();
         self.num_vertices = if candles.is_empty() {
             0
         } else {

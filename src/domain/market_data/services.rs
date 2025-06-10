@@ -1,4 +1,4 @@
-use crate::domain::market_data::{Candle, Price};
+use crate::domain::market_data::{Candle, Price, Volume, OHLCV, Timestamp, TimeInterval};
 
 /// Структура для хранения данных скользящих средних
 #[derive(Debug, Clone)]
@@ -175,6 +175,42 @@ impl MarketAnalysisService {
             .sum::<f64>() / period as f64;
 
         Some(variance.sqrt())
+    }
+}
+
+/// Сервис для агрегирования нескольких свечей в одну
+pub struct Aggregator;
+
+impl Aggregator {
+    /// Объединяет список свечей в одну свечу указанного интервала
+    pub fn aggregate(candles: &[Candle], interval: TimeInterval) -> Option<Candle> {
+        if candles.is_empty() {
+            return None;
+        }
+
+        let open = candles.first()?.ohlcv.open;
+        let close = candles.last()?.ohlcv.close;
+        let high = candles
+            .iter()
+            .map(|c| c.ohlcv.high.value())
+            .fold(open.value(), f64::max);
+        let low = candles
+            .iter()
+            .map(|c| c.ohlcv.low.value())
+            .fold(open.value(), f64::min);
+        let volume_sum: f64 = candles.iter().map(|c| c.ohlcv.volume.value()).sum();
+
+        let start = candles.first()?.timestamp.value() / interval.duration_ms() * interval.duration_ms();
+        Some(Candle::new(
+            Timestamp::from(start),
+            OHLCV::new(
+                open,
+                Price::from(high),
+                Price::from(low),
+                close,
+                Volume::from(volume_sum),
+            ),
+        ))
     }
 }
 
