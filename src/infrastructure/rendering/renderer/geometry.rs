@@ -98,15 +98,15 @@ impl WebGpuRenderer {
         // Create vertices for each visible candle
         let chart_width = 2.0; // NDC width (-1 to 1)
 
-        // 🔍 Применяем зум к размеру свечей
+        // 🔍 Применяем зум только к ширине свечи, а позиционирование привязываем к правому краю
         let base_step_size = chart_width / visible_candles.len() as f32;
-        let zoom_factor = self.zoom_level.max(0.1).min(10.0) as f32; // Ограничиваем зум
-        let step_size = base_step_size * zoom_factor; // При зуме > 1.0 свечи шире
-        let candle_width = (step_size * 0.8).max(0.002).min(0.1); // Увеличиваем максимальную ширину
+        let zoom_factor = self.zoom_level.max(0.1).min(10.0) as f32;
+        let step_size = base_step_size; // Расстояние между свечами остаётся постоянным
+        let candle_width = (step_size * zoom_factor * 0.8).max(0.002).min(0.1);
 
         for (i, candle) in visible_candles.iter().enumerate() {
-            // Position X in NDC space [-1, 1] - новые свечи справа
-            let x = -1.0 + (i as f32 + 0.5) * step_size;
+            // Позиция X привязана к правому краю
+            let x = 1.0 - (visible_candles.len() as f32 - i as f32 - 0.5) * step_size;
 
             // Нормализация Y - используем верхнюю часть экрана [-0.5, 0.8] для свечей
             let price_range = max_price - min_price;
@@ -440,14 +440,13 @@ impl WebGpuRenderer {
         let volume_bottom = -1.0;
         let volume_height = volume_top - volume_bottom;
 
-        let base_step_size = 2.0 / candle_count as f32;
+        let step_size = 2.0 / candle_count as f32;
         let zoom_factor = self.zoom_level.max(0.1).min(10.0) as f32;
-        let step_size = base_step_size * zoom_factor;
-        let bar_width = (step_size * 0.8).max(0.002); // 80% от step_size
+        let bar_width = (step_size * zoom_factor * 0.8).max(0.002);
         let pan_factor = (self.pan_offset * 0.001) as f32;
 
         for (i, candle) in candles.iter().enumerate() {
-            let base_x = -1.0 + (i as f32 + 0.5) * base_step_size;
+            let base_x = 1.0 - (candle_count as f32 - i as f32 - 0.5) * step_size;
             let x = (base_x + pan_factor).clamp(-1.0, 1.0);
             let volume_normalized = (candle.ohlcv.volume.value() as f32) / max_volume;
             let bar_height = volume_height * volume_normalized;
