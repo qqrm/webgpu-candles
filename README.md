@@ -68,6 +68,16 @@ For more architectural details see [ARCHITECTURE.md](ARCHITECTURE.md).
 по адресу <https://qqrm.github.io/webgpu-candles/>. Файлы публикуются в
 каталог [`docs/`](docs/).
 
+## Бенчмарки
+
+Для оценки производительности используйте:
+
+```bash
+wasm-pack test --headless --chrome -- --nocapture
+```
+
+FPS выводится в консоль, а workflow `perf.yml` сохраняет лог артефактом.
+
 ## Docker
 
 Собрать и запустить образ можно так:

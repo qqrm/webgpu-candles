@@ -97,3 +97,4 @@ impl Default for LineVisibility {
 mod geometry;
 mod initialization;
 mod render_loop;
+mod performance;
