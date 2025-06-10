@@ -3,11 +3,12 @@ use crate::log_info;
 
 impl WebGpuRenderer {
     pub(super) fn create_geometry(&self, chart: &Chart) -> (Vec<CandleVertex>, ChartUniforms) {
-        let candles = chart
-            .get_series_for_zoom(self.zoom_level)
-            .get_candles();
+        let candles = chart.get_series_for_zoom(self.zoom_level).get_candles();
         if candles.is_empty() {
-            log_info!(LogComponent::Infrastructure("WebGpuRenderer"), "⚠️ No candles to render");
+            log_info!(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                "⚠️ No candles to render"
+            );
             return (vec![], ChartUniforms::new());
         }
 
@@ -30,11 +31,7 @@ impl WebGpuRenderer {
             .max(10.0)
             .min(candle_count as f64) as usize;
         let start_index = candle_count.saturating_sub(visible_count);
-        let visible_candles: Vec<Candle> = candles
-            .iter()
-            .skip(start_index)
-            .cloned()
-            .collect();
+        let visible_candles: Vec<Candle> = candles.iter().skip(start_index).cloned().collect();
 
         let mut vertices = Vec::with_capacity(visible_candles.len() * 24);
 
@@ -77,8 +74,6 @@ impl WebGpuRenderer {
             return (vec![], ChartUniforms::new());
         }
 
-
-
         // Логируем реже для производительности
         if visible_candles.len() % 50 == 0 {
             log_info!(
@@ -97,9 +92,9 @@ impl WebGpuRenderer {
         // 🔍 Применяем зум только к ширине свечи, а позиционирование привязываем к правому краю
         let base_step_size = chart_width / visible_candles.len() as f32;
 
-        let zoom_factor = self.zoom_level.max(0.1).min(10.0) as f32;
+        let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
         let step_size = base_step_size; // Расстояние между свечами остаётся постоянным
-        let candle_width = (step_size * zoom_factor * 0.8).max(0.002).min(0.1);
+        let candle_width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1);
 
         for (i, candle) in visible_candles.iter().enumerate() {
             // Позиция X привязана к правому краю
@@ -438,7 +433,7 @@ impl WebGpuRenderer {
         let volume_height = volume_top - volume_bottom;
 
         let step_size = 2.0 / candle_count as f32;
-        let zoom_factor = self.zoom_level.max(0.1).min(10.0) as f32;
+        let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
         let bar_width = (step_size * zoom_factor * 0.8).max(0.002);
         let pan_factor = (self.pan_offset * 0.001) as f32;
 
