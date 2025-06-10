@@ -20,11 +20,22 @@ var<uniform> uniforms: ChartUniforms;
 
 // Вершинные атрибуты
 struct VertexInput {
-    @location(0) position_x: f32,    // X позиция в нормализованных координатах
-    @location(1) position_y: f32,    // Y позиция в нормализованных координатах
-    @location(2) element_type: f32,  // 0.0 = тело свечи, 1.0 = фитиль, 2.0 = индикатор, 3.0 = сетка, 4.0 = current price
-    @location(3) color_type: f32,    // 0.0 = медвежья, 1.0 = бычья, 0.5 = фитиль, 2-6 = индикаторы, 7.0 = current price
-}
+    @location(0) position_x: f32,
+    @location(1) position_y: f32,
+    @location(2) element_type: f32,
+    @location(3) color_type: f32,
+};
+
+// Данные инстанса свечи
+struct InstanceInput {
+    @location(4) x: f32,
+    @location(5) width: f32,
+    @location(6) body_top: f32,
+    @location(7) body_bottom: f32,
+    @location(8) high: f32,
+    @location(9) low: f32,
+    @location(10) bullish: f32,
+};
 
 // Выходные данные вершинного шейдера
 struct VertexOutput {
@@ -34,24 +45,32 @@ struct VertexOutput {
 }
 
 @vertex
-fn vs_main(vertex: VertexInput) -> VertexOutput {
+fn vs_main(vertex: VertexInput, inst: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
-    
-    // Применяем матрицу преобразования к позиции
-    let position = vec4<f32>(vertex.position_x, vertex.position_y, 0.0, 1.0);
+
+    var x = inst.x + vertex.position_x * inst.width;
+    var y: f32;
+    if (vertex.element_type < 0.5) {
+        y = mix(inst.body_bottom, inst.body_top, vertex.position_y);
+    } else if (vertex.element_type < 1.5) {
+        y = mix(inst.body_top, inst.high, vertex.position_y);
+    } else {
+        y = mix(inst.low, inst.body_bottom, vertex.position_y);
+    }
+    let position = vec4<f32>(x, y, 0.0, 1.0);
     out.clip_position = uniforms.view_proj_matrix * position;
     
-    // Определяем цвет на основе типа элемента и цвета
+    // Определяем цвет
     if (vertex.element_type < 0.5) {
-        // Тело свечи
-        if (vertex.color_type > 0.5) {
-            out.color = uniforms.bullish_color; // Бычья свеча - зеленая
+        // Тело
+        if (inst.bullish > 0.5) {
+            out.color = uniforms.bullish_color;
         } else {
-            out.color = uniforms.bearish_color; // Медвежья свеча - красная
+            out.color = uniforms.bearish_color;
         }
-    } else if (vertex.element_type < 1.5) {
-        // Фитиль
-        out.color = uniforms.wick_color; // Серый цвет для фитилей
+    } else if (vertex.element_type < 2.0) {
+        // Фитили
+        out.color = uniforms.wick_color;
     } else if (vertex.element_type < 2.5) {
         // Линии индикаторов
         if (vertex.color_type < 2.5) {

@@ -128,6 +128,74 @@ impl CandleVertex {
     }
 }
 
+/// Атрибуты конкретной свечи для instanced drawing
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+pub struct CandleInstance {
+    /// Позиция по X в NDC координатах
+    pub x: f32,
+    /// Ширина свечи
+    pub width: f32,
+    /// Верх тела (max(open, close))
+    pub body_top: f32,
+    /// Низ тела (min(open, close))
+    pub body_bottom: f32,
+    /// Максимальная цена (high)
+    pub high: f32,
+    /// Минимальная цена (low)
+    pub low: f32,
+    /// Быча ли свеча (1.0/0.0)
+    pub bullish: f32,
+    pub _padding: f32,
+}
+
+impl CandleInstance {
+    /// Layout инстанс-буфера
+    pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<CandleInstance>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 4,
+                    format: wgpu::VertexFormat::Float32,
+                },
+                wgpu::VertexAttribute {
+                    offset: 4,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32,
+                },
+                wgpu::VertexAttribute {
+                    offset: 8,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32,
+                },
+                wgpu::VertexAttribute {
+                    offset: 12,
+                    shader_location: 7,
+                    format: wgpu::VertexFormat::Float32,
+                },
+                wgpu::VertexAttribute {
+                    offset: 16,
+                    shader_location: 8,
+                    format: wgpu::VertexFormat::Float32,
+                },
+                wgpu::VertexAttribute {
+                    offset: 20,
+                    shader_location: 9,
+                    format: wgpu::VertexFormat::Float32,
+                },
+                wgpu::VertexAttribute {
+                    offset: 24,
+                    shader_location: 10,
+                    format: wgpu::VertexFormat::Float32,
+                },
+            ],
+        }
+    }
+}
+
 /// Uniform буфер для глобальных параметров рендеринга
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
