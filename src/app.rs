@@ -11,7 +11,7 @@ use wasm_bindgen_futures::spawn_local;
 use crate::{
     domain::{
         chart::Chart,
-        logging::{LogComponent, get_logger},
+        logging::{LogComponent, LogLevel, get_logger},
         market_data::{Candle, TimeInterval, value_objects::Symbol},
     },
     infrastructure::{rendering::WebGpuRenderer, websocket::BinanceWebSocketClient},
@@ -625,7 +625,7 @@ fn ChartContainer() -> impl IntoView {
             if let Some(renderer_rc) = renderer_opt {
                 chart.with(|ch| {
                     if ch.get_candle_count() > 0 {
-                        if let Ok(webgpu_renderer) = renderer_rc.try_borrow() {
+                        if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
                             if let Err(e) = webgpu_renderer.render(ch) {
                                 set_status.set(format!("❌ Render error: {:?}", e));
                             } else {
