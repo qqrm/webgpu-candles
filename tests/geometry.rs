@@ -1,4 +1,5 @@
 use insta::{assert_json_snapshot, with_settings};
+use wasm_bindgen_test::*;
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use price_chart_wasm::infrastructure::rendering::gpu_structures::CandleGeometry;
 
@@ -27,7 +28,7 @@ fn sample_candles() -> Vec<Candle> {
     ]
 }
 
-#[test]
+#[wasm_bindgen_test]
 fn candle_geometry_snapshot() {
     let candles = sample_candles();
     let min_price = candles

@@ -1,6 +1,7 @@
 use price_chart_wasm::domain::chart::value_objects::Viewport;
+use wasm_bindgen_test::*;
 
-#[test]
+#[wasm_bindgen_test]
 fn zoom_changes_time_range() {
     let mut vp = Viewport {
         start_time: 0.0,
@@ -15,7 +16,7 @@ fn zoom_changes_time_range() {
     assert!((vp.end_time - 75.0).abs() < 1e-6);
 }
 
-#[test]
+#[wasm_bindgen_test]
 fn pan_moves_viewport() {
     let mut vp = Viewport {
         start_time: 0.0,
@@ -32,7 +33,7 @@ fn pan_moves_viewport() {
     assert!((vp.max_price - 110.0).abs() < 1e-6);
 }
 
-#[test]
+#[wasm_bindgen_test]
 fn time_to_x_calculates() {
     let vp = Viewport {
         start_time: 0.0,
