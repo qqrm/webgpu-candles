@@ -141,13 +141,36 @@ impl WebGpuRenderer {
     }
 
     /// Переключить видимость линии индикатора
-    pub fn toggle_line_visibility(&mut self, _line_name: &str) {
-        // Implementation needed
+    pub fn toggle_line_visibility(&mut self, line_name: &str) {
+        match line_name {
+            "sma20" => self.line_visibility.sma_20 = !self.line_visibility.sma_20,
+            "sma50" => self.line_visibility.sma_50 = !self.line_visibility.sma_50,
+            "sma200" => self.line_visibility.sma_200 = !self.line_visibility.sma_200,
+            "ema12" => self.line_visibility.ema_12 = !self.line_visibility.ema_12,
+            "ema26" => self.line_visibility.ema_26 = !self.line_visibility.ema_26,
+            _ => {}
+        }
     }
 
     /// Проверить попадание в область чекбокса легенды
-    pub fn check_legend_checkbox_click(&self, _mouse_x: f32, _mouse_y: f32) -> Option<String> {
-        // Implementation needed
+    pub fn check_legend_checkbox_click(&self, mouse_x: f32, mouse_y: f32) -> Option<String> {
+        const LEGEND_LEFT: f32 = 10.0;
+        const LEGEND_TOP: f32 = 10.0;
+        const BOX_SIZE: f32 = 20.0;
+        const BOX_GAP: f32 = 30.0;
+
+        let lines = ["sma20", "sma50", "sma200", "ema12", "ema26"];
+
+        for (i, name) in lines.iter().enumerate() {
+            let x0 = LEGEND_LEFT;
+            let y0 = LEGEND_TOP + i as f32 * BOX_GAP;
+            let x1 = x0 + BOX_SIZE;
+            let y1 = y0 + BOX_SIZE;
+            if mouse_x >= x0 && mouse_x <= x1 && mouse_y >= y0 && mouse_y <= y1 {
+                return Some((*name).to_string());
+            }
+        }
+
         None
     }
 
@@ -513,5 +536,57 @@ impl WebGpuRenderer {
         );
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[allow(invalid_value)]
+    fn dummy_renderer() -> WebGpuRenderer {
+        unsafe {
+            WebGpuRenderer {
+                _canvas_id: String::new(),
+                width: 0,
+                height: 0,
+                surface: std::mem::MaybeUninit::zeroed().assume_init(),
+                device: std::mem::MaybeUninit::zeroed().assume_init(),
+                queue: std::mem::MaybeUninit::zeroed().assume_init(),
+                config: std::mem::MaybeUninit::zeroed().assume_init(),
+                render_pipeline: std::mem::MaybeUninit::zeroed().assume_init(),
+                vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
+                uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
+                uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
+                num_vertices: 0,
+                cached_vertices: Vec::new(),
+                cached_uniforms: ChartUniforms::new(),
+                cached_candle_count: 0,
+                cached_zoom_level: 1.0,
+                zoom_level: 1.0,
+                pan_offset: 0.0,
+                last_frame_time: 0.0,
+                fps_samples: Vec::new(),
+                line_visibility: LineVisibility::default(),
+            }
+        }
+    }
+
+    #[test]
+    fn toggles_visibility() {
+        let mut r = dummy_renderer();
+        assert!(r.line_visibility.sma_20);
+        r.toggle_line_visibility("sma20");
+        assert!(!r.line_visibility.sma_20);
+    }
+
+    #[test]
+    fn legend_click_detection() {
+        let r = dummy_renderer();
+        assert_eq!(
+            r.check_legend_checkbox_click(15.0, 15.0),
+            Some("sma20".to_string())
+        );
+        assert_eq!(r.check_legend_checkbox_click(100.0, 100.0), None);
     }
 }
