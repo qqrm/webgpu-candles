@@ -1,9 +1,9 @@
 // === 🦀 LEPTOS BITCOIN CHART WASM ===
 // Clean Architecture v3.0 - только нужные модули!
 
-pub mod domain;
-pub mod infrastructure; 
 pub mod app;
+pub mod domain;
+pub mod infrastructure;
 
 // === WASM EXPORTS ===
 use leptos::*;
@@ -13,16 +13,22 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen(start)]
 pub fn start_app() {
     console_error_panic_hook::set_once();
-    
+
     // Log that WASM started
-    unsafe { web_sys::console::log_1(&"🚀 WASM module initialized!".into()); }
-    
+    #[cfg(debug_assertions)]
+    unsafe {
+        web_sys::console::log_1(&"🚀 WASM module initialized!".into());
+    }
+
     // Initialize infrastructure services
     crate::infrastructure::initialize_infrastructure_services();
-    
+
     // Mount Leptos app to body
-    unsafe { web_sys::console::log_1(&"🎯 Mounting Leptos app...".into()); }
-    
+    #[cfg(debug_assertions)]
+    unsafe {
+        web_sys::console::log_1(&"🎯 Mounting Leptos app...".into());
+    }
+
     // Hide the loading screen first
     if let Some(window) = web_sys::window() {
         if let Some(document) = window.document() {
@@ -31,10 +37,13 @@ pub fn start_app() {
             }
         }
     }
-    
+
     leptos::mount_to_body(|| view! { <crate::app::App/> });
-    
-    unsafe { web_sys::console::log_1(&"✅ Leptos app mounted!".into()); }
+
+    #[cfg(debug_assertions)]
+    unsafe {
+        web_sys::console::log_1(&"✅ Leptos app mounted!".into());
+    }
 }
 
 /// Проверка WebGPU поддержки
@@ -52,4 +61,4 @@ pub fn get_renderer_performance() -> String {
     "{\"backend\":\"WebGPU\",\"status\":\"ready\",\"fps\":60}".to_string()
 }
 
-// Clean WASM exports only 
+// Clean WASM exports only
