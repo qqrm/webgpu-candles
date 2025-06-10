@@ -4,11 +4,10 @@ use crate::log_info;
 /// Базовое количество ячеек сетки
 pub const BASE_CANDLES: f32 = 300.0;
 
-/// Вычислить позицию свечи/бара с учётом смещения
+/// Позиция свечи/бара с учётом привязки к правому краю
 pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
-    let step_size = 2.0 / BASE_CANDLES;
-    let offset = (BASE_CANDLES - visible_len as f32) * step_size;
-    -1.0 + offset + (index as f32 + 0.5) * step_size
+    let step_size = 2.0 / visible_len as f32;
+    1.0 - (visible_len as f32 - index as f32 - 0.5) * step_size
 }
 
 impl WebGpuRenderer {
@@ -97,7 +96,7 @@ impl WebGpuRenderer {
 
         // Create vertices for each visible candle
         let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
-        let step_size = 2.0 / BASE_CANDLES;
+        let step_size = 2.0 / visible_candles.len() as f32;
         let candle_width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1);
 
         for (i, candle) in visible_candles.iter().enumerate() {
@@ -434,7 +433,7 @@ impl WebGpuRenderer {
         let volume_bottom = -1.0;
         let volume_height = volume_top - volume_bottom;
 
-        let step_size = 2.0 / BASE_CANDLES;
+        let step_size = 2.0 / candle_count as f32;
         let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
         let bar_width = (step_size * zoom_factor * 0.8).max(0.002);
         let pan_factor = (self.pan_offset * 0.001) as f32;
