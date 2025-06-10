@@ -12,9 +12,11 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Install wasm-pack
         run: cargo install wasm-pack
+      - name: Cargo fmt
+        run: cargo fmt --all -- --check
       - name: Cargo check
         run: cargo check
       - name: Cargo clippy
-        run: cargo clippy --tests --benches -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
       - name: Run tests
         run: wasm-pack test --headless --chrome
