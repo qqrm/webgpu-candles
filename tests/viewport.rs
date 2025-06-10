@@ -63,4 +63,3 @@ fn zoom_round_trip_preserves_viewport() {
     assert!((vp.start_time - original.start_time).abs() < 1e-6);
     assert!((vp.end_time - original.end_time).abs() < 1e-6);
 }
-
