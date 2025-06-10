@@ -3,10 +3,8 @@
 
 # WASM build artifacts  
 /pkg
-*.wasm
 # Logs and temporary files
 *.log
-.DS_Store
 *.tmp
 *.temp
 
