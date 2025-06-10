@@ -77,6 +77,16 @@ impl Viewport {
         self.end_time = center_time + new_range / 2.0;
     }
 
+    /// Масштабирование цен по вертикали
+    pub fn zoom_price(&mut self, factor: f32, center_y: f32) {
+        let current_range = self.price_range();
+        let new_range = current_range / factor;
+        let center_price = self.max_price - current_range * center_y;
+
+        self.min_price = center_price - new_range / 2.0;
+        self.max_price = center_price + new_range / 2.0;
+    }
+
     pub fn pan(&mut self, delta_x: f32, delta_y: f32) {
         let time_delta = self.time_range() * delta_x as f64;
         self.start_time += time_delta;
