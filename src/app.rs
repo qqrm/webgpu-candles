@@ -15,7 +15,7 @@ use crate::{
         market_data::{Candle, TimeInterval, value_objects::Symbol},
     },
     infrastructure::{
-        rendering::{WebGpuRenderer, renderer::set_global_renderer},
+        rendering::{WebGpuRenderer, renderer::{set_global_renderer, with_global_renderer}},
         websocket::BinanceWebSocketClient,
     },
 };
@@ -347,8 +347,18 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
             .collect::<Vec<_>>()
     };
 
+    let handle_wheel = {
+        let chart_signal = chart;
+        move |e: web_sys::WheelEvent| {
+            e.prevent_default();
+            let factor = if e.delta_y() < 0.0 { 1.1 } else { 0.9 };
+            let center = e.offset_y() as f32 / 500.0;
+            chart_signal.update(|c| c.zoom_price(factor as f32, center));
+        }
+    };
+
     view! {
-        <div style="width: 60px; height: 500px; background: #222; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; margin-right: 8px;">
+        <div style="width: 60px; height: 500px; background: #222; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; margin-right: 8px;" on:wheel=handle_wheel>
             <For
                 each=labels
                 key=|v| (*v * 100.0) as i64
@@ -364,8 +374,9 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
 #[component]
 fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
     let time_labels = move || {
+        let zoom = ZOOM_LEVEL.with(|z| z.get_untracked());
         let candles = chart.with(|c| {
-            c.get_series_for_zoom(ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)))
+            c.get_series_for_zoom(zoom)
                 .get_candles()
                 .clone()
         });
@@ -392,9 +403,14 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
                 .nth(index.min(candles.len() - start_idx - 1))
             {
                 let timestamp = candle.timestamp.value();
-                // Конвертируем timestamp в читаемое время
                 let date = js_sys::Date::new(&(timestamp as f64).into());
-                let time_str = format!("{:02}:{:02}", date.get_hours(), date.get_minutes());
+                let time_str = if zoom >= 2.0 {
+                    format!("{:02}:{:02}", date.get_hours(), date.get_minutes())
+                } else if zoom >= 1.0 {
+                    format!("{:02}.{:02}", date.get_date(), date.get_month() + 1)
+                } else {
+                    format!("{:02}.{}", date.get_month() + 1, date.get_full_year())
+                };
                 let position_percent = (i as f64 / (num_labels as f64 - 1.0)) * 100.0;
                 labels.push((time_str, position_percent));
             }
@@ -403,8 +419,32 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
         labels
     };
 
+    let handle_wheel = {
+        let chart_signal = chart;
+        move |event: web_sys::WheelEvent| {
+            event.prevent_default();
+            let delta = event.delta_y();
+            let zoom_factor = if delta < 0.0 { 1.1 } else { 0.9 };
+
+            ZOOM_LEVEL.with(|zoom| {
+                zoom.update(|z| {
+                    *z *= zoom_factor;
+                    *z = z.clamp(0.1, 10.0);
+                });
+                let new_zoom = zoom.get_untracked();
+
+                chart_signal.with_untracked(|ch| {
+                    with_global_renderer(|r| {
+                        r.set_zoom_params(new_zoom, PAN_OFFSET.with(|p| p.get_untracked()));
+                        let _ = r.render(ch);
+                    });
+                });
+            });
+        }
+    };
+
     view! {
-        <div style="width: 800px; height: 30px; background: #222; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; margin-top: 5px; border-radius: 5px;">
+        <div style="width: 800px; height: 30px; background: #222; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; margin-top: 5px; border-radius: 5px;" on:wheel=handle_wheel>
             <For
                 each=time_labels
                 key=|(time, _pos)| time.clone()

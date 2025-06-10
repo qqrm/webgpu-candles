@@ -138,6 +138,11 @@ impl Chart {
         self.viewport.zoom(factor, center_x);
     }
 
+    /// Вертикальный зум по цене
+    pub fn zoom_price(&mut self, factor: f32, center_y: f32) {
+        self.viewport.zoom_price(factor, center_y);
+    }
+
     pub fn pan(&mut self, delta_x: f32, delta_y: f32) {
         self.viewport.pan(delta_x, delta_y);
     }
