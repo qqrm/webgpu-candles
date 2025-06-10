@@ -91,6 +91,7 @@ impl Default for LineVisibility {
 }
 
 mod geometry;
+pub use geometry::{BASE_CANDLES, candle_x_position};
 mod initialization;
 mod render_loop;
 mod performance;

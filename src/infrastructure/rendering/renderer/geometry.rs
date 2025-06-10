@@ -1,6 +1,16 @@
 use super::*;
 use crate::log_info;
 
+/// Базовое количество ячеек сетки
+pub const BASE_CANDLES: f32 = 300.0;
+
+/// Вычислить позицию свечи/бара с учётом смещения
+pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
+    let step_size = 2.0 / BASE_CANDLES;
+    let offset = (BASE_CANDLES - visible_len as f32) * step_size;
+    -1.0 + offset + (index as f32 + 0.5) * step_size
+}
+
 impl WebGpuRenderer {
     pub(super) fn create_geometry(&self, chart: &Chart) -> (Vec<CandleVertex>, ChartUniforms) {
         let candles = chart.get_series_for_zoom(self.zoom_level).get_candles();
@@ -26,8 +36,7 @@ impl WebGpuRenderer {
         let _chart_height = 2.0; // NDC height (-1 to 1)
 
         // 🔍 Применяем зум - показываем меньше свечей при увеличении зума
-        let base_candles = 300.0;
-        let visible_count = (base_candles / self.zoom_level)
+        let visible_count = ((BASE_CANDLES as f64) / self.zoom_level)
             .max(10.0)
             .min(candle_count as f64) as usize;
         let start_index = candle_count.saturating_sub(visible_count);
@@ -87,18 +96,12 @@ impl WebGpuRenderer {
         }
 
         // Create vertices for each visible candle
-        let chart_width = 2.0; // NDC width (-1 to 1)
-
-        // 🔍 Применяем зум только к ширине свечи, а позиционирование привязываем к правому краю
-        let base_step_size = chart_width / visible_candles.len() as f32;
-
         let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
-        let step_size = base_step_size; // Расстояние между свечами остаётся постоянным
+        let step_size = 2.0 / BASE_CANDLES;
         let candle_width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1);
 
         for (i, candle) in visible_candles.iter().enumerate() {
-            // Позиция X привязана к правому краю
-            let x = 1.0 - (visible_candles.len() as f32 - i as f32 - 0.5) * step_size;
+            let x = candle_x_position(i, visible_candles.len());
 
             // Нормализация Y - используем верхнюю часть экрана [-0.5, 0.8] для свечей
             let price_range = max_price - min_price;
@@ -373,14 +376,13 @@ impl WebGpuRenderer {
 
         // Вертикальные линии сетки (временные интервалы) - покрывают весь график
         if candle_count > 0 {
-            let step_size = 2.0 / candle_count as f32;
             let num_vertical_lines = 10; // 10 вертикальных линий
             let vertical_step = candle_count / num_vertical_lines;
 
             for i in 1..num_vertical_lines {
                 let candle_index = i * vertical_step;
                 if candle_index < candle_count {
-                    let x = -1.0 + (candle_index as f32 + 0.5) * step_size;
+                    let x = candle_x_position(candle_index, candle_count);
 
                     // Вертикальная линия через весь график (включая volume область)
                     let vertical_line = vec![
@@ -432,13 +434,13 @@ impl WebGpuRenderer {
         let volume_bottom = -1.0;
         let volume_height = volume_top - volume_bottom;
 
-        let step_size = 2.0 / candle_count as f32;
+        let step_size = 2.0 / BASE_CANDLES;
         let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
         let bar_width = (step_size * zoom_factor * 0.8).max(0.002);
         let pan_factor = (self.pan_offset * 0.001) as f32;
 
         for (i, candle) in candles.iter().enumerate() {
-            let base_x = 1.0 - (candle_count as f32 - i as f32 - 0.5) * step_size;
+            let base_x = candle_x_position(i, candle_count);
             let x = (base_x + pan_factor).clamp(-1.0, 1.0);
             let volume_normalized = (candle.ohlcv.volume.value() as f32) / max_volume;
             let bar_height = volume_height * volume_normalized;
