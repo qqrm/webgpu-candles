@@ -97,10 +97,10 @@ impl WebGpuRenderer {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1, // Темно-серый фон для контраста
-                            g: 0.1,
-                            b: 0.1,
-                            a: 1.0,
+                            r: 0.145,
+                            g: 0.196,
+                            b: 0.259,
+                            a: 1.0, // Цвет фона графика
                         }),
                         store: wgpu::StoreOp::Store,
                     },

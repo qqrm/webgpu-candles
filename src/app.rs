@@ -183,7 +183,7 @@ pub fn app() -> impl IntoView {
             .price-value {
                 font-size: 24px;
                 font-weight: 700;
-                color: #72c685;
+                color: #74c787;
                 text-shadow: 0 0 10px rgba(114, 198, 133, 0.3);
             }
             
@@ -253,7 +253,7 @@ pub fn app() -> impl IntoView {
             }
             
             .status {
-                color: #72c685;
+                color: #74c787;
                 font-size: 14px;
                 text-align: center;
             }
@@ -811,7 +811,7 @@ fn ChartContainer() -> impl IntoView {
                         width="800"
                         height="500"
                         tabindex="0"
-                        style="border: 2px solid #4a5d73; border-radius: 10px; background: #2c3e50; cursor: crosshair; outline: none;"
+                        style="border: 2px solid #4a5d73; border-radius: 10px; background: #253242; cursor: crosshair; outline: none;"
                         on:mousemove=handle_mouse_move
                         on:mouseleave=handle_mouse_leave
                         on:wheel=handle_wheel
