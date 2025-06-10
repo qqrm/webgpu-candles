@@ -11,7 +11,7 @@ use wasm_bindgen_futures::spawn_local;
 use crate::{
     domain::{
         chart::Chart,
-        logging::{LogComponent, LogLevel, get_logger},
+        logging::{LogComponent, get_logger},
         market_data::{Candle, TimeInterval, value_objects::Symbol},
     },
     infrastructure::{
@@ -541,7 +541,7 @@ fn ChartContainer() -> impl IntoView {
     // 🎯 Mouse events для tooltip
     let handle_mouse_move = {
         let chart_signal = chart;
-        let status_clone = set_status.clone();
+        let status_clone = set_status;
         move |event: web_sys::MouseEvent| {
             let mouse_x = event.offset_x() as f64;
             let mouse_y = event.offset_y() as f64;
@@ -571,43 +571,42 @@ fn ChartContainer() -> impl IntoView {
                     if need_history {
                         fetch_more_history(chart_signal, status_clone);
                     }
-                    return; // При драге не показываем tooltip
-                }
-            });
-
-            // Конвертируем в NDC координаты (предполагаем canvas 800x500)
-            let canvas_width = 800.0;
-            let canvas_height = 500.0;
-            let ndc_x = (mouse_x / canvas_width) * 2.0 - 1.0;
-            let _ndc_y = 1.0 - (mouse_y / canvas_height) * 2.0;
-
-            chart_signal.with(|ch| {
-                let candles = ch
-                    .get_series_for_zoom(ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)))
-                    .get_candles();
-                if !candles.is_empty() {
-                    let max_visible = 300;
-                    let start_idx = if candles.len() > max_visible {
-                        candles.len() - max_visible
-                    } else {
-                        0
-                    };
-                    let visible: Vec<_> = candles.iter().skip(start_idx).collect();
-
-                    let step_size = 2.0 / visible.len() as f64;
-                    let candle_idx = ((ndc_x + 1.0) / step_size).floor() as usize;
-
-                    if candle_idx < visible.len() {
-                        let candle = visible[candle_idx];
-                        let tooltip_data = TooltipData::new(candle.clone(), mouse_x, mouse_y);
-
-                        TOOLTIP_DATA.with(|data| data.set(Some(tooltip_data)));
-                        TOOLTIP_VISIBLE.with(|visible| visible.set(true));
-                    } else {
-                        TOOLTIP_VISIBLE.with(|visible| visible.set(false));
-                    }
                 } else {
-                    TOOLTIP_VISIBLE.with(|visible| visible.set(false));
+                    // Конвертируем в NDC координаты (предполагаем canvas 800x500)
+                    let canvas_width = 800.0;
+                    let canvas_height = 500.0;
+                    let ndc_x = (mouse_x / canvas_width) * 2.0 - 1.0;
+                    let _ndc_y = 1.0 - (mouse_y / canvas_height) * 2.0;
+
+                    chart_signal.with(|ch| {
+                        let candles = ch
+                            .get_series_for_zoom(ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)))
+                            .get_candles();
+                        if !candles.is_empty() {
+                            let max_visible = 300;
+                            let start_idx = if candles.len() > max_visible {
+                                candles.len() - max_visible
+                            } else {
+                                0
+                            };
+                            let visible: Vec<_> = candles.iter().skip(start_idx).collect();
+
+                            let step_size = 2.0 / visible.len() as f64;
+                            let candle_idx = ((ndc_x + 1.0) / step_size).floor() as usize;
+
+                            if candle_idx < visible.len() {
+                                let candle = visible[candle_idx];
+                                let tooltip_data = TooltipData::new(candle.clone(), mouse_x, mouse_y);
+
+                                TOOLTIP_DATA.with(|data| data.set(Some(tooltip_data)));
+                                TOOLTIP_VISIBLE.with(|visible| visible.set(true));
+                            } else {
+                                TOOLTIP_VISIBLE.with(|visible| visible.set(false));
+                            }
+                        } else {
+                            TOOLTIP_VISIBLE.with(|visible| visible.set(false));
+                        }
+                    });
                 }
             });
         }
@@ -621,8 +620,8 @@ fn ChartContainer() -> impl IntoView {
     // 🔍 Зум колесиком мыши - упрощенная версия без эффектов
     let handle_wheel = {
         let chart_signal = chart;
-        let renderer_clone = renderer.clone();
-        let status_clone = set_status.clone();
+        let renderer_clone = renderer;
+        let status_clone = set_status;
         move |event: web_sys::WheelEvent| {
             web_sys::console::log_1(&format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into());
 
@@ -633,7 +632,7 @@ fn ChartContainer() -> impl IntoView {
                 let old_zoom = zoom.with_untracked(|z| *z);
                 zoom.update(|z| {
                     *z *= zoom_factor;
-                    *z = z.max(0.1).min(10.0); // Ограничиваем зум от 0.1x до 10x
+                    *z = z.clamp(0.1, 10.0); // Ограничиваем зум от 0.1x до 10x
                 });
                 let new_zoom = zoom.with_untracked(|z| *z);
                 web_sys::console::log_1(
@@ -706,8 +705,8 @@ fn ChartContainer() -> impl IntoView {
     // ⌨️ Клавиши для зума (+/- и PageUp/PageDown)
     let handle_keydown = {
         let chart_signal = chart;
-        let renderer_clone = renderer.clone();
-        let status_clone = set_status.clone();
+        let renderer_clone = renderer;
+        let status_clone = set_status;
         move |event: web_sys::KeyboardEvent| {
             let key = event.key();
             let mut zoom_changed = false;
@@ -1000,7 +999,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
         let handler = move |candle: Candle| {
             // Обновляем цену в глобальном сигнале
             GLOBAL_CURRENT_PRICE.with(|price| {
-                price.set(candle.ohlcv.close.value() as f64);
+                price.set(candle.ohlcv.close.value());
             });
 
             chart.update(|ch| {

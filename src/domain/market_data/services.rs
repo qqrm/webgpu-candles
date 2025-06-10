@@ -13,6 +13,12 @@ pub struct MovingAveragesData {
 /// Доменный сервис для анализа рыночных данных
 pub struct MarketAnalysisService;
 
+impl Default for MarketAnalysisService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MarketAnalysisService {
     pub fn new() -> Self {
         Self
@@ -83,11 +89,11 @@ impl MarketAnalysisService {
         ema_values.push(Price::from(first_sma));
         
         // Вычисляем остальные значения EMA
-        for i in period..candles.len() {
-            let current_price = candles[i].ohlcv.close.value();
+        for candle in candles.iter().skip(period) {
+            let current_price = candle.ohlcv.close.value();
             let prev_ema = ema_values.last().unwrap().value();
             let new_ema = alpha * current_price + (1.0 - alpha) * prev_ema;
-            
+
             ema_values.push(Price::from(new_ema));
         }
 
