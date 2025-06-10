@@ -31,8 +31,9 @@ impl Chart {
         // Сортируем по времени для стабильности
         candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
         
-        // Создаем новую серию с тем же размером
-        self.data = CandleSeries::new(1000); // Максимум 1000 свечей
+        // Создаем новую серию с исходным лимитом
+        let limit = self.data.max_size();
+        self.data = CandleSeries::new(limit);
         
         // Добавляем исторические свечи (уже отсортированные)
         for candle in candles {
