@@ -73,7 +73,6 @@ GLOBAL_CURRENT_PRICE: f64    // Текущая цена BTC
 GLOBAL_CANDLE_COUNT: usize   // Количество свечей
 GLOBAL_IS_STREAMING: bool    // WebSocket статус
 TOOLTIP_DATA: TooltipData    // Данные tooltip
-GLOBAL_LOGS: Vec<String>     // Debug логи
 ```
 
 ## 🎨 Визуальные элементы
