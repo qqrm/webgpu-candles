@@ -15,7 +15,10 @@ use crate::{
         market_data::{Candle, TimeInterval, value_objects::Symbol},
     },
     infrastructure::{
-        rendering::{WebGpuRenderer, renderer::set_global_renderer},
+        rendering::{
+            WebGpuRenderer,
+            renderer::{set_global_renderer, with_global_renderer},
+        },
         websocket::BinanceWebSocketClient,
     },
 };
@@ -364,11 +367,8 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
 #[component]
 fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
     let time_labels = move || {
-        let candles = chart.with(|c| {
-            c.get_series_for_zoom(ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)))
-                .get_candles()
-                .clone()
-        });
+        let zoom = ZOOM_LEVEL.with(|z| z.get_untracked());
+        let candles = chart.with(|c| c.get_series_for_zoom(zoom).get_candles().clone());
         if candles.is_empty() {
             return vec![];
         }
@@ -620,7 +620,6 @@ fn ChartContainer() -> impl IntoView {
     // 🔍 Зум колесиком мыши - упрощенная версия без эффектов
     let handle_wheel = {
         let chart_signal = chart;
-        let renderer_clone = renderer;
         let status_clone = set_status;
         move |event: web_sys::WheelEvent| {
             web_sys::console::log_1(&format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into());
@@ -642,25 +641,16 @@ fn ChartContainer() -> impl IntoView {
                 // Сразу применяем зум без эффектов
                 chart_signal.with_untracked(|ch| {
                     if ch.get_candle_count() > 0 {
-                        renderer_clone.with_untracked(|renderer_opt| {
-                            if let Some(renderer_rc) = renderer_opt {
-                                if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
-                                    webgpu_renderer.set_zoom_params(
-                                        new_zoom,
-                                        PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
-                                    );
-
-                                    let _ = webgpu_renderer.render(ch);
-
-                                    get_logger().info(
-                                        LogComponent::Infrastructure("ZoomWheel"),
-                                        &format!(
-                                            "✅ Applied zoom {:.2}x to WebGPU renderer",
-                                            new_zoom
-                                        ),
-                                    );
-                                }
-                            }
+                        with_global_renderer(|r| {
+                            r.set_zoom_params(
+                                new_zoom,
+                                PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
+                            );
+                            let _ = r.render(ch);
+                            get_logger().info(
+                                LogComponent::Infrastructure("ZoomWheel"),
+                                &format!("✅ Applied zoom {:.2}x to WebGPU renderer", new_zoom),
+                            );
                         });
                     }
                 });
@@ -705,7 +695,6 @@ fn ChartContainer() -> impl IntoView {
     // ⌨️ Клавиши для зума (+/- и PageUp/PageDown)
     let handle_keydown = {
         let chart_signal = chart;
-        let renderer_clone = renderer;
         let status_clone = set_status;
         move |event: web_sys::KeyboardEvent| {
             let key = event.key();
@@ -762,25 +751,19 @@ fn ChartContainer() -> impl IntoView {
                 // Применяем зум к renderer для клавиатурных команд
                 chart_signal.with_untracked(|ch| {
                     if ch.get_candle_count() > 0 {
-                        renderer_clone.with_untracked(|renderer_opt| {
-                            if let Some(renderer_rc) = renderer_opt {
-                                if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
-                                    webgpu_renderer.set_zoom_params(
-                                        new_zoom,
-                                        PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
-                                    );
-
-                                    let _ = webgpu_renderer.render(ch);
-
-                                    get_logger().info(
-                                        LogComponent::Infrastructure("KeyboardZoom"),
-                                        &format!(
-                                            "⌨️ Applied keyboard zoom {:.2}x to WebGPU renderer",
-                                            new_zoom
-                                        ),
-                                    );
-                                }
-                            }
+                        with_global_renderer(|r| {
+                            r.set_zoom_params(
+                                new_zoom,
+                                PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
+                            );
+                            let _ = r.render(ch);
+                            get_logger().info(
+                                LogComponent::Infrastructure("KeyboardZoom"),
+                                &format!(
+                                    "⌨️ Applied keyboard zoom {:.2}x to WebGPU renderer",
+                                    new_zoom
+                                ),
+                            );
                         });
                     }
                 });
