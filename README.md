@@ -23,6 +23,10 @@ trunk serve       # dev server on http://localhost:8080
 trunk build --dist dist-local
 ```
 
+Локальные сборки сохраняются в каталог `dist-local`. В CI GitHub Actions
+используется путь `dist`, после чего файлы копируются в [`docs/`](docs/) для
+публикации демо-версии.
+
 When using Trunk, open **`index.html`** (served automatically when using `trunk serve`). The file contains a Trunk hook so the WASM is loaded for you:
 
 ```html

@@ -1,7 +1,8 @@
 # Instructions for Codex Agents
 
 - Все ответы должны быть на русском языке, краткие и по существу.
-- Перед коммитом выполняй `cargo check --tests --benches`, затем `cargo clippy --tests --benches -- -D warnings` без `--fix`. Запуск тестов (например, `wasm-pack test`) не требуется — они будут запущены в GitHub Actions.
+- Перед коммитом последовательно выполняй `cargo fmt --all`, `cargo fmt --all -- --check`, `cargo check --tests --benches`, затем `cargo clippy --tests --benches --fix --allow-dirty -- -D warnings`. Запуск тестов (например, `wasm-pack test`) не требуется — они будут запущены в GitHub Actions.
+- Одним из критериев готовности изменений является отсутствие проблем форматирования и предупреждений линтеров.
 - Перед выполнением любой задачи сверяйтесь с [ARCHITECTURE.md](ARCHITECTURE.md) и
   проверяйте соответствие предложенных изменений текущей архитектуре.
 - При работе с цветами сверяйтесь с [colors.md](colors.md).
