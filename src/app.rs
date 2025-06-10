@@ -578,6 +578,7 @@ fn ChartContainer() -> impl IntoView {
     // 🎯 Mouse events для tooltip
     let handle_mouse_move = {
         let chart_signal = chart;
+        let renderer_clone = renderer;
         let status_clone = set_status;
         move |event: web_sys::MouseEvent| {
             let mouse_x = event.offset_x() as f64;
@@ -612,12 +613,16 @@ fn ChartContainer() -> impl IntoView {
 
                     chart_signal.with_untracked(|ch| {
                         if ch.get_candle_count() > 0 {
-                            with_global_renderer(|r| {
-                                r.set_zoom_params(
-                                    ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)),
-                                    PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
-                                );
-                                let _ = r.render(ch);
+                            renderer_clone.with_untracked(|renderer_opt| {
+                                if let Some(renderer_rc) = renderer_opt {
+                                    if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
+                                        webgpu_renderer.set_zoom_params(
+                                            ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)),
+                                            PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
+                                        );
+                                        let _ = webgpu_renderer.render(ch);
+                                    }
+                                }
                             });
                         }
                     });
