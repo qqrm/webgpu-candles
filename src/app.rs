@@ -647,11 +647,15 @@ fn ChartContainer() -> impl IntoView {
                             };
                             let visible: Vec<_> = candles.iter().skip(start_idx).collect();
 
+                            // Используем ту же логику что и в candle_x_position
                             let step_size = 2.0 / visible.len() as f64;
-                            let candle_idx = ((ndc_x + 1.0) / step_size).floor() as usize;
+                            // Обратная формула: если x = 1.0 - (visible_len - index - 1) * step_size
+                            // то index = visible_len - (1.0 - x) / step_size - 1
+                            let index_float = visible.len() as f64 - (1.0 - ndc_x) / step_size - 1.0;
+                            let candle_idx = index_float.round() as i32;
 
-                            if candle_idx < visible.len() {
-                                let candle = visible[candle_idx];
+                            if candle_idx >= 0 && (candle_idx as usize) < visible.len() {
+                                let candle = visible[candle_idx as usize];
                                 let tooltip_data =
                                     TooltipData::new(candle.clone(), mouse_x, mouse_y);
 

@@ -140,8 +140,8 @@ impl WebGpuRenderer {
         });
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../../candle_shader.wgsl").into()),
+            label: Some("Simple Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../../simple_shader.wgsl").into()),
         });
 
         let render_pipeline_layout =
@@ -157,7 +157,7 @@ impl WebGpuRenderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[CandleVertex::desc(), CandleInstance::desc()],
+                buffers: &[CandleVertex::desc()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -225,6 +225,7 @@ impl WebGpuRenderer {
             instance_count: 0,
             cached_vertices: Vec::new(),
             cached_instances: Vec::new(),
+            cached_additional_vertices: Vec::new(),
             cached_uniforms: ChartUniforms::new(),
             cached_candle_count: 0,
             cached_zoom_level: 1.0,

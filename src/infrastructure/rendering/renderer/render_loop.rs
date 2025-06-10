@@ -44,12 +44,13 @@ impl WebGpuRenderer {
             || (self.zoom_level - self.cached_zoom_level).abs() > f64::EPSILON;
 
         if geometry_needs_update {
-            let (template, instances, uniforms) = self.create_instanced_geometry(chart);
-            if instances.is_empty() {
+            // Быстрый instanced рендеринг с volume bars
+            let (vertices, uniforms) = self.create_geometry(chart);
+            if vertices.is_empty() {
                 return Ok(());
             }
-            self.cached_vertices = template;
-            self.cached_instances = instances;
+            self.cached_vertices = vertices;
+            self.cached_instances = vec![]; // Не используем instances для простоты
             self.cached_uniforms = uniforms;
             self.cached_candle_count = candle_count;
             self.cached_zoom_level = self.zoom_level;
@@ -60,20 +61,16 @@ impl WebGpuRenderer {
                 bytemuck::cast_slice(&self.cached_vertices),
             );
             self.queue.write_buffer(
-                &self.instance_buffer,
-                0,
-                bytemuck::cast_slice(&self.cached_instances),
-            );
-            self.queue.write_buffer(
                 &self.uniform_buffer,
                 0,
                 bytemuck::cast_slice(&[self.cached_uniforms]),
             );
             self.template_vertices = self.cached_vertices.len() as u32;
-            self.instance_count = self.cached_instances.len() as u32;
+            self.instance_count = 1;
         }
 
-        if self.cached_instances.is_empty() {
+        // Skip empty check for simple shader - we don't use instances
+        if self.cached_vertices.is_empty() {
             return Ok(());
         }
 
@@ -121,8 +118,7 @@ impl WebGpuRenderer {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.draw(0..num_vertices, 0..num_instances);
+            render_pass.draw(0..num_vertices, 0..1); // Non-instanced draw for simple shader
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -572,6 +568,7 @@ mod tests {
                 instance_count: 0,
                 cached_vertices: Vec::new(),
                 cached_instances: Vec::new(),
+                cached_additional_vertices: Vec::new(),
                 cached_uniforms: ChartUniforms::new(),
                 cached_candle_count: 0,
                 cached_zoom_level: 1.0,

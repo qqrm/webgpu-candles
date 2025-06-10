@@ -60,6 +60,7 @@ pub struct WebGpuRenderer {
     // 🗄️ Кэшированные данные
     cached_vertices: Vec<CandleVertex>,
     cached_instances: Vec<CandleInstance>,
+    cached_additional_vertices: Vec<CandleVertex>, // Для volume bars и индикаторов
     cached_uniforms: ChartUniforms,
     cached_candle_count: usize,
     cached_zoom_level: f64,
