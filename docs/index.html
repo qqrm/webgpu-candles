@@ -36,7 +36,7 @@
             100% { transform: rotate(360deg); }
         }
     </style>
-<link rel="modulepreload" href="/price-chart-wasm.js" crossorigin="anonymous"><link rel="preload" href="/price-chart-wasm_bg.wasm" crossorigin="anonymous" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/webgpu-candles/price-chart-wasm.js" crossorigin="anonymous" integrity="sha384-SsVZD8IXQ+bGWcRzKvj324XTiY7+zdrtNlacg2qlQ+d2B7hvScmLZWKYTWT6szPT"><link rel="preload" href="/webgpu-candles/price-chart-wasm_bg.wasm" crossorigin="anonymous" integrity="sha384-4CzvcGeYNFK4ZFI+/1fOVNvQ2008WqE/24VLcbbslBnVFPAL2w6UZRQjBJN23OGS" as="fetch" type="application/wasm"></head>
 <body>
     <!-- Loading screen -->
     <div id="loading">
@@ -50,8 +50,9 @@
     <!-- Trunk автоматически подключит WASM здесь -->
     
 <script type="module">
-import init, * as bindings from '/price-chart-wasm.js';
-const wasm = await init({ module_or_path: '/price-chart-wasm_bg.wasm' });
+import init, * as bindings from '/webgpu-candles/price-chart-wasm.js';
+const wasm = await init({ module_or_path: '/webgpu-candles/price-chart-wasm_bg.wasm' });
+
 
 window.wasmBindings = bindings;
 
