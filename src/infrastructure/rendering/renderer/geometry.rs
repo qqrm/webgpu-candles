@@ -3,7 +3,9 @@ use crate::log_info;
 
 impl WebGpuRenderer {
     pub(super) fn create_geometry(&self, chart: &Chart) -> (Vec<CandleVertex>, ChartUniforms) {
-        let candles = chart.data.get_candles();
+        let candles = chart
+            .get_series_for_zoom(self.zoom_level)
+            .get_candles();
         if candles.is_empty() {
             log_info!(LogComponent::Infrastructure("WebGpuRenderer"), "⚠️ No candles to render");
             return (vec![], ChartUniforms::new());

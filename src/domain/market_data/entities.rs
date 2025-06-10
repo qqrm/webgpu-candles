@@ -105,6 +105,10 @@ impl CandleSeries {
         self.candles.back()
     }
 
+    pub fn latest_mut(&mut self) -> Option<&mut Candle> {
+        self.candles.back_mut()
+    }
+
     pub fn count(&self) -> usize {
         self.candles.len()
     }
