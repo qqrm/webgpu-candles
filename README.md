@@ -78,6 +78,10 @@ wasm-pack test --headless --chrome -- --nocapture
 
 FPS выводится в консоль, а workflow `perf.yml` сохраняет лог артефактом.
 
+## Тесты
+
+Подробнее о наборе тестов можно прочитать в [TESTS.md](TESTS.md).
+
 ## Docker
 
 Собрать и запустить образ можно так:
