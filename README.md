@@ -66,7 +66,7 @@ For more architectural details see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Актуальная статическая версия собирается через GitHub Actions и доступна
 по адресу <https://qqrm.github.io/webgpu-candles/>. Файлы публикуются в
-каталог [`docs/`](docs/).
+каталог [`dist/`](dist/).
 
 ## Бенчмарки
 

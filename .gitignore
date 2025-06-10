@@ -28,7 +28,6 @@ Thumbs.db
 ehthumbs.db
 
 # Leptos artifacts
-/dist
 /public
 
 # Test and benchmark results

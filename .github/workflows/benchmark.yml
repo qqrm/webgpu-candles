@@ -17,8 +17,8 @@ jobs:
           echo '{"fps": 60}' > benchmark_result.json
       - name: Analyze FPS
         run: |
-          python scripts/compare_fps.py benchmark_result.json docs/perf_baseline.json docs/perf_result.json 5
+          python scripts/compare_fps.py benchmark_result.json dist/perf_baseline.json dist/perf_result.json 5
       - uses: actions/upload-artifact@v4
         with:
           name: perf_results
-          path: docs/perf_result.json
+          path: dist/perf_result.json
