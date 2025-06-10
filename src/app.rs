@@ -41,6 +41,7 @@ thread_local! {
     static PAN_OFFSET: RwSignal<f64> = create_rw_signal(0.0);
     static IS_DRAGGING: RwSignal<bool> = create_rw_signal(false);
     static LAST_MOUSE_X: RwSignal<f64> = create_rw_signal(0.0);
+    static LAST_MOUSE_Y: RwSignal<f64> = create_rw_signal(0.0);
 }
 
 /// 📈 Запрашивает дополнительную историю и добавляет в начало списка
@@ -657,12 +658,21 @@ fn ChartContainer() -> impl IntoView {
                     LAST_MOUSE_X.with(|last_x| {
                         let delta_x = mouse_x - last_x.get();
                         PAN_OFFSET.with(|offset| {
-                            // Чувствительность панорамирования
                             let pan_sensitivity = 1.0;
                             offset.update(|o| *o += delta_x * pan_sensitivity);
                         });
                         last_x.set(mouse_x);
                     });
+
+                    LAST_MOUSE_Y.with(|last_y| {
+                        let delta_y = mouse_y - last_y.get();
+                        chart_signal.update(|ch| {
+                            let factor = delta_y as f32 / ch.viewport.height as f32;
+                            ch.pan(0.0, factor);
+                        });
+                        last_y.set(mouse_y);
+                    });
+
                     fetch_more_history(chart_signal, status_clone);
                     return; // При драге не показываем tooltip
                 }
@@ -775,6 +785,7 @@ fn ChartContainer() -> impl IntoView {
             // Левая кнопка мыши
             IS_DRAGGING.with(|dragging| dragging.set(true));
             LAST_MOUSE_X.with(|last_x| last_x.set(event.offset_x() as f64));
+            LAST_MOUSE_Y.with(|last_y| last_y.set(event.offset_y() as f64));
 
             // Даем canvas фокус для клавиатурных событий
             if let Some(target) = event.target() {
