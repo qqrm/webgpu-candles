@@ -14,7 +14,10 @@ use crate::{
         logging::{LogComponent, LogLevel, get_logger},
         market_data::{Candle, TimeInterval, value_objects::Symbol},
     },
-    infrastructure::{rendering::WebGpuRenderer, websocket::BinanceWebSocketClient},
+    infrastructure::{
+        rendering::{WebGpuRenderer, renderer::set_global_renderer},
+        websocket::BinanceWebSocketClient,
+    },
 };
 
 // 🔗 Глобальные сигналы для логов (bridge к domain::logging)
@@ -561,7 +564,8 @@ fn ChartContainer() -> impl IntoView {
                         );
 
                         let renderer_rc = Rc::new(RefCell::new(webgpu_renderer));
-                        set_renderer.set(Some(renderer_rc));
+                        set_renderer.set(Some(renderer_rc.clone()));
+                        set_global_renderer(renderer_rc.clone());
                         set_status.set("✅ WebGPU renderer ready".to_string());
 
                         // Запускаем WebSocket после инициализации renderer
