@@ -658,7 +658,7 @@ fn ChartContainer() -> impl IntoView {
                     LAST_MOUSE_X.with(|last_x| {
                         let delta_x = mouse_x - last_x.get();
                         PAN_OFFSET.with(|offset| {
-                            let pan_sensitivity = 1.0;
+                            let pan_sensitivity = ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)) * 0.001;
                             offset.update(|o| *o += delta_x * pan_sensitivity);
                         });
                         last_x.set(mouse_x);
@@ -673,7 +673,10 @@ fn ChartContainer() -> impl IntoView {
                         last_y.set(mouse_y);
                     });
 
-                    fetch_more_history(chart_signal, status_clone);
+                    let need_history = PAN_OFFSET.with(|p| p.with_untracked(|val| *val <= -950.0));
+                    if need_history {
+                        fetch_more_history(chart_signal, status_clone);
+                    }
                     return; // При драге не показываем tooltip
                 }
             });
@@ -775,7 +778,10 @@ fn ChartContainer() -> impl IntoView {
                     ZOOM_LEVEL.with(|z| z.with_untracked(|z_val| *z_val))
                 ),
             );
-            fetch_more_history(chart_signal, status_clone);
+            let need_history = PAN_OFFSET.with(|p| p.with_untracked(|val| *val <= -950.0));
+            if need_history {
+                fetch_more_history(chart_signal, status_clone);
+            }
         }
     };
 
@@ -888,7 +894,10 @@ fn ChartContainer() -> impl IntoView {
                     LogComponent::Presentation("KeyboardZoom"),
                     &format!("⌨️ Zoom level: {:.2}x", new_zoom),
                 );
-                fetch_more_history(chart_signal, status_clone);
+                let need_history = PAN_OFFSET.with(|p| p.with_untracked(|val| *val <= -950.0));
+                if need_history {
+                    fetch_more_history(chart_signal, status_clone);
+                }
             }
         }
     };
