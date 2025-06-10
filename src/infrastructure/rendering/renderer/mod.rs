@@ -8,7 +8,6 @@ use gloo::utils::document;
 use js_sys;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
-use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 use wgpu::util::DeviceExt;
 
@@ -61,7 +60,3 @@ impl Default for LineVisibility {
 mod geometry;
 mod initialization;
 mod render_loop;
-
-pub use geometry::*;
-pub use initialization::*;
-pub use render_loop::*;

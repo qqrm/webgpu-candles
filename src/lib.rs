@@ -15,13 +15,13 @@ pub fn start_app() {
     console_error_panic_hook::set_once();
     
     // Log that WASM started
-    unsafe { web_sys::console::log_1(&"🚀 WASM module initialized!".into()); }
+    web_sys::console::log_1(&"🚀 WASM module initialized!".into());
     
     // Initialize infrastructure services
     crate::infrastructure::initialize_infrastructure_services();
     
     // Mount Leptos app to body
-    unsafe { web_sys::console::log_1(&"🎯 Mounting Leptos app...".into()); }
+    web_sys::console::log_1(&"🎯 Mounting Leptos app...".into());
     
     // Hide the loading screen first
     if let Some(window) = web_sys::window() {
@@ -33,8 +33,8 @@ pub fn start_app() {
     }
     
     leptos::mount_to_body(|| view! { <crate::app::App/> });
-    
-    unsafe { web_sys::console::log_1(&"✅ Leptos app mounted!".into()); }
+
+    web_sys::console::log_1(&"✅ Leptos app mounted!".into());
 }
 
 /// Проверка WebGPU поддержки

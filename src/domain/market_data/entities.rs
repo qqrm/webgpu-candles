@@ -109,6 +109,11 @@ impl CandleSeries {
         self.candles.len()
     }
 
+    /// Максимальное количество свечей в серии
+    pub fn max_size(&self) -> usize {
+        self.max_size
+    }
+
     /// Получить последнюю цену закрытия
     pub fn get_latest_price(&self) -> Option<&Price> {
         self.candles.back().map(|candle| &candle.ohlcv.close)

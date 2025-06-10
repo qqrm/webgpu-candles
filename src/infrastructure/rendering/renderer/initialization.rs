@@ -3,10 +3,8 @@ use super::*;
 impl WebGpuRenderer {
     pub async fn is_webgpu_supported() -> bool {
         if let Some(window) = web_sys::window() {
-            unsafe {
-                let navigator = window.navigator();
-                js_sys::Reflect::has(&navigator, &"gpu".into()).unwrap_or(false)
-            }
+            let navigator = window.navigator();
+            js_sys::Reflect::has(&navigator, &"gpu".into()).unwrap_or(false)
         } else {
             false
         }

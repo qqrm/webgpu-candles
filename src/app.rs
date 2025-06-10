@@ -11,7 +11,7 @@ use wasm_bindgen_futures::spawn_local;
 use crate::{
     domain::{
         chart::Chart,
-        logging::{LogComponent, get_logger, init_logger, init_time_provider},
+        logging::{LogComponent, get_logger},
         market_data::{Candle, TimeInterval, value_objects::Symbol},
     },
     infrastructure::{rendering::WebGpuRenderer, websocket::BinanceWebSocketClient},
@@ -64,6 +64,18 @@ fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
                         ch.add_candle(candle.clone());
                     }
                 });
+
+                let new_count = chart.with(|c| c.get_candle_count());
+                let max_volume = chart.with(|c| {
+                    c.data
+                        .get_candles()
+                        .iter()
+                        .map(|c| c.ohlcv.volume.value())
+                        .fold(0.0f64, |a, b| a.max(b))
+                });
+                GLOBAL_CANDLE_COUNT.with(|c| c.set(new_count));
+                GLOBAL_MAX_VOLUME.with(|v| v.set(max_volume));
+
                 set_status.set(format!("📈 Loaded {} older candles", new_candles.len()));
             }
             Err(e) => set_status.set(format!("❌ Failed to load more data: {}", e)),
@@ -170,9 +182,7 @@ pub fn app() -> impl IntoView {
     use crate::domain::logging::{init_logger, init_time_provider};
 
     // Добавляем console.log для диагностики
-    unsafe {
-        web_sys::console::log_1(&"🚀 Starting Bitcoin Chart App".into());
-    }
+    web_sys::console::log_1(&"🚀 Starting Bitcoin Chart App".into());
 
     // Инициализируем логгер только один раз
     std::sync::Once::new().call_once(|| {
@@ -182,9 +192,7 @@ pub fn app() -> impl IntoView {
         // Создаем и устанавливаем Web time provider
         init_time_provider(Box::new(WebTimeProvider));
 
-        unsafe {
-            web_sys::console::log_1(&"✅ Logger initialized".into());
-        }
+        web_sys::console::log_1(&"✅ Logger initialized".into());
 
         get_logger().info(
             LogComponent::Presentation("App"),
@@ -198,9 +206,7 @@ pub fn app() -> impl IntoView {
         get_logger().error(LogComponent::Presentation("Test"), "Error test message");
     });
 
-    unsafe {
-        web_sys::console::log_1(&"📦 Creating view...".into());
-    }
+    web_sys::console::log_1(&"📦 Creating view...".into());
 
     view! {
         <style>
@@ -534,23 +540,17 @@ fn ChartContainer() -> impl IntoView {
     create_effect(move |_| {
         if canvas_ref.get().is_some() {
             spawn_local(async move {
-                unsafe {
-                    web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
-                }
+                web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
                 set_status.set("🚀 Initializing WebGPU renderer...".to_string());
 
                 // Детальная диагностика WebGPU
-                unsafe {
-                    web_sys::console::log_1(&"🏗️ Creating WebGPU renderer...".into());
-                }
+                web_sys::console::log_1(&"🏗️ Creating WebGPU renderer...".into());
                 get_logger().info(
                     LogComponent::Infrastructure("WebGPU"),
                     "🔍 Starting WebGPU initialization...",
                 );
 
-                unsafe {
-                    web_sys::console::log_1(&"⚡ About to call WebGpuRenderer::new...".into());
-                }
+                web_sys::console::log_1(&"⚡ About to call WebGpuRenderer::new...".into());
                 match WebGpuRenderer::new("chart-canvas", 800, 500).await {
                     Ok(webgpu_renderer) => {
                         get_logger().info(
@@ -709,11 +709,7 @@ fn ChartContainer() -> impl IntoView {
         let renderer_clone = renderer.clone();
         let status_clone = set_status.clone();
         move |event: web_sys::WheelEvent| {
-            unsafe {
-                web_sys::console::log_1(
-                    &format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into(),
-                );
-            }
+            web_sys::console::log_1(&format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into());
 
             let delta_y = event.delta_y();
             let zoom_factor = if delta_y < 0.0 { 1.1 } else { 0.9 }; // Zoom in/out
@@ -725,11 +721,7 @@ fn ChartContainer() -> impl IntoView {
                     *z = z.max(0.1).min(10.0); // Ограничиваем зум от 0.1x до 10x
                 });
                 let new_zoom = zoom.with_untracked(|z| *z);
-                unsafe {
-                    web_sys::console::log_1(
-                        &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
-                    );
-                }
+                web_sys::console::log_1(&format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into());
 
                 // Сразу применяем зум без эффектов
                 chart_signal.with_untracked(|ch| {
@@ -845,9 +837,7 @@ fn ChartContainer() -> impl IntoView {
 
             if zoom_changed {
                 let new_zoom = ZOOM_LEVEL.with(|z| z.with_untracked(|z_val| *z_val));
-                unsafe {
-                    web_sys::console::log_1(&format!("⌨️ Keyboard zoom: {:.2}x", new_zoom).into());
-                }
+                web_sys::console::log_1(&format!("⌨️ Keyboard zoom: {:.2}x", new_zoom).into());
 
                 // Применяем зум к renderer для клавиатурных команд
                 chart_signal.with_untracked(|ch| {
