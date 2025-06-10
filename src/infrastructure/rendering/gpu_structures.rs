@@ -196,6 +196,7 @@ pub struct CandleGeometry;
 
 impl CandleGeometry {
     /// Создать vertices для одной свечи
+    #[allow(clippy::too_many_arguments)]
     pub fn create_candle_vertices(
         _timestamp: f64,
         open: f32,

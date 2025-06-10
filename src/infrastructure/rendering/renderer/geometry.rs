@@ -29,11 +29,7 @@ impl WebGpuRenderer {
         let visible_count = (base_candles / self.zoom_level)
             .max(10.0)
             .min(candle_count as f64) as usize;
-        let start_index = if candle_count > visible_count {
-            candle_count - visible_count
-        } else {
-            0
-        };
+        let start_index = candle_count.saturating_sub(visible_count);
         let visible_candles: Vec<Candle> = candles
             .iter()
             .skip(start_index)
@@ -61,7 +57,7 @@ impl WebGpuRenderer {
         let spacing_ratio = 0.2; // 20% spacing between candles
         let step_size = chart_width / candle_count as f64;
         let max_candle_width = step_size * (1.0 - spacing_ratio);
-        let _candle_width = max_candle_width.max(0.01).min(0.06); // Reasonable width limits
+        let _candle_width = max_candle_width.clamp(0.01, 0.06); // Reasonable width limits
 
         log_info!(
             LogComponent::Infrastructure("WebGpuRenderer"),
@@ -100,9 +96,9 @@ impl WebGpuRenderer {
 
         // 🔍 Применяем зум к размеру свечей
         let base_step_size = chart_width / visible_candles.len() as f32;
-        let zoom_factor = self.zoom_level.max(0.1).min(10.0) as f32; // Ограничиваем зум
+        let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32; // Ограничиваем зум
         let step_size = base_step_size * zoom_factor; // При зуме > 1.0 свечи шире
-        let candle_width = (step_size * 0.8).max(0.002).min(0.1); // Увеличиваем максимальную ширину
+        let candle_width = (step_size * 0.8).clamp(0.002, 0.1); // Увеличиваем максимальную ширину
 
         for (i, candle) in visible_candles.iter().enumerate() {
             // Position X in NDC space [-1, 1] - новые свечи справа
@@ -256,7 +252,7 @@ impl WebGpuRenderer {
             ema12_color: [0.8, 0.2, 0.8, 0.9],         // Фиолетовый
             ema26_color: [0.0, 0.8, 0.8, 0.9],         // Голубой
             current_price_color: [1.0, 1.0, 0.0, 0.8], // 💰 Ярко-желтый
-            render_params: [candle_width as f32, spacing_ratio as f32, 0.004, 0.0],
+            render_params: [candle_width, spacing_ratio as f32, 0.004, 0.0],
         };
 
         (vertices, uniforms)
@@ -303,8 +299,8 @@ impl WebGpuRenderer {
             let multiplier = 2.0 / (12.0 + 1.0); // EMA multiplier
             let mut ema = candles[0].ohlcv.close.value() as f32; // Начальное значение
 
-            for i in 1..candle_count {
-                let close = candles[i].ohlcv.close.value() as f32;
+            for (i, candle) in candles.iter().enumerate().skip(1) {
+                let close = candle.ohlcv.close.value() as f32;
                 ema = (close * multiplier) + (ema * (1.0 - multiplier));
 
                 if i >= 11 {
@@ -441,7 +437,7 @@ impl WebGpuRenderer {
         let volume_height = volume_top - volume_bottom;
 
         let base_step_size = 2.0 / candle_count as f32;
-        let zoom_factor = self.zoom_level.max(0.1).min(10.0) as f32;
+        let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
         let step_size = base_step_size * zoom_factor;
         let bar_width = (step_size * 0.8).max(0.002); // 80% от step_size
         let pan_factor = (self.pan_offset * 0.001) as f32;
@@ -481,6 +477,7 @@ impl WebGpuRenderer {
         vertices
     }
 
+    #[allow(dead_code)]
     fn create_candles(&self, candles: &[Candle]) -> Vec<CandleVertex> {
         let mut vertices = Vec::with_capacity(candles.len() * 12);
         if candles.is_empty() {

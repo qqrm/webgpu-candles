@@ -14,5 +14,7 @@ jobs:
         run: cargo install wasm-pack
       - name: Cargo check
         run: cargo check
+      - name: Cargo clippy
+        run: cargo clippy --tests --benches -- -D warnings
       - name: Run tests
         run: wasm-pack test --headless --chrome

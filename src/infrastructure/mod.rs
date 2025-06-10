@@ -57,6 +57,12 @@ pub mod services {
     /// Browser-based time provider using JS Date API
     pub struct BrowserTimeProvider;
 
+    impl Default for BrowserTimeProvider {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl BrowserTimeProvider {
         pub fn new() -> Self {
             Self

@@ -13,7 +13,7 @@ use wgpu::util::DeviceExt;
 use std::cell::RefCell;
 use std::rc::Rc;
 thread_local! {
-    static GLOBAL_RENDERER: RefCell<Option<Rc<RefCell<WebGpuRenderer>>>> = RefCell::new(None);
+    static GLOBAL_RENDERER: RefCell<Option<Rc<RefCell<WebGpuRenderer>>>> = const { RefCell::new(None) };
 }
 
 /// Сохранить глобальный экземпляр рендерера
@@ -29,12 +29,8 @@ where
     F: FnOnce(&mut WebGpuRenderer) -> R,
 {
     GLOBAL_RENDERER.with(|cell| {
-        let mut opt = cell.borrow_mut();
-        if let Some(rc) = opt.as_ref() {
-            Some(f(&mut *rc.borrow_mut()))
-        } else {
-            None
-        }
+        let opt = cell.borrow_mut();
+        opt.as_ref().map(|rc| f(&mut rc.borrow_mut()))
     })
 }
 
