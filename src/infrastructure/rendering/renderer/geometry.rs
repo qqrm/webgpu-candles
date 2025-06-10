@@ -440,11 +440,15 @@ impl WebGpuRenderer {
         let volume_bottom = -1.0;
         let volume_height = volume_top - volume_bottom;
 
-        let step_size = 2.0 / candle_count as f32;
+        let base_step_size = 2.0 / candle_count as f32;
+        let zoom_factor = self.zoom_level.max(0.1).min(10.0) as f32;
+        let step_size = base_step_size * zoom_factor;
         let bar_width = (step_size * 0.8).max(0.002); // 80% от step_size
+        let pan_factor = (self.pan_offset * 0.001) as f32;
 
         for (i, candle) in candles.iter().enumerate() {
-            let x = -1.0 + (i as f32 + 0.5) * step_size;
+            let base_x = -1.0 + (i as f32 + 0.5) * base_step_size;
+            let x = (base_x + pan_factor).clamp(-1.0, 1.0);
             let volume_normalized = (candle.ohlcv.volume.value() as f32) / max_volume;
             let bar_height = volume_height * volume_normalized;
             let bar_top = volume_bottom + bar_height;
