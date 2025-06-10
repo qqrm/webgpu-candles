@@ -36,7 +36,7 @@
             100% { transform: rotate(360deg); }
         }
     </style>
-<link rel="modulepreload" href="./price-chart-wasm-88c21f3841d4e185.js" crossorigin="anonymous" integrity="sha384-YNloKmKHCm/C2N+QVERlZQ0dfVsYwTcVPySfuxMyW0lzAFCX6w1sR+Dg1ieJvbUY"><link rel="preload" href="./price-chart-wasm-88c21f3841d4e185_bg.wasm" crossorigin="anonymous" integrity="sha384-P5fTs9PCNzkLvCTcp+ArprVjmPVX9x6nv9FHpc5rj/m3+mpP/xc6DKuKfgLsSpBG" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/price-chart-wasm-f5dc8e4986a39860.js" crossorigin="anonymous" integrity="sha384-SsVZD8IXQ+bGWcRzKvj324XTiY7+zdrtNlacg2qlQ+d2B7hvScmLZWKYTWT6szPT"><link rel="preload" href="/price-chart-wasm-f5dc8e4986a39860_bg.wasm" crossorigin="anonymous" integrity="sha384-4CzvcGeYNFK4ZFI+/1fOVNvQ2008WqE/24VLcbbslBnVFPAL2w6UZRQjBJN23OGS" as="fetch" type="application/wasm"></head>
 <body>
     <!-- Loading screen -->
     <div id="loading">
@@ -50,8 +50,8 @@
     <!-- Trunk автоматически подключит WASM здесь -->
     
 <script type="module">
-import init, * as bindings from './price-chart-wasm-88c21f3841d4e185.js';
-const wasm = await init({ module_or_path: './price-chart-wasm-88c21f3841d4e185_bg.wasm' });
+import init, * as bindings from '/price-chart-wasm-f5dc8e4986a39860.js';
+const wasm = await init({ module_or_path: '/price-chart-wasm-f5dc8e4986a39860_bg.wasm' });
 
 
 window.wasmBindings = bindings;
