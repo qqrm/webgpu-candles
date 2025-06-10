@@ -77,6 +77,7 @@ wasm-pack test --headless --chrome -- --nocapture
 ```
 
 FPS выводится в консоль, а workflow `perf.yml` сохраняет лог артефактом.
+Актуальные значения метрик сохраняются в [docs/perf.md](docs/perf.md).
 
 ## Тесты
 
