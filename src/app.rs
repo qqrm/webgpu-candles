@@ -11,7 +11,7 @@ use wasm_bindgen_futures::spawn_local;
 use crate::{
     domain::{
         chart::Chart,
-        logging::{LogComponent, get_logger, init_logger, init_time_provider},
+        logging::{LogComponent, LogLevel, get_logger, init_logger, init_time_provider},
         market_data::{Candle, TimeInterval, value_objects::Symbol},
     },
     infrastructure::{rendering::WebGpuRenderer, websocket::BinanceWebSocketClient},
@@ -125,8 +125,11 @@ impl TooltipData {
 /// 🌉 Bridge logger для подключения domain::logging к Leptos сигналам
 pub struct LeptosLogger;
 
-/// ⏰ Web time provider для domain::logging  
+/// ⏰ Web time provider для domain::logging
 pub struct WebTimeProvider;
+
+/// Минимальный уровень логирования для LeptosLogger
+const MIN_LOG_LEVEL: LogLevel = LogLevel::Warn;
 
 impl crate::domain::logging::TimeProvider for WebTimeProvider {
     fn current_timestamp(&self) -> u64 {
@@ -148,6 +151,10 @@ impl crate::domain::logging::TimeProvider for WebTimeProvider {
 impl crate::domain::logging::Logger for LeptosLogger {
     fn log(&self, entry: crate::domain::logging::LogEntry) {
         use crate::domain::logging::get_time_provider;
+
+        if entry.level < MIN_LOG_LEVEL {
+            return;
+        }
 
         let timestamp_str = get_time_provider().format_timestamp(entry.timestamp);
         let formatted = format!(
@@ -179,6 +186,7 @@ pub fn app() -> impl IntoView {
     use crate::domain::logging::{init_logger, init_time_provider};
 
     // Добавляем console.log для диагностики
+    #[cfg(debug_assertions)]
     unsafe {
         web_sys::console::log_1(&"🚀 Starting Bitcoin Chart App".into());
     }
@@ -191,6 +199,7 @@ pub fn app() -> impl IntoView {
         // Создаем и устанавливаем Web time provider
         init_time_provider(Box::new(WebTimeProvider));
 
+        #[cfg(debug_assertions)]
         unsafe {
             web_sys::console::log_1(&"✅ Logger initialized".into());
         }
@@ -199,14 +208,9 @@ pub fn app() -> impl IntoView {
             LogComponent::Presentation("App"),
             "🚀 Global logger and time provider initialized!",
         );
-
-        // Тестовые логи для проверки
-        get_logger().debug(LogComponent::Domain("Test"), "Debug test message");
-        get_logger().info(LogComponent::Application("Test"), "Info test message");
-        get_logger().warn(LogComponent::Infrastructure("Test"), "Warning test message");
-        get_logger().error(LogComponent::Presentation("Test"), "Error test message");
     });
 
+    #[cfg(debug_assertions)]
     unsafe {
         web_sys::console::log_1(&"📦 Creating view...".into());
     }
@@ -532,12 +536,14 @@ fn ChartContainer() -> impl IntoView {
     create_effect(move |_| {
         if canvas_ref.get().is_some() {
             spawn_local(async move {
+                #[cfg(debug_assertions)]
                 unsafe {
                     web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
                 }
                 set_status.set("🚀 Initializing WebGPU renderer...".to_string());
 
                 // Детальная диагностика WebGPU
+                #[cfg(debug_assertions)]
                 unsafe {
                     web_sys::console::log_1(&"🏗️ Creating WebGPU renderer...".into());
                 }
@@ -546,6 +552,7 @@ fn ChartContainer() -> impl IntoView {
                     "🔍 Starting WebGPU initialization...",
                 );
 
+                #[cfg(debug_assertions)]
                 unsafe {
                     web_sys::console::log_1(&"⚡ About to call WebGpuRenderer::new...".into());
                 }
@@ -721,6 +728,7 @@ fn ChartContainer() -> impl IntoView {
         let renderer_clone = renderer.clone();
         let status_clone = set_status.clone();
         move |event: web_sys::WheelEvent| {
+            #[cfg(debug_assertions)]
             unsafe {
                 web_sys::console::log_1(
                     &format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into(),
@@ -737,6 +745,7 @@ fn ChartContainer() -> impl IntoView {
                     *z = z.max(0.1).min(10.0); // Ограничиваем зум от 0.1x до 10x
                 });
                 let new_zoom = zoom.with_untracked(|z| *z);
+                #[cfg(debug_assertions)]
                 unsafe {
                     web_sys::console::log_1(
                         &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
@@ -870,6 +879,7 @@ fn ChartContainer() -> impl IntoView {
 
             if zoom_changed {
                 let new_zoom = ZOOM_LEVEL.with(|z| z.with_untracked(|z_val| *z_val));
+                #[cfg(debug_assertions)]
                 unsafe {
                     web_sys::console::log_1(&format!("⌨️ Keyboard zoom: {:.2}x", new_zoom).into());
                 }
