@@ -206,7 +206,7 @@ pub fn app() -> impl IntoView {
             "🚀 Global logger and time provider initialized!",
         );
     });
-  
+
     web_sys::console::log_1(&"📦 Creating view...".into());
 
     view! {
@@ -713,7 +713,6 @@ fn ChartContainer() -> impl IntoView {
         move |event: web_sys::WheelEvent| {
             web_sys::console::log_1(&format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into());
 
-
             let delta_y = event.delta_y();
             let zoom_factor = if delta_y < 0.0 { 1.1 } else { 0.9 }; // Zoom in/out
 
@@ -724,7 +723,9 @@ fn ChartContainer() -> impl IntoView {
                     *z = z.max(0.1).min(10.0); // Ограничиваем зум от 0.1x до 10x
                 });
                 let new_zoom = zoom.with_untracked(|z| *z);
-                web_sys::console::log_1(&format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into());
+                web_sys::console::log_1(
+                    &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
+                );
 
                 // Сразу применяем зум без эффектов
                 chart_signal.with_untracked(|ch| {
