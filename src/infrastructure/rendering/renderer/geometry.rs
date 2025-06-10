@@ -57,14 +57,14 @@ impl WebGpuRenderer {
         let spacing_ratio = 0.2; // 20% spacing between candles
         let step_size = chart_width / candle_count as f64;
         let max_candle_width = step_size * (1.0 - spacing_ratio);
-        let candle_width = max_candle_width.max(0.01).min(0.06); // Reasonable width limits
+        let _candle_width = max_candle_width.max(0.01).min(0.06); // Reasonable width limits
 
         log_info!(
             LogComponent::Infrastructure("WebGpuRenderer"),
             "📏 Price range: {:.2} - {:.2}, Candle width: {:.4}, step:{:.4}",
             min_price,
             max_price,
-            candle_width,
+            _candle_width,
             step_size
         );
 
