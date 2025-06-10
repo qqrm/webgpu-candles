@@ -91,6 +91,10 @@ impl WebGpuRenderer {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
+        let start_pass = web_sys::window()
+            .and_then(|w| w.performance())
+            .map(|p| p.now());
+
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -126,6 +130,21 @@ impl WebGpuRenderer {
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
+
+        if let Some(start) = start_pass {
+            if let Some(window) = web_sys::window() {
+                if let Some(perf) = window.performance() {
+                    let end = perf.now();
+                    let duration = end - start;
+                    log_info!(
+                        LogComponent::Infrastructure("WebGpuRenderer"),
+                        "\u{23f1}\u{fe0f} Render pass took {:.2} ms",
+                        duration
+                    );
+                }
+            }
+        }
+
         output.present();
 
         Ok(())
