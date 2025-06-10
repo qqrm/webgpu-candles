@@ -93,8 +93,8 @@ TOOLTIP_DATA: TooltipData    // Данные tooltip
 
 **WebSocket:**
 - Interval: 1m candles
-- Symbol: BTCUSDT  
-- Auto-reconnect при ошибках
+- Symbol: BTCUSDT
+- Auto-reconnect с экспоненциальной задержкой (см. [реализацию](src/infrastructure/websocket/binance_client.rs#L146-L223))
 
 **Leptos:**
 - SSR отключен (client-only)
