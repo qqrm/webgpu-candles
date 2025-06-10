@@ -1,4 +1,4 @@
-pub use super::value_objects::{Timestamp, OHLCV, Price, Volume};
+pub use super::value_objects::{OHLCV, Price, Timestamp, Volume};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
@@ -57,7 +57,7 @@ impl CandleSeries {
                 *last_candle = candle;
                 return;
             }
-            
+
             // Проверяем хронологический порядок
             if candle.timestamp.value() < last_candle.timestamp.value() {
                 // Если новая свеча старше последней, нужна вставка с сортировкой
@@ -67,7 +67,7 @@ impl CandleSeries {
         }
 
         self.candles.push_back(candle);
-        
+
         // Ограничиваем размер для производительности
         if self.candles.len() > self.max_size {
             self.candles.pop_front();
@@ -82,15 +82,15 @@ impl CandleSeries {
             .iter()
             .position(|c| c.timestamp.value() >= candle.timestamp.value())
             .unwrap_or(self.candles.len());
-        
+
         // Если свеча с таким timestamp уже существует, заменяем её
-        if insert_pos < self.candles.len() && 
-           self.candles[insert_pos].timestamp == candle.timestamp {
+        if insert_pos < self.candles.len() && self.candles[insert_pos].timestamp == candle.timestamp
+        {
             self.candles[insert_pos] = candle;
         } else {
             self.candles.insert(insert_pos, candle);
         }
-        
+
         // Ограничиваем размер
         if self.candles.len() > self.max_size {
             self.candles.pop_front();
@@ -149,4 +149,3 @@ impl CandleSeries {
         Some((min_price, max_price))
     }
 }
-

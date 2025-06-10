@@ -16,13 +16,13 @@ pub fn start_app() {
 
     // Log that WASM started
     web_sys::console::log_1(&"🚀 WASM module initialized!".into());
-    
+
     // Initialize infrastructure services
     crate::infrastructure::initialize_infrastructure_services();
 
     // Mount Leptos app to body
     web_sys::console::log_1(&"🎯 Mounting Leptos app...".into());
-    
+
     // Hide the loading screen first
     if let Some(window) = web_sys::window() {
         if let Some(document) = window.document() {
@@ -48,10 +48,8 @@ pub async fn is_webgpu_supported() -> bool {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn get_renderer_performance() -> String {
-    crate::infrastructure::rendering::renderer::with_global_renderer(|r| {
-        r.get_performance_info()
-    })
-    .unwrap_or_else(|| "{\"backend\":\"WebGPU\",\"status\":\"not_ready\"}".to_string())
+    crate::infrastructure::rendering::renderer::with_global_renderer(|r| r.get_performance_info())
+        .unwrap_or_else(|| "{\"backend\":\"WebGPU\",\"status\":\"not_ready\"}".to_string())
 }
 
 // Clean WASM exports only

@@ -1,13 +1,13 @@
+pub mod chart;
 /// **CLEAN DOMAIN LAYER** - 100% чистые бизнес абстракции
 /// Соответствует принципам ARCHITECTURE.md v3.0
 // === CORE AGGREGATES ===
-pub mod market_data;  // Агрегат: Рыночные данные
-pub mod chart;        // Агрегат: Графики
+pub mod market_data; // Агрегат: Рыночные данные // Агрегат: Графики
 
 // === DOMAIN INFRASTRUCTURE ===
-pub mod logging;      // 🆕 Абстракции логирования (Logger, TimeProvider traits)
-pub mod errors;       // 🆕 Типизированные ошибки (DomainError hierarchy)
+pub mod errors;
+pub mod logging; // 🆕 Абстракции логирования (Logger, TimeProvider traits) // 🆕 Типизированные ошибки (DomainError hierarchy)
 
 // === CLEAN EXPORTS ===
-pub use logging::*; 
-pub use errors::*; 
+pub use errors::*;
+pub use logging::*;

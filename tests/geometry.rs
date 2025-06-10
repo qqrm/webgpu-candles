@@ -1,6 +1,6 @@
-use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Volume, Timestamp};
-use price_chart_wasm::infrastructure::rendering::gpu_structures::CandleGeometry;
 use insta::{assert_json_snapshot, with_settings};
+use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
+use price_chart_wasm::infrastructure::rendering::gpu_structures::CandleGeometry;
 
 fn sample_candles() -> Vec<Candle> {
     vec![
@@ -30,8 +30,14 @@ fn sample_candles() -> Vec<Candle> {
 #[test]
 fn candle_geometry_snapshot() {
     let candles = sample_candles();
-    let min_price = candles.iter().map(|c| c.ohlcv.low.value()).fold(f64::INFINITY, f64::min);
-    let max_price = candles.iter().map(|c| c.ohlcv.high.value()).fold(f64::NEG_INFINITY, f64::max);
+    let min_price = candles
+        .iter()
+        .map(|c| c.ohlcv.low.value())
+        .fold(f64::INFINITY, f64::min);
+    let max_price = candles
+        .iter()
+        .map(|c| c.ohlcv.high.value())
+        .fold(f64::NEG_INFINITY, f64::max);
     let price_range = max_price - min_price;
     let normalize = |p: f64| ((p - min_price) / price_range * 2.0 - 1.0) as f32;
 
@@ -52,7 +58,11 @@ fn candle_geometry_snapshot() {
             normalize(c.ohlcv.close.value()),
             width,
         );
-        result.extend(verts.into_iter().map(|v| [v.position_x, v.position_y, v.element_type, v.color_type]));
+        result.extend(
+            verts
+                .into_iter()
+                .map(|v| [v.position_x, v.position_y, v.element_type, v.color_type]),
+        );
     }
 
     with_settings!({snapshot_path => "tests/fixtures"}, {

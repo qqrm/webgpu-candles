@@ -1,5 +1,5 @@
+use crate::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use serde::{Deserialize, Serialize};
-use crate::domain::market_data::{Candle, Timestamp, OHLCV, Price, Volume};
 use wasm_bindgen::JsValue;
 
 /// DTO для данных Kline от Binance
@@ -55,16 +55,26 @@ impl BinanceKline {
     /// Конвертирует DTO в доменную сущность
     pub fn to_domain_candle(&self) -> Result<Candle, JsValue> {
         let timestamp = Timestamp::from(self.start_time);
-        
-        let open = self.open_price.parse::<f32>()
+
+        let open = self
+            .open_price
+            .parse::<f32>()
             .map_err(|e| JsValue::from_str(&format!("Parse open error: {}", e)))?;
-        let high = self.high_price.parse::<f32>()
+        let high = self
+            .high_price
+            .parse::<f32>()
             .map_err(|e| JsValue::from_str(&format!("Parse high error: {}", e)))?;
-        let low = self.low_price.parse::<f32>()
+        let low = self
+            .low_price
+            .parse::<f32>()
             .map_err(|e| JsValue::from_str(&format!("Parse low error: {}", e)))?;
-        let close = self.close_price.parse::<f32>()
+        let close = self
+            .close_price
+            .parse::<f32>()
             .map_err(|e| JsValue::from_str(&format!("Parse close error: {}", e)))?;
-        let volume = self.base_asset_volume.parse::<f32>()
+        let volume = self
+            .base_asset_volume
+            .parse::<f32>()
             .map_err(|e| JsValue::from_str(&format!("Parse volume error: {}", e)))?;
 
         let ohlcv = OHLCV::new(
@@ -173,4 +183,4 @@ pub struct BinanceTicker24hr {
     pub last_trade_id: u64,
     #[serde(rename = "n")]
     pub total_number_of_trades: u64,
-} 
+}
