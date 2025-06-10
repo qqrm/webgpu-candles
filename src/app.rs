@@ -41,16 +41,12 @@ thread_local! {
 }
 
 /// 📈 Запрашивает дополнительную историю и добавляет в начало списка
-fn fetch_more_history(
-    set_candles: WriteSignal<Vec<Candle>>,
-    candles: ReadSignal<Vec<Candle>>,
-    set_status: WriteSignal<String>,
-) {
+fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
     if LOADING_MORE.with(|l| l.get()) {
         return;
     }
 
-    let oldest_ts = candles.with(|c| c.first().map(|c| c.timestamp.value()));
+    let oldest_ts = chart.with(|c| c.data.get_candles().front().map(|c| c.timestamp.value()));
     let end_time = match oldest_ts {
         Some(ts) if ts > 0 => ts - 1,
         _ => return,
@@ -63,14 +59,9 @@ fn fetch_more_history(
         match client.fetch_historical_data_before(end_time, 300).await {
             Ok(mut new_candles) => {
                 new_candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
-                set_candles.update(|existing| {
+                chart.update(|ch| {
                     for candle in new_candles.iter() {
-                        if !existing.iter().any(|e| e.timestamp == candle.timestamp) {
-                            existing.insert(0, candle.clone());
-                        }
-                    }
-                    while existing.len() > 1000 {
-                        existing.pop();
+                        ch.add_candle(candle.clone());
                     }
                 });
                 set_status.set(format!("📈 Loaded {} older candles", new_candles.len()));
@@ -432,21 +423,24 @@ fn header() -> impl IntoView {
 }
 
 #[component]
-fn PriceAxisLeft(candles: ReadSignal<Vec<Candle>>) -> impl IntoView {
+fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
     let labels = move || {
-        let candles = candles.get();
+        let candles = chart.with(|c| c.data.get_candles().clone());
         if candles.is_empty() {
             return vec![];
         }
         let max_visible = 300;
-        let visible = if candles.len() > max_visible {
-            &candles[candles.len() - max_visible..]
+        let start_idx = if candles.len() > max_visible {
+            candles.len() - max_visible
         } else {
-            &candles[..]
+            0
         };
-        let (min, max) = visible.iter().fold((f64::MAX, f64::MIN), |(min, max), c| {
-            (min.min(c.ohlcv.low.value()), max.max(c.ohlcv.high.value()))
-        });
+        let (min, max) = candles
+            .iter()
+            .skip(start_idx)
+            .fold((f64::MAX, f64::MIN), |(min, max), c| {
+                (min.min(c.ohlcv.low.value()), max.max(c.ohlcv.high.value()))
+            });
         let step = (max - min) / 8.0;
         (0..=8)
             .rev()
@@ -469,18 +463,18 @@ fn PriceAxisLeft(candles: ReadSignal<Vec<Candle>>) -> impl IntoView {
 
 /// ⏰ Временная шкала снизу графика
 #[component]
-fn TimeScale(candles: ReadSignal<Vec<Candle>>) -> impl IntoView {
+fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
     let time_labels = move || {
-        let candles = candles.get();
+        let candles = chart.with(|c| c.data.get_candles().clone());
         if candles.is_empty() {
             return vec![];
         }
 
         let max_visible = 300;
-        let visible = if candles.len() > max_visible {
-            &candles[candles.len() - max_visible..]
+        let start_idx = if candles.len() > max_visible {
+            candles.len() - max_visible
         } else {
-            &candles[..]
+            0
         };
 
         // Показываем 5 временных меток
@@ -488,8 +482,12 @@ fn TimeScale(candles: ReadSignal<Vec<Candle>>) -> impl IntoView {
         let mut labels = Vec::new();
 
         for i in 0..num_labels {
-            let index = (i * visible.len()) / (num_labels - 1);
-            if let Some(candle) = visible.get(index.min(visible.len() - 1)) {
+            let index = (i * (candles.len() - start_idx)) / (num_labels - 1);
+            if let Some(candle) = candles
+                .iter()
+                .skip(start_idx)
+                .nth(index.min(candles.len() - start_idx - 1))
+            {
                 let timestamp = candle.timestamp.value();
                 // Конвертируем timestamp в читаемое время
                 let date = js_sys::Date::new(&(timestamp as f64).into());
@@ -520,8 +518,12 @@ fn TimeScale(candles: ReadSignal<Vec<Candle>>) -> impl IntoView {
 /// 🎨 Контейнер для WebGPU графика
 #[component]
 fn ChartContainer() -> impl IntoView {
-    // Реактивные сигналы для графика
-    let (candles, set_candles) = create_signal::<Vec<Candle>>(Vec::new());
+    // Сигналы для графика
+    let chart = create_rw_signal(Chart::new(
+        "leptos-chart".to_string(),
+        crate::domain::chart::ChartType::Candlestick,
+        1000,
+    ));
     let (renderer, set_renderer) = create_signal::<Option<Rc<RefCell<WebGpuRenderer>>>>(None);
     let (status, set_status) = create_signal("Initializing...".to_string());
 
@@ -565,7 +567,7 @@ fn ChartContainer() -> impl IntoView {
                             LogComponent::Infrastructure("WebSocket"),
                             "🌐 Starting WebSocket stream...",
                         );
-                        start_websocket_stream(set_candles, set_status).await;
+                        start_websocket_stream(chart, set_status).await;
                     }
                     Err(e) => {
                         get_logger().error(
@@ -606,7 +608,7 @@ fn ChartContainer() -> impl IntoView {
                             test_candles.push(candle);
                         }
 
-                        set_candles.set(test_candles);
+                        chart.update(|ch| ch.set_historical_data(test_candles));
                         set_status
                             .set("🎯 Demo mode: Using test data (WebSocket disabled)".to_string());
                     }
@@ -617,41 +619,27 @@ fn ChartContainer() -> impl IntoView {
 
     // Эффект для рендеринга при изменении данных
     create_effect(move |_| {
-        candles.with(|candles_data| {
-            renderer.with(|renderer_opt| {
-                if let Some(renderer_rc) = renderer_opt {
-                    if !candles_data.is_empty() {
-                        // Создаем Chart и рендерим
-                        let mut chart = Chart::new(
-                            "leptos-chart".to_string(),
-                            crate::domain::chart::ChartType::Candlestick,
-                            1000,
-                        );
-
-                        // Добавляем данные в chart
-                        for candle in candles_data.iter() {
-                            chart.data.add_candle(candle.clone());
-                        }
-
-                        // Рендерим реальные свечи (WebGPU работает!)
+        renderer.with(|renderer_opt| {
+            if let Some(renderer_rc) = renderer_opt {
+                chart.with(|ch| {
+                    if ch.get_candle_count() > 0 {
                         if let Ok(webgpu_renderer) = renderer_rc.try_borrow() {
-                            if let Err(e) = webgpu_renderer.render(&chart) {
+                            if let Err(e) = webgpu_renderer.render(ch) {
                                 set_status.set(format!("❌ Render error: {:?}", e));
                             } else {
                                 set_status
-                                    .set(format!("✅ Rendered {} candles", candles_data.len()));
+                                    .set(format!("✅ Rendered {} candles", ch.get_candle_count()));
                             }
                         }
                     }
-                }
-            });
+                });
+            }
         });
     });
 
     // 🎯 Mouse events для tooltip
     let handle_mouse_move = {
-        let candles_clone = candles.clone();
-        let set_candles_clone = set_candles;
+        let chart_signal = chart;
         let status_clone = set_status.clone();
         move |event: web_sys::MouseEvent| {
             let mouse_x = event.offset_x() as f64;
@@ -669,7 +657,7 @@ fn ChartContainer() -> impl IntoView {
                         });
                         last_x.set(mouse_x);
                     });
-                    fetch_more_history(set_candles_clone, candles_clone, status_clone);
+                    fetch_more_history(chart_signal, status_clone);
                     return; // При драге не показываем tooltip
                 }
             });
@@ -680,21 +668,22 @@ fn ChartContainer() -> impl IntoView {
             let ndc_x = (mouse_x / canvas_width) * 2.0 - 1.0;
             let _ndc_y = 1.0 - (mouse_y / canvas_height) * 2.0;
 
-            candles_clone.with(|candles_data| {
-                if !candles_data.is_empty() {
+            chart_signal.with(|ch| {
+                let candles = ch.data.get_candles();
+                if !candles.is_empty() {
                     let max_visible = 300;
-                    let start_idx = if candles_data.len() > max_visible {
-                        candles_data.len() - max_visible
+                    let start_idx = if candles.len() > max_visible {
+                        candles.len() - max_visible
                     } else {
                         0
                     };
-                    let visible = &candles_data[start_idx..];
+                    let visible: Vec<_> = candles.iter().skip(start_idx).collect();
 
                     let step_size = 2.0 / visible.len() as f64;
                     let candle_idx = ((ndc_x + 1.0) / step_size).floor() as usize;
 
                     if candle_idx < visible.len() {
-                        let candle = &visible[candle_idx];
+                        let candle = visible[candle_idx];
                         let tooltip_data = TooltipData::new(candle.clone(), mouse_x, mouse_y);
 
                         TOOLTIP_DATA.with(|data| data.set(Some(tooltip_data)));
@@ -716,8 +705,7 @@ fn ChartContainer() -> impl IntoView {
 
     // 🔍 Зум колесиком мыши - упрощенная версия без эффектов
     let handle_wheel = {
-        let candles_clone = candles.clone();
-        let set_candles_clone = set_candles;
+        let chart_signal = chart;
         let renderer_clone = renderer.clone();
         let status_clone = set_status.clone();
         move |event: web_sys::WheelEvent| {
@@ -744,29 +732,17 @@ fn ChartContainer() -> impl IntoView {
                 }
 
                 // Сразу применяем зум без эффектов
-                candles_clone.with_untracked(|candles_data| {
-                    if !candles_data.is_empty() {
+                chart_signal.with_untracked(|ch| {
+                    if ch.get_candle_count() > 0 {
                         renderer_clone.with_untracked(|renderer_opt| {
                             if let Some(renderer_rc) = renderer_opt {
                                 if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
-                                    // ✅ Устанавливаем зум параметры в renderer
                                     webgpu_renderer.set_zoom_params(
                                         new_zoom,
                                         PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
                                     );
 
-                                    let mut chart = Chart::new(
-                                        "wheel-zoom-chart".to_string(),
-                                        crate::domain::chart::ChartType::Candlestick,
-                                        1000,
-                                    );
-
-                                    for candle in candles_data.iter() {
-                                        chart.data.add_candle(candle.clone());
-                                    }
-
-                                    // 🔍 Теперь рендерим с применением зума
-                                    let _ = webgpu_renderer.render(&chart);
+                                    let _ = webgpu_renderer.render(ch);
 
                                     get_logger().info(
                                         LogComponent::Infrastructure("ZoomWheel"),
@@ -789,7 +765,7 @@ fn ChartContainer() -> impl IntoView {
                     ZOOM_LEVEL.with(|z| z.with_untracked(|z_val| *z_val))
                 ),
             );
-            fetch_more_history(set_candles_clone, candles_clone, status_clone);
+            fetch_more_history(chart_signal, status_clone);
         }
     };
 
@@ -816,8 +792,7 @@ fn ChartContainer() -> impl IntoView {
 
     // ⌨️ Клавиши для зума (+/- и PageUp/PageDown)
     let handle_keydown = {
-        let candles_clone = candles.clone();
-        let set_candles_clone = set_candles;
+        let chart_signal = chart;
         let renderer_clone = renderer.clone();
         let status_clone = set_status.clone();
         move |event: web_sys::KeyboardEvent| {
@@ -875,8 +850,8 @@ fn ChartContainer() -> impl IntoView {
                 }
 
                 // Применяем зум к renderer для клавиатурных команд
-                candles_clone.with_untracked(|candles_data| {
-                    if !candles_data.is_empty() {
+                chart_signal.with_untracked(|ch| {
+                    if ch.get_candle_count() > 0 {
                         renderer_clone.with_untracked(|renderer_opt| {
                             if let Some(renderer_rc) = renderer_opt {
                                 if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
@@ -885,17 +860,7 @@ fn ChartContainer() -> impl IntoView {
                                         PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
                                     );
 
-                                    let mut chart = Chart::new(
-                                        "keyboard-zoom-chart".to_string(),
-                                        crate::domain::chart::ChartType::Candlestick,
-                                        1000,
-                                    );
-
-                                    for candle in candles_data.iter() {
-                                        chart.data.add_candle(candle.clone());
-                                    }
-
-                                    let _ = webgpu_renderer.render(&chart);
+                                    let _ = webgpu_renderer.render(ch);
 
                                     get_logger().info(
                                         LogComponent::Infrastructure("KeyboardZoom"),
@@ -914,7 +879,7 @@ fn ChartContainer() -> impl IntoView {
                     LogComponent::Presentation("KeyboardZoom"),
                     &format!("⌨️ Zoom level: {:.2}x", new_zoom),
                 );
-                fetch_more_history(set_candles_clone, candles_clone, status_clone);
+                fetch_more_history(chart_signal, status_clone);
             }
         }
     };
@@ -924,7 +889,7 @@ fn ChartContainer() -> impl IntoView {
     view! {
         <div class="chart-container">
             <div style="display: flex; flex-direction: row; align-items: flex-start;">
-                <PriceAxisLeft candles=candles />
+                <PriceAxisLeft chart=chart />
                 <div style="position: relative;">
                     <canvas
                         id="chart-canvas"
@@ -947,7 +912,7 @@ fn ChartContainer() -> impl IntoView {
 
             // Временная шкала под графиком
             <div style="display: flex; justify-content: center; margin-top: 10px;">
-                <TimeScale candles=candles />
+                <TimeScale chart=chart />
             </div>
 
             <div class="status">
@@ -1122,10 +1087,7 @@ fn DebugConsole() -> impl IntoView {
 }
 
 /// 🌐 Запуск WebSocket стрима в Leptos с обновлением глобальных сигналов
-async fn start_websocket_stream(
-    set_candles: WriteSignal<Vec<Candle>>,
-    set_status: WriteSignal<String>,
-) {
+async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
     let symbol = Symbol::from("BTCUSDT");
     let interval = TimeInterval::OneMinute;
 
@@ -1145,11 +1107,11 @@ async fn start_websocket_stream(
                 &format!("✅ Loaded {} historical candles", historical_candles.len()),
             );
 
-            // Загружаем исторические данные в UI
-            set_candles.set(historical_candles.clone());
+            chart.update(|ch| ch.set_historical_data(historical_candles.clone()));
 
             // Обновляем глобальные сигналы с историческими данными
-            GLOBAL_CANDLE_COUNT.with(|count| count.set(historical_candles.len()));
+            let cnt = chart.with(|c| c.get_candle_count());
+            GLOBAL_CANDLE_COUNT.with(|count| count.set(cnt));
 
             if let Some(last_candle) = historical_candles.last() {
                 GLOBAL_CURRENT_PRICE.with(|price| {
@@ -1189,37 +1151,21 @@ async fn start_websocket_stream(
                 price.set(candle.ohlcv.close.value() as f64);
             });
 
-            // Реактивно обновляем данные в Leptos!
-            set_candles.update(|candles| {
-                let new_timestamp = candle.timestamp.value();
+            chart.update(|ch| {
+                ch.add_realtime_candle(candle.clone());
+            });
 
-                if let Some(last_candle) = candles.last_mut() {
-                    if last_candle.timestamp.value() == new_timestamp {
-                        // Обновляем существующую свечу
-                        *last_candle = candle;
-                    } else if new_timestamp > last_candle.timestamp.value() {
-                        // Добавляем новую свечу
-                        candles.push(candle);
+            let count = chart.with(|c| c.get_candle_count());
+            GLOBAL_CANDLE_COUNT.with(|cnt| cnt.set(count));
 
-                        // Ограничиваем до 300 свечей
-                        while candles.len() > 300 {
-                            candles.remove(0);
-                        }
-                    }
-                } else {
-                    candles.push(candle);
-                }
-
-                // Обновляем счетчик свечей
-                GLOBAL_CANDLE_COUNT.with(|count| count.set(candles.len()));
-
-                // Обновляем максимальный объем
-                let max_vol = candles
+            let max_vol = chart.with(|c| {
+                c.data
+                    .get_candles()
                     .iter()
                     .map(|c| c.ohlcv.volume.value())
-                    .fold(0.0f64, |a, b| a.max(b));
-                GLOBAL_MAX_VOLUME.with(|volume| volume.set(max_vol));
+                    .fold(0.0f64, |a, b| a.max(b))
             });
+            GLOBAL_MAX_VOLUME.with(|volume| volume.set(max_vol));
 
             // Обновляем статус
             set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
