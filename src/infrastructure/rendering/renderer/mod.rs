@@ -10,6 +10,33 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use web_sys::HtmlCanvasElement;
 use wgpu::util::DeviceExt;
+use std::cell::RefCell;
+use std::rc::Rc;
+thread_local! {
+    static GLOBAL_RENDERER: RefCell<Option<Rc<RefCell<WebGpuRenderer>>>> = RefCell::new(None);
+}
+
+/// Сохранить глобальный экземпляр рендерера
+pub fn set_global_renderer(renderer: Rc<RefCell<WebGpuRenderer>>) {
+    GLOBAL_RENDERER.with(|cell| {
+        *cell.borrow_mut() = Some(renderer);
+    });
+}
+
+/// Получить изменяемую ссылку на глобальный рендерер
+pub fn with_global_renderer<F, R>(f: F) -> Option<R>
+where
+    F: FnOnce(&mut WebGpuRenderer) -> R,
+{
+    GLOBAL_RENDERER.with(|cell| {
+        let mut opt = cell.borrow_mut();
+        if let Some(rc) = opt.as_ref() {
+            Some(f(&mut *rc.borrow_mut()))
+        } else {
+            None
+        }
+    })
+}
 
 /// Настоящий WebGPU рендерер для свечей
 pub struct WebGpuRenderer {
@@ -39,6 +66,10 @@ pub struct WebGpuRenderer {
     // 🔍 Параметры зума и панорамирования
     zoom_level: f64,
     pan_offset: f64,
+
+    // ⏱️ Метрики производительности
+    last_frame_time: f64,
+    fps_samples: Vec<f64>,
 }
 
 /// Состояние видимости линий индикаторов

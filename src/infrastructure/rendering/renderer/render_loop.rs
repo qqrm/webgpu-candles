@@ -1,8 +1,27 @@
 use super::*;
 use crate::log_info;
+use serde_json;
 
 impl WebGpuRenderer {
     pub fn render(&mut self, chart: &Chart) -> Result<(), JsValue> {
+        // ⏱️ Измеряем время кадра
+        if let Some(window) = web_sys::window() {
+            if let Some(perf) = window.performance() {
+                let now = perf.now();
+                if self.last_frame_time > 0.0 {
+                    let delta = now - self.last_frame_time;
+                    if delta > 0.0 {
+                        let fps = 1000.0 / delta;
+                        self.fps_samples.push(fps);
+                        if self.fps_samples.len() > 60 {
+                            self.fps_samples.remove(0);
+                        }
+                    }
+                }
+                self.last_frame_time = now;
+            }
+        }
+
         let candle_count = chart.data.get_candles().len();
 
         // Логируем только каждые 100 кадров для производительности
@@ -102,7 +121,20 @@ impl WebGpuRenderer {
 
     /// Получить информацию о производительности
     pub fn get_performance_info(&self) -> String {
-        "{\"backend\":\"WebGPU\",\"parallel\":true,\"status\":\"ready\",\"gpu_threads\":\"unlimited\"}".to_string()
+        let avg_fps = if self.fps_samples.is_empty() {
+            0.0
+        } else {
+            self.fps_samples.iter().sum::<f64>() / self.fps_samples.len() as f64
+        };
+
+        serde_json::json!({
+            "backend": "WebGPU",
+            "parallel": true,
+            "status": "ready",
+            "gpu_threads": "unlimited",
+            "avg_fps": avg_fps
+        })
+        .to_string()
     }
 
     /// Переключить видимость линии индикатора
