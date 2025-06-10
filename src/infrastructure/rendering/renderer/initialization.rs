@@ -222,6 +222,7 @@ impl WebGpuRenderer {
             pan_offset: 0.0,
             last_frame_time: 0.0,
             fps_samples: Vec::new(),
+            line_visibility: LineVisibility::default(),
         })
     }
 
