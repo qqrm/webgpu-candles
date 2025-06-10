@@ -634,7 +634,7 @@ fn ChartContainer() -> impl IntoView {
                         }
 
                         // Рендерим реальные свечи (WebGPU работает!)
-                        if let Ok(webgpu_renderer) = renderer_rc.try_borrow() {
+                        if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
                             if let Err(e) = webgpu_renderer.render(&chart) {
                                 set_status.set(format!("❌ Render error: {:?}", e));
                             } else {
