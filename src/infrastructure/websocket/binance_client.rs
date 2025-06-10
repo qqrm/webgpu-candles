@@ -12,7 +12,6 @@ use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 
 /// Binance WebSocket клиент на основе gloo
-#[derive(Clone)]
 pub struct BinanceWebSocketClient {
     symbol: Symbol,
     interval: TimeInterval,
@@ -68,19 +67,19 @@ impl BinanceWebSocketClient {
         let symbol_lower = self.symbol.value().to_lowercase();
         let interval_str = self.interval.to_binance_str();
 
-        let stream_name = format!("{}@kline_{}", symbol_lower, interval_str);
-        let url = format!("wss://stream.binance.com:9443/ws/{}", stream_name);
+        let stream_name = format!("{symbol_lower}@kline_{interval_str}");
+        let url = format!("wss://stream.binance.com:9443/ws/{stream_name}");
 
         get_logger().info(
             LogComponent::Infrastructure("BinanceWS"),
-            &format!("🔌 Connecting to Binance: {}", url),
+            &format!("🔌 Connecting to Binance: {url}"),
         );
 
-        let ws = WebSocket::open(&url).map_err(|e| format!("Failed to open WebSocket: {:?}", e))?;
+        let ws = WebSocket::open(&url).map_err(|e| format!("Failed to open WebSocket: {e:?}"))?;
 
         get_logger().info(
             LogComponent::Infrastructure("BinanceWS"),
-            &format!("✅ Connected to Binance stream: {}", stream_name),
+            &format!("✅ Connected to Binance stream: {stream_name}"),
         );
 
         Ok(ws)
@@ -89,7 +88,7 @@ impl BinanceWebSocketClient {
     /// Обработка сообщения от Binance
     pub fn parse_message(&self, data: &str) -> Result<Candle, String> {
         let kline_data: BinanceKlineData = serde_json::from_str(data)
-            .map_err(|e| format!("Failed to parse Binance message: {}", e))?;
+            .map_err(|e| format!("Failed to parse Binance message: {e}"))?;
 
         let kline = &kline_data.kline;
 
@@ -125,60 +124,103 @@ impl BinanceWebSocketClient {
     }
 
     /// Запуск потока с обработчиком
-    pub async fn start_stream<F>(&mut self, mut handler: F) -> Result<(), String>
+    pub async fn start_stream<F>(&mut self, handler: F) -> Result<(), String>
     where
         F: FnMut(Candle) + 'static,
     {
-        let mut stream = self.connect().await?;
+        self.run_stream(handler, || {}).await
+    }
 
-        get_logger().info(
-            LogComponent::Infrastructure("BinanceWS"),
-            "🚀 Starting Binance WebSocket stream processing...",
-        );
+    pub async fn start_stream_with_callback<F, R>(
+        &mut self,
+        handler: F,
+        on_reconnect: R,
+    ) -> Result<(), String>
+    where
+        F: FnMut(Candle) + 'static,
+        R: FnMut(),
+    {
+        self.run_stream(handler, on_reconnect).await
+    }
 
-        while let Some(msg) = stream.next().await {
-            match msg {
-                Ok(gloo_net::websocket::Message::Text(data)) => match self.parse_message(&data) {
-                    Ok(candle) => {
-                        get_logger().debug(
-                            LogComponent::Infrastructure("BinanceWS"),
-                            &format!(
-                                "📊 Received candle: {} - O:{:.2} H:{:.2} L:{:.2} C:{:.2} V:{:.2}",
-                                self.symbol.value(),
-                                candle.ohlcv.open.value(),
-                                candle.ohlcv.high.value(),
-                                candle.ohlcv.low.value(),
-                                candle.ohlcv.close.value(),
-                                candle.ohlcv.volume.value()
-                            ),
-                        );
-                        handler(candle);
-                    }
-                    Err(e) => {
-                        get_logger().error(
-                            LogComponent::Infrastructure("BinanceWS"),
-                            &format!("❌ Failed to parse message: {}", e),
-                        );
-                    }
-                },
-                Ok(_) => {
-                    // Игнорируем бинарные сообщения
+    async fn run_stream<F, R>(&mut self, mut handler: F, mut on_reconnect: R) -> Result<(), String>
+    where
+        F: FnMut(Candle) + 'static,
+        R: FnMut(),
+    {
+        use gloo_timers::future::sleep;
+        use std::time::Duration;
+
+        let mut delay = 1u64;
+        loop {
+            let mut stream = match self.connect().await {
+                Ok(ws) => {
+                    get_logger().info(
+                        LogComponent::Infrastructure("BinanceWS"),
+                        "🚀 Starting Binance WebSocket stream processing...",
+                    );
+                    delay = 1;
+                    ws
                 }
                 Err(e) => {
                     get_logger().error(
                         LogComponent::Infrastructure("BinanceWS"),
-                        &format!("❌ WebSocket error: {:?}", e),
+                        &format!("❌ Connection error: {e}"),
                     );
-                    break;
+                    on_reconnect();
+                    sleep(Duration::from_secs(delay)).await;
+                    delay = (delay * 2).min(32);
+                    continue;
+                }
+            };
+
+            while let Some(msg) = stream.next().await {
+                match msg {
+                    Ok(gloo_net::websocket::Message::Text(data)) => match self.parse_message(&data)
+                    {
+                        Ok(candle) => {
+                            get_logger().debug(
+                                    LogComponent::Infrastructure("BinanceWS"),
+                                    &format!(
+                                        "📊 Received candle: {} - O:{:.2} H:{:.2} L:{:.2} C:{:.2} V:{:.2}",
+                                        self.symbol.value(),
+                                        candle.ohlcv.open.value(),
+                                        candle.ohlcv.high.value(),
+                                        candle.ohlcv.low.value(),
+                                        candle.ohlcv.close.value(),
+                                        candle.ohlcv.volume.value()
+                                    ),
+                                );
+                            handler(candle);
+                        }
+                        Err(e) => {
+                            get_logger().error(
+                                LogComponent::Infrastructure("BinanceWS"),
+                                &format!("❌ Failed to parse message: {e}"),
+                            );
+                        }
+                    },
+                    Ok(_) => {
+                        // Игнорируем бинарные сообщения
+                    }
+                    Err(e) => {
+                        get_logger().error(
+                            LogComponent::Infrastructure("BinanceWS"),
+                            &format!("❌ WebSocket error: {e:?}"),
+                        );
+                        break;
+                    }
                 }
             }
-        }
 
-        get_logger().info(
-            LogComponent::Infrastructure("BinanceWS"),
-            "🔌 WebSocket stream ended",
-        );
-        Ok(())
+            get_logger().warn(
+                LogComponent::Infrastructure("BinanceWS"),
+                &format!("🔌 Reconnecting in {delay}s"),
+            );
+            on_reconnect();
+            sleep(Duration::from_secs(delay)).await;
+            delay = (delay * 2).min(32);
+        }
     }
 
     /// 📈 Загрузка исторических данных от Binance REST API
@@ -187,19 +229,18 @@ impl BinanceWebSocketClient {
         let interval_str = self.interval.to_binance_str();
 
         let url = format!(
-            "https://api.binance.com/api/v3/klines?symbol={}&interval={}&limit={}",
-            symbol_upper, interval_str, limit
+            "https://api.binance.com/api/v3/klines?symbol={symbol_upper}&interval={interval_str}&limit={limit}"
         );
 
         get_logger().info(
             LogComponent::Infrastructure("BinanceAPI"),
-            &format!("📈 Fetching {} historical candles from: {}", limit, url),
+            &format!("📈 Fetching {limit} historical candles from: {url}"),
         );
 
         let response = Request::get(&url)
             .send()
             .await
-            .map_err(|e| format!("Failed to fetch historical data: {:?}", e))?;
+            .map_err(|e| format!("Failed to fetch historical data: {e:?}"))?;
 
         if !response.ok() {
             return Err(format!("HTTP error: {}", response.status()));
@@ -208,7 +249,7 @@ impl BinanceWebSocketClient {
         let klines: Vec<BinanceHistoricalKline> = response
             .json()
             .await
-            .map_err(|e| format!("Failed to parse JSON: {:?}", e))?;
+            .map_err(|e| format!("Failed to parse JSON: {e:?}"))?;
 
         let mut candles = Vec::new();
 
@@ -257,22 +298,18 @@ impl BinanceWebSocketClient {
         let interval_str = self.interval.to_binance_str();
 
         let url = format!(
-            "https://api.binance.com/api/v3/klines?symbol={}&interval={}&endTime={}&limit={}",
-            symbol_upper, interval_str, end_time, limit
+            "https://api.binance.com/api/v3/klines?symbol={symbol_upper}&interval={interval_str}&endTime={end_time}&limit={limit}"
         );
 
         get_logger().info(
             LogComponent::Infrastructure("BinanceAPI"),
-            &format!(
-                "📈 Fetching {} candles before {} from: {}",
-                limit, end_time, url
-            ),
+            &format!("📈 Fetching {limit} candles before {end_time} from: {url}"),
         );
 
         let response = Request::get(&url)
             .send()
             .await
-            .map_err(|e| format!("Failed to fetch historical data: {:?}", e))?;
+            .map_err(|e| format!("Failed to fetch historical data: {e:?}"))?;
 
         if !response.ok() {
             return Err(format!("HTTP error: {}", response.status()));
@@ -281,7 +318,7 @@ impl BinanceWebSocketClient {
         let klines: Vec<BinanceHistoricalKline> = response
             .json()
             .await
-            .map_err(|e| format!("Failed to parse JSON: {:?}", e))?;
+            .map_err(|e| format!("Failed to parse JSON: {e:?}"))?;
 
         let mut candles = Vec::new();
 
@@ -322,7 +359,7 @@ pub async fn create_binance_stream(
     let symbol = Symbol::from(symbol);
     let interval = interval
         .parse::<TimeInterval>()
-        .map_err(|_| format!("Invalid interval: {}", interval))?;
+        .map_err(|_| format!("Invalid interval: {interval}"))?;
 
     let client = BinanceWebSocketClient::new(symbol, interval);
     Ok(client)
@@ -352,7 +389,7 @@ pub async fn test_binance_websocket() -> Result<(), JsValue> {
     if let Err(e) = client.start_stream(handler).await {
         get_logger().error(
             LogComponent::Infrastructure("BinanceWS"),
-            &format!("❌ Stream error: {}", e),
+            &format!("❌ Stream error: {e}"),
         );
         return Err(JsValue::from_str(&e));
     }

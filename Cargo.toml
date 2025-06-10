@@ -24,6 +24,7 @@ bytemuck = { version = "1.14.0", features = ["derive"] }
 console_error_panic_hook = "0.1"
 gloo = { version = "0.11", features = ["console", "timers", "events", "net", "utils"] }
 gloo-net = { version = "0.5", features = ["websocket"] }
+gloo-timers = { version = "0.3", features = ["futures"] }
 futures = "0.3"
 derive_more = "0.99"
 strum = { version = "0.26", features = ["derive"] }
