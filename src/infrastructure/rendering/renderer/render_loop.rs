@@ -44,11 +44,12 @@ impl WebGpuRenderer {
             || (self.zoom_level - self.cached_zoom_level).abs() > f64::EPSILON;
 
         if geometry_needs_update {
-            let (vertices, uniforms) = self.create_geometry(chart);
-            if vertices.is_empty() {
+            let (template, instances, uniforms) = self.create_instanced_geometry(chart);
+            if instances.is_empty() {
                 return Ok(());
             }
-            self.cached_vertices = vertices;
+            self.cached_vertices = template;
+            self.cached_instances = instances;
             self.cached_uniforms = uniforms;
             self.cached_candle_count = candle_count;
             self.cached_zoom_level = self.zoom_level;
@@ -59,18 +60,25 @@ impl WebGpuRenderer {
                 bytemuck::cast_slice(&self.cached_vertices),
             );
             self.queue.write_buffer(
+                &self.instance_buffer,
+                0,
+                bytemuck::cast_slice(&self.cached_instances),
+            );
+            self.queue.write_buffer(
                 &self.uniform_buffer,
                 0,
                 bytemuck::cast_slice(&[self.cached_uniforms]),
             );
-            self.num_vertices = self.cached_vertices.len() as u32;
+            self.template_vertices = self.cached_vertices.len() as u32;
+            self.instance_count = self.cached_instances.len() as u32;
         }
 
-        if self.cached_vertices.is_empty() {
+        if self.cached_instances.is_empty() {
             return Ok(());
         }
 
-        let num_vertices = self.cached_vertices.len() as u32;
+        let num_vertices = self.template_vertices;
+        let num_instances = self.instance_count;
 
         // Get surface texture and start rendering
         let output = self.surface.get_current_texture().map_err(|e| {
@@ -113,7 +121,8 @@ impl WebGpuRenderer {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..num_vertices, 0..1);
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            render_pass.draw(0..num_vertices, 0..num_instances);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -556,10 +565,13 @@ mod tests {
                 config: std::mem::MaybeUninit::zeroed().assume_init(),
                 render_pipeline: std::mem::MaybeUninit::zeroed().assume_init(),
                 vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
+                instance_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
-                num_vertices: 0,
+                template_vertices: 0,
+                instance_count: 0,
                 cached_vertices: Vec::new(),
+                cached_instances: Vec::new(),
                 cached_uniforms: ChartUniforms::new(),
                 cached_candle_count: 0,
                 cached_zoom_level: 1.0,

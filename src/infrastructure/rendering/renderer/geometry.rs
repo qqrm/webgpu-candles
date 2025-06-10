@@ -4,6 +4,121 @@ use crate::log_info;
 /// Базовое количество ячеек сетки
 pub const BASE_CANDLES: f32 = 300.0;
 
+/// Шаблон из 18 вершин для одной свечи (тело + верхний и нижний фитиль)
+pub const BASE_TEMPLATE: [CandleVertex; 18] = [
+    // Тело
+    CandleVertex {
+        position_x: -0.5,
+        position_y: 0.0,
+        element_type: 0.0,
+        color_type: 0.0,
+    },
+    CandleVertex {
+        position_x: 0.5,
+        position_y: 0.0,
+        element_type: 0.0,
+        color_type: 0.0,
+    },
+    CandleVertex {
+        position_x: -0.5,
+        position_y: 1.0,
+        element_type: 0.0,
+        color_type: 0.0,
+    },
+    CandleVertex {
+        position_x: 0.5,
+        position_y: 0.0,
+        element_type: 0.0,
+        color_type: 0.0,
+    },
+    CandleVertex {
+        position_x: 0.5,
+        position_y: 1.0,
+        element_type: 0.0,
+        color_type: 0.0,
+    },
+    CandleVertex {
+        position_x: -0.5,
+        position_y: 1.0,
+        element_type: 0.0,
+        color_type: 0.0,
+    },
+    // Верхний фитиль
+    CandleVertex {
+        position_x: -0.05,
+        position_y: 0.0,
+        element_type: 1.0,
+        color_type: 0.5,
+    },
+    CandleVertex {
+        position_x: 0.05,
+        position_y: 0.0,
+        element_type: 1.0,
+        color_type: 0.5,
+    },
+    CandleVertex {
+        position_x: -0.05,
+        position_y: 1.0,
+        element_type: 1.0,
+        color_type: 0.5,
+    },
+    CandleVertex {
+        position_x: 0.05,
+        position_y: 0.0,
+        element_type: 1.0,
+        color_type: 0.5,
+    },
+    CandleVertex {
+        position_x: 0.05,
+        position_y: 1.0,
+        element_type: 1.0,
+        color_type: 0.5,
+    },
+    CandleVertex {
+        position_x: -0.05,
+        position_y: 1.0,
+        element_type: 1.0,
+        color_type: 0.5,
+    },
+    // Нижний фитиль
+    CandleVertex {
+        position_x: -0.05,
+        position_y: 0.0,
+        element_type: 2.0,
+        color_type: 0.5,
+    },
+    CandleVertex {
+        position_x: 0.05,
+        position_y: 0.0,
+        element_type: 2.0,
+        color_type: 0.5,
+    },
+    CandleVertex {
+        position_x: -0.05,
+        position_y: 1.0,
+        element_type: 2.0,
+        color_type: 0.5,
+    },
+    CandleVertex {
+        position_x: 0.05,
+        position_y: 0.0,
+        element_type: 2.0,
+        color_type: 0.5,
+    },
+    CandleVertex {
+        position_x: 0.05,
+        position_y: 1.0,
+        element_type: 2.0,
+        color_type: 0.5,
+    },
+    CandleVertex {
+        position_x: -0.05,
+        position_y: 1.0,
+        element_type: 2.0,
+        color_type: 0.5,
+    },
+];
+
 /// Позиция свечи/бара с учётом привязки к правому краю
 pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
     let step_size = 2.0 / visible_len as f32;
@@ -471,5 +586,56 @@ impl WebGpuRenderer {
         );
 
         vertices
+    }
+
+    /// Создать данные для instanced рендеринга свечей
+    pub(super) fn create_instanced_geometry(
+        &self,
+        chart: &Chart,
+    ) -> (Vec<CandleVertex>, Vec<CandleInstance>, ChartUniforms) {
+        let (_, uniforms) = self.create_geometry(chart);
+        let candles = chart.get_series_for_zoom(self.zoom_level).get_candles();
+        if candles.is_empty() {
+            return (BASE_TEMPLATE.to_vec(), Vec::new(), uniforms);
+        }
+
+        let visible_count = ((BASE_CANDLES as f64) / self.zoom_level)
+            .max(10.0)
+            .min(candles.len() as f64) as usize;
+        let start_index = candles.len().saturating_sub(visible_count);
+        let mut instances = Vec::with_capacity(visible_count);
+
+        let price_range = uniforms.viewport[3] - uniforms.viewport[2];
+        let price_norm =
+            |p: f32| -> f32 { -0.5 + ((p - uniforms.viewport[2]) / price_range) * 1.3 };
+
+        let step_size = 2.0 / visible_count as f32;
+        let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
+        let width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1);
+
+        for (i, c) in candles.iter().skip(start_index).enumerate() {
+            let x = candle_x_position(i, visible_count);
+            let open_y = price_norm(c.ohlcv.open.value() as f32);
+            let high_y = price_norm(c.ohlcv.high.value() as f32);
+            let low_y = price_norm(c.ohlcv.low.value() as f32);
+            let close_y = price_norm(c.ohlcv.close.value() as f32);
+            let body_top = open_y.max(close_y);
+            let body_bottom = open_y.min(close_y);
+            instances.push(CandleInstance {
+                x,
+                width,
+                body_top,
+                body_bottom,
+                high: high_y,
+                low: low_y,
+                bullish: if close_y >= open_y { 1.0 } else { 0.0 },
+                _padding: 0.0,
+            });
+        }
+
+        // Базовый шаблон - один раз
+        let template = BASE_TEMPLATE.to_vec();
+
+        (template, instances, uniforms)
     }
 }
