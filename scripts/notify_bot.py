@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+"""Deployment notification helper."""
+
 import os
 import urllib.parse
 import urllib.request
