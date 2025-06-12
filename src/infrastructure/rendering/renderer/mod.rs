@@ -1,3 +1,8 @@
+//! WebGPU renderer responsible for drawing the chart.
+//!
+//! This module manages GPU buffers and performs the render loop. The renderer
+//! is kept behind a global handle to simplify access from the UI layer.
+
 use crate::domain::market_data::Candle;
 use crate::domain::{
     chart::Chart,

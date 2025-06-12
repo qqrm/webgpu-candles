@@ -1,3 +1,9 @@
+//! Lazily initialized global reactive signals.
+//!
+//! This module stores shared application state such as the current price and
+//! UI flags. `OnceCell` is used to ensure the globals are created only on first
+//! access.
+
 use crate::app::TooltipData;
 use crate::domain::market_data::TimeInterval;
 use leptos::*;
@@ -19,6 +25,7 @@ pub struct Globals {
     pub current_interval: RwSignal<TimeInterval>,
 }
 
+// The `OnceCell` ensures this state is created at most once on demand.
 static GLOBALS: OnceCell<Globals> = OnceCell::new();
 
 pub fn globals() -> &'static Globals {
