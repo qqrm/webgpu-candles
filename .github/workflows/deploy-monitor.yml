@@ -5,6 +5,9 @@ on:
     workflows: ["build"]
     types:
       - completed
+concurrency:
+  group: deploy-monitor-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
 
 jobs:
   monitor:
