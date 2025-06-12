@@ -33,11 +33,7 @@ impl WebGpuRenderer {
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
-            &format!(
-                "🎯 Canvas configured: {}x{}",
-                canvas.width(),
-                canvas.height()
-            ),
+            &format!("🎯 Canvas configured: {}x{}", canvas.width(), canvas.height()),
         );
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());

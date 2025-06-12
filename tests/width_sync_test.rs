@@ -23,16 +23,8 @@ fn width_calculation_sync() {
     );
 
     // Проверяем что ширина находится в допустимых пределах
-    assert!(
-        candle_width >= 0.002,
-        "Ширина слишком мала: {:.6}",
-        candle_width
-    );
-    assert!(
-        candle_width <= 0.1,
-        "Ширина слишком велика: {:.6}",
-        candle_width
-    );
+    assert!(candle_width >= 0.002, "Ширина слишком мала: {:.6}", candle_width);
+    assert!(candle_width <= 0.1, "Ширина слишком велика: {:.6}", candle_width);
 }
 
 #[wasm_bindgen_test]

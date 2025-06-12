@@ -21,13 +21,7 @@ impl Chart {
         series.insert(TimeInterval::FifteenMinutes, CandleSeries::new(max_candles));
         series.insert(TimeInterval::OneHour, CandleSeries::new(max_candles));
 
-        Self {
-            id,
-            chart_type,
-            series,
-            viewport: Viewport::default(),
-            indicators: Vec::new(),
-        }
+        Self { id, chart_type, series, viewport: Viewport::default(), indicators: Vec::new() }
     }
 
     pub fn add_candle(&mut self, candle: Candle) {
@@ -75,18 +69,12 @@ impl Chart {
 
     /// Получить общее количество свечей
     pub fn get_candle_count(&self) -> usize {
-        self.series
-            .get(&TimeInterval::OneMinute)
-            .map(|s| s.count())
-            .unwrap_or(0)
+        self.series.get(&TimeInterval::OneMinute).map(|s| s.count()).unwrap_or(0)
     }
 
     /// Проверить, есть ли данные
     pub fn has_data(&self) -> bool {
-        self.series
-            .get(&TimeInterval::OneMinute)
-            .map(|s| s.count() > 0)
-            .unwrap_or(false)
+        self.series.get(&TimeInterval::OneMinute).map(|s| s.count() > 0).unwrap_or(false)
     }
 
     pub fn add_indicator(&mut self, indicator: Indicator) {
@@ -169,11 +157,8 @@ impl Chart {
     }
 
     fn update_aggregates(&mut self, candle: Candle) {
-        let intervals = [
-            TimeInterval::FiveMinutes,
-            TimeInterval::FifteenMinutes,
-            TimeInterval::OneHour,
-        ];
+        let intervals =
+            [TimeInterval::FiveMinutes, TimeInterval::FifteenMinutes, TimeInterval::OneHour];
 
         for interval in intervals.iter() {
             if let Some(series) = self.series.get_mut(interval) {

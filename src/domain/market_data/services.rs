@@ -60,10 +60,8 @@ impl MarketAnalysisService {
         let mut sma_values = Vec::new();
 
         for i in (period - 1)..candles.len() {
-            let sum: f64 = candles[i - period + 1..=i]
-                .iter()
-                .map(|candle| candle.ohlcv.close.value())
-                .sum();
+            let sum: f64 =
+                candles[i - period + 1..=i].iter().map(|candle| candle.ohlcv.close.value()).sum();
 
             sma_values.push(Price::from(sum / period as f64));
         }
@@ -81,11 +79,9 @@ impl MarketAnalysisService {
         let alpha = 2.0 / (period as f64 + 1.0); // Сглаживающий коэффициент
 
         // Первое значение EMA = простое среднее за первые period свечей
-        let first_sma: f64 = candles[0..period]
-            .iter()
-            .map(|candle| candle.ohlcv.close.value())
-            .sum::<f64>()
-            / period as f64;
+        let first_sma: f64 =
+            candles[0..period].iter().map(|candle| candle.ohlcv.close.value()).sum::<f64>()
+                / period as f64;
 
         ema_values.push(Price::from(first_sma));
 
@@ -176,11 +172,8 @@ impl MarketAnalysisService {
         let mean_return: f64 = recent_returns.iter().sum::<f64>() / period as f64;
 
         // Вычисляем дисперсию
-        let variance: f64 = recent_returns
-            .iter()
-            .map(|r| (r - mean_return).powi(2))
-            .sum::<f64>()
-            / period as f64;
+        let variance: f64 =
+            recent_returns.iter().map(|r| (r - mean_return).powi(2)).sum::<f64>() / period as f64;
 
         Some(variance.sqrt())
     }
@@ -198,27 +191,15 @@ impl Aggregator {
 
         let open = candles.first()?.ohlcv.open;
         let close = candles.last()?.ohlcv.close;
-        let high = candles
-            .iter()
-            .map(|c| c.ohlcv.high.value())
-            .fold(open.value(), f64::max);
-        let low = candles
-            .iter()
-            .map(|c| c.ohlcv.low.value())
-            .fold(open.value(), f64::min);
+        let high = candles.iter().map(|c| c.ohlcv.high.value()).fold(open.value(), f64::max);
+        let low = candles.iter().map(|c| c.ohlcv.low.value()).fold(open.value(), f64::min);
         let volume_sum: f64 = candles.iter().map(|c| c.ohlcv.volume.value()).sum();
 
         let start =
             candles.first()?.timestamp.value() / interval.duration_ms() * interval.duration_ms();
         Some(Candle::new(
             Timestamp::from(start),
-            OHLCV::new(
-                open,
-                Price::from(high),
-                Price::from(low),
-                close,
-                Volume::from(volume_sum),
-            ),
+            OHLCV::new(open, Price::from(high), Price::from(low), close, Volume::from(volume_sum)),
         ))
     }
 }
