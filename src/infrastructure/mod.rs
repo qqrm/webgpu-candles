@@ -17,7 +17,7 @@ pub mod services {
         }
 
         pub fn new_production() -> Self {
-            Self::new(LogLevel::Info)
+            Self::new(LogLevel::Warn)
         }
 
         pub fn new_development() -> Self {
