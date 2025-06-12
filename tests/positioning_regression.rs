@@ -87,8 +87,8 @@ fn viewport_bounds_regression() {
     for &size in &test_sizes {
         // Первая позиция не должна быть левее -1.0
         let first = candle_x_position(0, size);
-        assert!(first >= -1.0, "First position {:.6} should be >= -1.0 for size {}", first, size);
 
+        assert!(first >= -1.0, "First position {:.6} should be >= -1.0 for size {}", first, size);
 
         // Последняя позиция должна быть точно 1.0
         let last = candle_x_position(size - 1, size);

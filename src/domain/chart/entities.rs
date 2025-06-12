@@ -106,22 +106,6 @@ impl Chart {
         }
     }
 
-    #[allow(dead_code)]
-    fn update_viewport(&mut self) {
-        if let Some(base) = self.series.get(&TimeInterval::OneMinute) {
-            if let Some((min_price, max_price)) = base.price_range() {
-                let padding = (max_price.value() - min_price.value()) * 0.1; // 10% padding
-                self.viewport.min_price = min_price.value() as f32 - padding as f32;
-                self.viewport.max_price = max_price.value() as f32 + padding as f32;
-                let candles = base.get_candles();
-                if !candles.is_empty() {
-                    self.viewport.start_time = candles.front().unwrap().timestamp.as_f64();
-                    self.viewport.end_time = candles.back().unwrap().timestamp.as_f64();
-                }
-            }
-        }
-    }
-
     pub fn zoom(&mut self, factor: f32, center_x: f32) {
         self.viewport.zoom(factor, center_x);
     }
