@@ -1,5 +1,6 @@
 use super::*;
 use crate::log_info;
+use leptos::SignalGetUntracked;
 use serde_json;
 
 impl WebGpuRenderer {
@@ -22,7 +23,12 @@ impl WebGpuRenderer {
             }
         }
 
-        let candle_count = chart.get_series_for_zoom(self.zoom_level).get_candles().len();
+        use crate::app::CURRENT_INTERVAL;
+        let interval = CURRENT_INTERVAL.with(|i| i.get_untracked());
+        let candle_count = chart
+            .get_series(interval)
+            .map(|s| s.get_candles().len())
+            .unwrap_or_else(|| chart.get_series_for_zoom(self.zoom_level).get_candles().len());
 
         // Логируем только каждые 100 кадров для производительности
         if candle_count % 100 == 0 {

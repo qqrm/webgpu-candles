@@ -147,6 +147,9 @@ impl From<&str> for Symbol {
     Deserialize,
 )]
 pub enum TimeInterval {
+    #[strum(serialize = "30m")]
+    #[serde(rename = "30m")]
+    ThirtyMinutes,
     #[strum(serialize = "1m")]
     #[serde(rename = "1m")]
     OneMinute,
@@ -170,6 +173,14 @@ pub enum TimeInterval {
     #[strum(serialize = "1d")]
     #[serde(rename = "1d")]
     OneDay,
+
+    #[strum(serialize = "1w")]
+    #[serde(rename = "1w")]
+    OneWeek,
+
+    #[strum(serialize = "1M")]
+    #[serde(rename = "1M")]
+    OneMonth,
 }
 
 impl TimeInterval {
@@ -182,9 +193,12 @@ impl TimeInterval {
             Self::OneMinute => 60 * 1000,
             Self::FiveMinutes => 5 * 60 * 1000,
             Self::FifteenMinutes => 15 * 60 * 1000,
+            Self::ThirtyMinutes => 30 * 60 * 1000,
             Self::OneHour => 60 * 60 * 1000,
             Self::FourHours => 4 * 60 * 60 * 1000,
             Self::OneDay => 24 * 60 * 60 * 1000,
+            Self::OneWeek => 7 * 24 * 60 * 60 * 1000,
+            Self::OneMonth => 30 * 24 * 60 * 60 * 1000,
         }
     }
 }
