@@ -73,10 +73,11 @@ impl WebGpuRenderer {
         let _chart_height = 2.0; // NDC height (-1 to 1)
 
         // 🔍 Apply zoom - show fewer candles when zooming in
+        let candle_vec: Vec<Candle> = candles.iter().cloned().collect();
         let (start_index, visible_count) =
-            crate::app::visible_range(candle_count, self.zoom_level, self.pan_offset);
+            crate::app::visible_range_by_time(&candle_vec, &chart.viewport, self.zoom_level);
         let visible_candles: Vec<Candle> =
-            candles.iter().skip(start_index).take(visible_count).cloned().collect();
+            candle_vec.iter().skip(start_index).take(visible_count).cloned().collect();
 
         let mut vertices = Vec::with_capacity(visible_candles.len() * 24);
 

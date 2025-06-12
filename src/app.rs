@@ -27,6 +27,19 @@ use crate::{
 /// Maximum number of candles visible at 1x zoom
 const MAX_VISIBLE_CANDLES: f64 = 300.0;
 
+/// Minimum allowed zoom level
+const MIN_ZOOM_LEVEL: f64 = 0.5;
+/// Maximum allowed zoom level
+const MAX_ZOOM_LEVEL: f64 = 5.0;
+
+/// Pan offset required to trigger history loading
+pub const HISTORY_FETCH_THRESHOLD: f64 = -50.0;
+
+/// Check if more historical data should be fetched
+pub fn should_fetch_history(pan: f64) -> bool {
+    pan <= HISTORY_FETCH_THRESHOLD
+}
+
 /// Calculate visible range based on zoom level and pan offset
 pub fn visible_range(len: usize, zoom: f64, pan: f64) -> (usize, usize) {
     let visible = ((MAX_VISIBLE_CANDLES / zoom).max(10.0).min(len as f64)) as isize;
@@ -35,6 +48,26 @@ pub fn visible_range(len: usize, zoom: f64, pan: f64) -> (usize, usize) {
     let max_start = len as isize - visible;
     let start = (base_start + offset).clamp(0, max_start);
     (start as usize, visible as usize)
+}
+
+/// Determine visible range using timestamps from the viewport
+pub fn visible_range_by_time(
+    candles: &[Candle],
+    viewport: &crate::domain::chart::value_objects::Viewport,
+    zoom: f64,
+) -> (usize, usize) {
+    if candles.is_empty() {
+        return (0, 0);
+    }
+
+    let visible = ((MAX_VISIBLE_CANDLES / zoom).max(10.0).min(candles.len() as f64)) as usize;
+
+    let start_ts = viewport.start_time as u64;
+    let start_idx = candles.partition_point(|c| c.timestamp.value() < start_ts);
+
+    let max_start = candles.len().saturating_sub(visible);
+    let start = start_idx.min(max_start);
+    (start, visible)
 }
 
 // Helper aliases for global signals
@@ -457,7 +490,7 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
             let old_zoom = zoom_level().with_untracked(|z| *z);
             zoom_level().update(|z| {
                 *z *= zoom_factor;
-                *z = z.clamp(0.1, 10.0);
+                *z = z.clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL); // keep zoom within 0.5-5x
             });
             let new_zoom = zoom_level().with_untracked(|z| *z);
             web_sys::console::log_1(
@@ -646,7 +679,8 @@ fn ChartContainer() -> impl IntoView {
                         last_mouse_y().set(mouse_y);
                     });
 
-                    let need_history = pan_offset().with_untracked(|val| *val <= -950.0);
+                    let need_history =
+                        pan_offset().with_untracked(|val| should_fetch_history(*val));
                     if need_history {
                         fetch_more_history(chart_signal, status_clone);
                     }
@@ -730,7 +764,8 @@ fn ChartContainer() -> impl IntoView {
             let old_zoom = zoom_level().with_untracked(|z| *z);
             zoom_level().update(|z| {
                 *z *= zoom_factor;
-                *z = z.clamp(0.1, 10.0); // Clamp zoom from 0.1x to 10x
+                *z = z.clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL); // Clamp zoom
+                // to range 0.5x-5x
             });
             let center_x = event.offset_x() as f32 / 800.0;
             chart_signal.update(|ch| ch.zoom(zoom_factor as f32, center_x));
@@ -756,7 +791,7 @@ fn ChartContainer() -> impl IntoView {
                 LogComponent::Presentation("ChartZoom"),
                 &format!("🔍 Zoom level: {:.2}x", zoom_level().with_untracked(|z_val| *z_val)),
             );
-            let need_history = pan_offset().with_untracked(|val| *val <= -950.0);
+            let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
             if need_history {
                 fetch_more_history(chart_signal, status_clone);
             }
@@ -798,7 +833,7 @@ fn ChartContainer() -> impl IntoView {
                     event.prevent_default();
                     zoom_level().update(|z| {
                         *z *= 1.2;
-                        *z = z.min(10.0);
+                        *z = z.min(MAX_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
@@ -806,7 +841,7 @@ fn ChartContainer() -> impl IntoView {
                     event.prevent_default();
                     zoom_level().update(|z| {
                         *z *= 0.8;
-                        *z = z.max(0.1);
+                        *z = z.max(MIN_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
@@ -814,7 +849,7 @@ fn ChartContainer() -> impl IntoView {
                     event.prevent_default();
                     zoom_level().update(|z| {
                         *z *= 1.5;
-                        *z = z.min(10.0);
+                        *z = z.min(MAX_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
@@ -822,7 +857,7 @@ fn ChartContainer() -> impl IntoView {
                     event.prevent_default();
                     zoom_level().update(|z| {
                         *z *= 0.67;
-                        *z = z.max(0.1);
+                        *z = z.max(MIN_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
@@ -854,7 +889,7 @@ fn ChartContainer() -> impl IntoView {
                     LogComponent::Presentation("KeyboardZoom"),
                     &format!("⌨️ Zoom level: {:.2}x", new_zoom),
                 );
-                let need_history = pan_offset().with_untracked(|val| *val <= -950.0);
+                let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
                 if need_history {
                     fetch_more_history(chart_signal, status_clone);
                 }
