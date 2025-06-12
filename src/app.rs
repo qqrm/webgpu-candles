@@ -27,11 +27,14 @@ use crate::{
 /// Maximum number of candles visible at 1x zoom
 const MAX_VISIBLE_CANDLES: f64 = 300.0;
 
-/// Calculate visible range based on zoom level
-pub fn visible_range(len: usize, zoom: f64) -> (usize, usize) {
-    let visible = ((MAX_VISIBLE_CANDLES / zoom).max(10.0).min(len as f64)) as usize;
-    let start = len.saturating_sub(visible);
-    (start, visible)
+/// Calculate visible range based on zoom level and pan offset
+pub fn visible_range(len: usize, zoom: f64, pan: f64) -> (usize, usize) {
+    let visible = ((MAX_VISIBLE_CANDLES / zoom).max(10.0).min(len as f64)) as isize;
+    let base_start = len as isize - visible;
+    let offset = pan.round() as isize;
+    let max_start = len as isize - visible;
+    let start = (base_start + offset).clamp(0, max_start);
+    (start as usize, visible as usize)
 }
 
 // Helper aliases for global signals
@@ -353,7 +356,11 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
             return vec![];
         }
 
-        let (start_idx, visible) = visible_range(candles.len(), zoom_level().get_untracked());
+        let (start_idx, visible) = visible_range(
+            candles.len(),
+            zoom_level().get_untracked(),
+            pan_offset().get_untracked(),
+        );
         let (min, max) = candles
             .iter()
             .skip(start_idx)
@@ -412,7 +419,7 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
             return vec![];
         }
 
-        let (start_idx, visible) = visible_range(candles.len(), zoom);
+        let (start_idx, visible) = visible_range(candles.len(), zoom, pan_offset().get_untracked());
 
         // Show 5 time labels
         let num_labels = 5;
@@ -670,8 +677,11 @@ fn ChartContainer() -> impl IntoView {
                         let interval = current_interval().get_untracked();
                         let candles = ch.get_series(interval).unwrap().get_candles();
                         if !candles.is_empty() {
-                            let (start_idx, visible_count) =
-                                visible_range(candles.len(), zoom_level().get_untracked());
+                            let (start_idx, visible_count) = visible_range(
+                                candles.len(),
+                                zoom_level().get_untracked(),
+                                pan_offset().get_untracked(),
+                            );
                             let visible: Vec<_> =
                                 candles.iter().skip(start_idx).take(visible_count).collect();
 
