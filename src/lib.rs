@@ -1,5 +1,5 @@
 // === 🦀 LEPTOS BITCOIN CHART WASM ===
-// Clean Architecture v3.0 - только нужные модули!
+// Clean Architecture v3.0 - only required modules
 
 pub mod app;
 pub mod domain;
@@ -38,14 +38,14 @@ pub fn start_app() {
     web_sys::console::log_1(&"✅ Leptos app mounted!".into());
 }
 
-/// Проверка WebGPU поддержки
+/// Check WebGPU support
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub async fn is_webgpu_supported() -> bool {
     crate::infrastructure::WebGpuRenderer::is_webgpu_supported().await
 }
 
-/// Получить производительность рендерера
+/// Get renderer performance
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn get_renderer_performance() -> String {

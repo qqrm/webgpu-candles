@@ -1,7 +1,7 @@
 use super::*;
 
 impl WebGpuRenderer {
-    /// Замерить средний FPS для заданного числа кадров
+    /// Measure average FPS for the given number of frames
     pub fn measure_fps(&mut self, chart: &Chart, num_frames: u32) -> f64 {
         let window = web_sys::window().expect("no window");
         let performance = window.performance().expect("performance not available");

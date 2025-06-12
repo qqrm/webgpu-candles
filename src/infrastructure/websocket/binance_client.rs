@@ -11,7 +11,7 @@ use gloo_net::websocket::futures::WebSocket;
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 
-/// Binance WebSocket клиент на основе gloo
+/// Binance WebSocket client based on gloo
 pub struct BinanceWebSocketClient {
     symbol: Symbol,
     interval: TimeInterval,
@@ -39,7 +39,7 @@ struct KlineInfo {
     volume: String,
 }
 
-/// Структура для исторических данных Binance Klines API
+/// Structure for historical Binance Klines API data
 #[derive(Debug, Deserialize)]
 struct BinanceHistoricalKline(
     u64,                   // Open time
@@ -61,7 +61,7 @@ impl BinanceWebSocketClient {
         Self { symbol, interval }
     }
 
-    /// Подключение к Binance WebSocket потоку
+    /// Connect to the Binance WebSocket stream
     pub async fn connect(&mut self) -> Result<WebSocket, String> {
         let symbol_lower = self.symbol.value().to_lowercase();
         let interval_str = self.interval.to_binance_str();
@@ -84,21 +84,21 @@ impl BinanceWebSocketClient {
         Ok(ws)
     }
 
-    /// Обработка сообщения от Binance
+    /// Handle a message from Binance
     pub fn parse_message(&self, data: &str) -> Result<Candle, String> {
         let kline_data: BinanceKlineData = serde_json::from_str(data)
             .map_err(|e| format!("Failed to parse Binance message: {e}"))?;
 
         let kline = &kline_data.kline;
 
-        // Парсим цены
+        // Parse prices
         let open = kline.open.parse::<f64>().map_err(|_| "Invalid open price")?;
         let high = kline.high.parse::<f64>().map_err(|_| "Invalid high price")?;
         let low = kline.low.parse::<f64>().map_err(|_| "Invalid low price")?;
         let close = kline.close.parse::<f64>().map_err(|_| "Invalid close price")?;
         let volume = kline.volume.parse::<f64>().map_err(|_| "Invalid volume")?;
 
-        // Создаем OHLCV
+        // Create OHLCV
         let ohlcv = OHLCV::new(
             Price::new(open),
             Price::new(high),
@@ -107,13 +107,13 @@ impl BinanceWebSocketClient {
             Volume::new(volume),
         );
 
-        // Создаем свечу
+        // Create a candle
         let candle = Candle::new(Timestamp::new(kline.open_time), ohlcv);
 
         Ok(candle)
     }
 
-    /// Запуск потока с обработчиком
+    /// Start the stream with a handler
     pub async fn start_stream<F>(&mut self, handler: F) -> Result<(), String>
     where
         F: FnMut(Candle) + 'static,
@@ -191,7 +191,7 @@ impl BinanceWebSocketClient {
                         }
                     },
                     Ok(_) => {
-                        // Игнорируем бинарные сообщения
+                        // Ignore binary messages
                     }
                     Err(e) => {
                         get_logger().error(
@@ -213,7 +213,7 @@ impl BinanceWebSocketClient {
         }
     }
 
-    /// 📈 Загрузка исторических данных от Binance REST API
+    /// 📈 Load historical data from Binance REST API
     pub async fn fetch_historical_data(&self, limit: u32) -> Result<Vec<Candle>, String> {
         let symbol_upper = self.symbol.value().to_uppercase();
         let interval_str = self.interval.to_binance_str();
@@ -272,7 +272,7 @@ impl BinanceWebSocketClient {
         Ok(candles)
     }
 
-    /// 📈 Загрузка исторических данных до указанного времени
+    /// 📈 Load historical data up to the specified time
     pub async fn fetch_historical_data_before(
         &self,
         end_time: u64,
@@ -333,7 +333,7 @@ impl BinanceWebSocketClient {
     }
 }
 
-/// Простая функция для создания WebSocket соединения
+/// Simple helper to create a WebSocket connection
 pub async fn create_binance_stream(
     symbol: &str,
     interval: &str,
@@ -346,7 +346,7 @@ pub async fn create_binance_stream(
     Ok(client)
 }
 
-/// Экспортируемая функция для JavaScript
+/// Exported function for JavaScript
 #[wasm_bindgen]
 pub async fn test_binance_websocket() -> Result<(), JsValue> {
     get_logger().info(
@@ -357,7 +357,7 @@ pub async fn test_binance_websocket() -> Result<(), JsValue> {
     let mut client =
         create_binance_stream("BTCUSDT", "1m").await.map_err(|e| JsValue::from_str(&e))?;
 
-    // Тестовый обработчик
+    // Test handler
     let handler = |candle: Candle| {
         get_logger().info(
             LogComponent::Infrastructure("BinanceWS"),
@@ -365,7 +365,7 @@ pub async fn test_binance_websocket() -> Result<(), JsValue> {
         );
     };
 
-    // Запускаем на 10 секунд для теста
+    // Run for 10 seconds for testing
     if let Err(e) = client.start_stream(handler).await {
         get_logger()
             .error(LogComponent::Infrastructure("BinanceWS"), &format!("❌ Stream error: {e}"));

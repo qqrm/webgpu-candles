@@ -238,7 +238,7 @@ export function start_app() {
 }
 
 /**
- * Проверка WebGPU поддержки
+ * Check WebGPU support
  * @returns {Promise<boolean>}
  */
 export function is_webgpu_supported() {
@@ -247,7 +247,7 @@ export function is_webgpu_supported() {
 }
 
 /**
- * Получить производительность рендерера
+ * Get renderer performance
  * @returns {string}
  */
 export function get_renderer_performance() {
@@ -258,7 +258,7 @@ export function get_renderer_performance() {
 }
 
 /**
- * Экспортируемая функция для JavaScript
+ * Exported function for JavaScript
  * @returns {Promise<void>}
  */
 export function test_binance_websocket() {

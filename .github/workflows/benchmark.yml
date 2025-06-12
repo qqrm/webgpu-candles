@@ -27,7 +27,7 @@ jobs:
           python - <<'EOF'
           import json, pathlib
           data = json.load(open('docs/perf_result.json'))
-          lines = ['# Последние метрики', '', '| Метрика | Значение |', '| --- | --- |']
+          lines = ['# Latest metrics', '', '| Metric | Value |', '| --- | --- |']
           for k, v in data.items():
               lines.append(f'| {k} | {v} |')
           pathlib.Path('docs/perf.md').write_text('\n'.join(lines) + '\n')

@@ -1,21 +1,21 @@
 use price_chart_wasm::infrastructure::rendering::renderer::candle_x_position;
 use wasm_bindgen_test::*;
 
-/// Регрессионный тест: проверяем что новая логика не сломала базовые принципы
+/// Regression test: ensure new logic didn't break basics
 #[wasm_bindgen_test]
 fn positioning_regression_basic() {
-    // Эти значения должны быть стабильными между версиями
+    // These values must remain stable across versions
 
-    // Тест для 10 свечей
+    // Test for 10 candles
     let visible = 10;
 
-    // Последняя свеча точно справа
+    // Last candle exactly at the right
     assert_eq!(candle_x_position(9, visible), 1.0);
 
-    // Предпоследняя свеча левее последней
+    // Penultimate candle to the left of the last
     assert!(candle_x_position(8, visible) < candle_x_position(9, visible));
 
-    // Первая свеча левее всех остальных
+    // First candle left of all others
     let first = candle_x_position(0, visible);
     for i in 1..visible {
         assert!(
@@ -28,14 +28,14 @@ fn positioning_regression_basic() {
     }
 }
 
-/// Проверяем что изменения не сломали математику
+/// Check that changes didn't break math
 #[wasm_bindgen_test]
 fn positioning_regression_math() {
     let test_cases = vec![
-        (1, vec![1.0]),                          // Одна свеча
-        (2, vec![0.0, 1.0]),                     // Две свечи
-        (3, vec![-0.33333334, 0.33333334, 1.0]), // Три свечи (с погрешностью float)
-        (4, vec![-0.5, 0.0, 0.5, 1.0]),          // Четыре свечи
+        (1, vec![1.0]),                          // one candle
+        (2, vec![0.0, 1.0]),                     // two candles
+        (3, vec![-0.33333334, 0.33333334, 1.0]), // three candles (float error)
+        (4, vec![-0.5, 0.0, 0.5, 1.0]),          // four candles
     ];
 
     for (visible_len, expected_positions) in test_cases {
@@ -53,18 +53,18 @@ fn positioning_regression_math() {
     }
 }
 
-/// Тест совместимости tooltip логики
+/// Tooltip logic compatibility test
 #[wasm_bindgen_test]
 fn tooltip_compatibility_regression() {
-    // Проверяем что tooltip логика работает с новым позиционированием
+    // Ensure tooltip logic works with new positioning
     let visible_len = 5;
     let step_size = 2.0 / visible_len as f64;
 
-    // Для каждой позиции проверяем обратную конверсию
+    // For each position check reverse conversion
     for expected_index in 0..visible_len {
         let x = candle_x_position(expected_index, visible_len);
 
-        // Применяем tooltip логику из app.rs
+        // Apply tooltip logic from app.rs
         let index_float = visible_len as f64 - (1.0 - x as f64) / step_size - 1.0;
         let calculated_index = index_float.round() as i32;
 
@@ -79,18 +79,18 @@ fn tooltip_compatibility_regression() {
     }
 }
 
-/// Проверяем границы viewport
+/// Check viewport bounds
 #[wasm_bindgen_test]
 fn viewport_bounds_regression() {
     let test_sizes = vec![1, 2, 5, 10, 20, 50, 100, 300];
 
     for &size in &test_sizes {
-        // Первая позиция не должна быть левее -1.0
+        // First position should not be left of -1.0
         let first = candle_x_position(0, size);
 
         assert!(first >= -1.0, "First position {:.6} should be >= -1.0 for size {}", first, size);
 
-        // Последняя позиция должна быть точно 1.0
+        // Last position must be exactly 1.0
         let last = candle_x_position(size - 1, size);
         assert_eq!(
             last, 1.0,
@@ -98,7 +98,7 @@ fn viewport_bounds_regression() {
             size, last
         );
 
-        // Все промежуточные позиции в границах
+        // All intermediate positions within bounds
         for i in 0..size {
             let pos = candle_x_position(i, size);
             assert!(
@@ -110,7 +110,7 @@ fn viewport_bounds_regression() {
             );
         }
 
-        // Проверяем что используем viewport оптимально
+        // Ensure we use the viewport optimally
         if size > 1 {
             let total_span = last - first;
             let expected_span = 2.0 * (size - 1) as f32 / size as f32;
@@ -125,7 +125,7 @@ fn viewport_bounds_regression() {
     }
 }
 
-/// Проверяем что спейсинг равномерный
+/// Ensure spacing is uniform
 #[wasm_bindgen_test]
 fn spacing_uniformity_regression() {
     let sizes = vec![2, 3, 5, 10, 20, 50];
