@@ -712,6 +712,7 @@ fn ChartContainer() -> impl IntoView {
         let status_clone = set_status;
         move |event: web_sys::WheelEvent| {
             web_sys::console::log_1(&format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into());
+            event.prevent_default();
 
             let delta_y = event.delta_y();
             let zoom_factor = if delta_y < 0.0 { 1.1 } else { 0.9 }; // Zoom in/out
@@ -721,6 +722,8 @@ fn ChartContainer() -> impl IntoView {
                 *z *= zoom_factor;
                 *z = z.clamp(0.1, 10.0); // Clamp zoom from 0.1x to 10x
             });
+            let center_x = event.offset_x() as f32 / 800.0;
+            chart_signal.update(|ch| ch.zoom(zoom_factor as f32, center_x));
             let new_zoom = zoom_level().with_untracked(|z| *z);
             web_sys::console::log_1(
                 &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
