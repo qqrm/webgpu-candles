@@ -3,12 +3,14 @@
 //! Handles canvas interactions, zoom/pan logic and connects to the
 //! WebSocket stream providing market data.
 
+use futures::lock::Mutex;
 use js_sys;
 use leptos::html::Canvas;
 use leptos::spawn_local_with_current_owner;
 use leptos::*;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 use wasm_bindgen::JsCast;
 
 use crate::global_signals;
@@ -23,7 +25,7 @@ use crate::{
             WebGpuRenderer,
             renderer::{set_global_renderer, with_global_renderer},
         },
-        websocket::BinanceWebSocketClient,
+        websocket::{BinanceWebSocketClient, get_global_rest_client, get_global_stream_client},
     },
 };
 
@@ -112,8 +114,17 @@ fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
     loading_more().set(true);
 
     let _ = spawn_local_with_current_owner(async move {
-        let client = BinanceWebSocketClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
-        match client.fetch_historical_data_before(end_time, 300).await {
+        let client_arc = get_global_rest_client().unwrap_or_else(|| {
+            Arc::new(Mutex::new(BinanceWebSocketClient::new(
+                Symbol::from("BTCUSDT"),
+                TimeInterval::OneMinute,
+            )))
+        });
+        let result = {
+            let client = client_arc.lock().await;
+            client.fetch_historical_data_before(end_time, 300).await
+        };
+        match result {
             Ok(mut new_candles) => {
                 new_candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
                 chart.update(|ch| {
@@ -1059,8 +1070,10 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
     let symbol = Symbol::from("BTCUSDT");
     let interval = TimeInterval::OneMinute;
 
-    // Create a client for data loading
-    let ws_client = BinanceWebSocketClient::new(symbol, interval);
+    // Use the global REST client for history
+    let rest_client_arc = get_global_rest_client().unwrap_or_else(|| {
+        Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)))
+    });
 
     // Set the streaming status
     global_is_streaming().set(false);
@@ -1068,7 +1081,11 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
     // 📈 First load historical data
     set_status.set("📈 Loading historical data...".to_string());
 
-    match ws_client.fetch_historical_data(300).await {
+    let hist_res = {
+        let client = rest_client_arc.lock().await;
+        client.fetch_historical_data(300).await
+    };
+    match hist_res {
         Ok(historical_candles) => {
             get_logger().info(
                 LogComponent::Presentation("WebSocketStream"),
@@ -1107,8 +1124,12 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
     set_status.set("🔌 Starting WebSocket stream...".to_string());
     global_is_streaming().set(true);
 
-    let mut ws_client =
-        BinanceWebSocketClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
+    let stream_client_arc = get_global_stream_client().unwrap_or_else(|| {
+        Arc::new(Mutex::new(BinanceWebSocketClient::new(
+            Symbol::from("BTCUSDT"),
+            TimeInterval::OneMinute,
+        )))
+    });
 
     let _ = spawn_local_with_current_owner(async move {
         let handler = move |candle: Candle| {
@@ -1141,7 +1162,11 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
             set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
         };
 
-        if let Err(e) = ws_client.start_stream(handler).await {
+        let result = {
+            let mut client = stream_client_arc.lock().await;
+            client.start_stream(handler).await
+        };
+        if let Err(e) = result {
             set_status.set(format!("❌ WebSocket error: {}", e));
             global_is_streaming().set(false);
         }
