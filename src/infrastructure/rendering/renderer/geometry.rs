@@ -45,6 +45,7 @@ pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
 
 impl WebGpuRenderer {
     pub(super) fn create_geometry(&self, chart: &Chart) -> (Vec<CandleVertex>, ChartUniforms) {
+
         use crate::app::CURRENT_INTERVAL;
 
         let interval = CURRENT_INTERVAL.with(|i| i.get_untracked());
@@ -52,6 +53,7 @@ impl WebGpuRenderer {
             .get_series(interval)
             .map(|s| s.get_candles())
             .unwrap_or_else(|| chart.get_series_for_zoom(self.zoom_level).get_candles());
+
         if candles.is_empty() {
             get_logger()
                 .error(LogComponent::Infrastructure("WebGpuRenderer"), "⚠️ No candles to render");
