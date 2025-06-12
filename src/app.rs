@@ -925,7 +925,7 @@ fn ChartContainer() -> impl IntoView {
 
             <TimeframeSelector />
 
-            // Временная шкала под графиком
+            // Time scale below the chart
             <div style="display: flex; justify-content: center; margin-top: 10px;">
                 <TimeScale chart=chart />
             </div>
@@ -1075,7 +1075,7 @@ fn TimeframeSelector() -> impl IntoView {
     }
 }
 
-/// 🌐 Запуск WebSocket стрима в Leptos с обновлением глобальных сигналов
+/// 🌐 Start WebSocket stream in Leptos and update global signals
 async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
     let symbol = Symbol::from("BTCUSDT");
     let interval = TimeInterval::OneMinute;

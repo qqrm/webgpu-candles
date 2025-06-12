@@ -2,7 +2,7 @@ use crate::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsValue;
 
-/// DTO для данных Kline от Binance
+/// DTO for Binance Kline data
 #[derive(Debug, Deserialize)]
 pub struct BinanceKlineData {
     #[serde(rename = "e")]
@@ -52,7 +52,7 @@ pub struct BinanceKline {
 }
 
 impl BinanceKline {
-    /// Конвертирует DTO в доменную сущность
+    /// Convert DTO to domain entity
     pub fn to_domain_candle(&self) -> Result<Candle, JsValue> {
         let timestamp = Timestamp::from(self.start_time);
 
@@ -85,7 +85,7 @@ impl BinanceKline {
             Volume::from(volume as f64),
         );
 
-        // Валидация данных
+        // Validate data
         if !ohlcv.is_valid() {
             return Err(JsValue::from_str("Invalid OHLCV data"));
         }
@@ -94,7 +94,7 @@ impl BinanceKline {
     }
 }
 
-/// DTO для подписки на WebSocket
+/// DTO for WebSocket subscription
 #[derive(Debug, Serialize)]
 pub struct BinanceSubscription {
     pub method: String,
@@ -120,21 +120,21 @@ impl BinanceSubscription {
     }
 }
 
-/// DTO для ответа на подписку
+/// DTO for subscription response
 #[derive(Debug, Deserialize)]
 pub struct BinanceSubscriptionResponse {
     pub result: Option<serde_json::Value>,
     pub id: u64,
 }
 
-/// DTO для ошибок WebSocket
+/// DTO for WebSocket errors
 #[derive(Debug, Deserialize)]
 pub struct BinanceError {
     pub code: i32,
     pub msg: String,
 }
 
-/// DTO для 24hr ticker статистики
+/// DTO for 24hr ticker statistics
 #[derive(Debug, Deserialize)]
 pub struct BinanceTicker24hr {
     #[serde(rename = "e")]

@@ -3,11 +3,11 @@ use wasm_bindgen_test::*;
 
 #[wasm_bindgen_test]
 fn chart_positioning_edge_cases() {
-    // Тест различных размеров visible_len
+    // Test various visible_len sizes
     let test_cases = vec![1, 2, 3, 5, 10, 20, 50, 100, 300];
 
     for &visible_len in &test_cases {
-        // Проверяем что последняя свеча всегда в позиции x=1.0
+        // Ensure the last candle is always at x=1.0
         let last_x = candle_x_position(visible_len - 1, visible_len);
         assert!(
             (last_x - 1.0).abs() < f32::EPSILON,
@@ -16,7 +16,7 @@ fn chart_positioning_edge_cases() {
             last_x
         );
 
-        // Проверяем что первая свеча в правильной позиции
+        // Ensure the first candle is in the correct position
         let first_x = candle_x_position(0, visible_len);
         let expected_first = 1.0 - (visible_len as f32 - 1.0) * (2.0 / visible_len as f32);
         assert!(
@@ -27,7 +27,7 @@ fn chart_positioning_edge_cases() {
             first_x
         );
 
-        // Проверяем что все позиции в правильном диапазоне
+        // Ensure all positions are within the correct range
         for i in 0..visible_len {
             let x = candle_x_position(i, visible_len);
             assert!(
@@ -43,20 +43,20 @@ fn chart_positioning_edge_cases() {
 
 #[wasm_bindgen_test]
 fn right_edge_alignment() {
-    // Специфический тест для привязки к правому краю
+    // Specific test for right edge alignment
     let test_cases = vec![1, 5, 10, 50, 100, 300];
 
     for &visible_len in &test_cases {
         let last_position = candle_x_position(visible_len - 1, visible_len);
 
-        // Последняя свеча должна быть ТОЧНО в x=1.0
+        // The last candle must be EXACTLY at x=1.0
         assert_eq!(
             last_position, 1.0,
             "Last candle must be exactly at x=1.0 for visible_len={}, got x={:.15}",
             visible_len, last_position
         );
 
-        // Если есть предпоследняя свеча, она должна быть левее
+        // If there is a penultimate candle, it should be to the left
         if visible_len > 1 {
             let second_last = candle_x_position(visible_len - 2, visible_len);
             assert!(
@@ -71,7 +71,7 @@ fn right_edge_alignment() {
 
 #[wasm_bindgen_test]
 fn monotonic_positioning() {
-    // Тест монотонности позиций
+    // Test position monotonicity
     let visible_len = 20;
     let mut positions = Vec::new();
 
@@ -79,7 +79,7 @@ fn monotonic_positioning() {
         positions.push(candle_x_position(i, visible_len));
     }
 
-    // Проверяем строгое возрастание
+    // Ensure strict increase
     for i in 1..positions.len() {
         assert!(
             positions[i] > positions[i - 1],
@@ -91,7 +91,7 @@ fn monotonic_positioning() {
         );
     }
 
-    // Проверяем равномерность интервалов
+    // Ensure uniform intervals
     let step = 2.0 / visible_len as f32;
     for i in 1..positions.len() {
         let actual_step = positions[i] - positions[i - 1];

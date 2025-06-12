@@ -1,19 +1,19 @@
 FROM rust:latest AS builder
 
-# Устанавливаем целевую платформу и Trunk
+# Install target platform and Trunk
 RUN rustup target add wasm32-unknown-unknown && \
     cargo install --locked trunk
 
 WORKDIR /app
 COPY . .
 
-# Сборка проекта через Trunk для production (переопределяем настройки для Docker)
+# Build the project with Trunk for production (Docker settings overridden)
 RUN trunk build --release --dist dist --public-url / && \
     git rev-parse HEAD > dist/version
 
 FROM nginx:alpine
 WORKDIR /usr/share/nginx/html
-# Копируем готовый dist каталог
+# Copy the prepared dist directory
 COPY --from=builder /app/dist/ ./
 
 EXPOSE 80

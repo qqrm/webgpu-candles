@@ -2,7 +2,7 @@ pub use super::value_objects::{OHLCV, Price, Timestamp, Volume};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
-/// Доменная сущность - Свеча
+/// Domain entity - Candle
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Candle {
     pub timestamp: Timestamp,

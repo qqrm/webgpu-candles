@@ -119,7 +119,7 @@ impl Viewport {
 
     /// Convert a screen Y coordinate back to price
     pub fn y_to_price(&self, y: f32) -> f32 {
-        let normalized = 1.0 - (y / self.height as f32); // Инвертируем Y
+        let normalized = 1.0 - (y / self.height as f32); // invert Y
         self.min_price + self.price_range() * normalized
     }
 }

@@ -246,7 +246,7 @@ export function start_app() {
 }
 
 /**
- * Проверка WebGPU поддержки
+ * Check WebGPU support
  * @returns {Promise<boolean>}
  */
 export function is_webgpu_supported() {
@@ -255,7 +255,7 @@ export function is_webgpu_supported() {
 }
 
 /**
- * Получить производительность рендерера
+ * Get renderer performance
  * @returns {string}
  */
 export function get_renderer_performance() {

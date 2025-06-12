@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use strum::{AsRefStr, Display as StrumDisplay, EnumIter, EnumString};
 
-/// Value Object - Цена с автогенерацией
+/// Value Object - Price with generated helpers
 #[derive(
     Debug, Clone, Copy, PartialEq, From, Into, Deref, DerefMut, Constructor, Serialize, Deserialize,
 )]
@@ -29,7 +29,7 @@ impl PartialOrd for Price {
     }
 }
 
-/// Value Object - Объем с автогенерацией
+/// Value Object - Volume with generated helpers
 #[derive(
     Debug, Clone, Copy, PartialEq, From, Into, Deref, DerefMut, Constructor, Serialize, Deserialize,
 )]
@@ -49,7 +49,7 @@ impl Volume {
     }
 }
 
-/// Value Object - Временная метка с автогенерацией
+/// Value Object - Timestamp with generated helpers
 #[derive(
     Debug,
     Clone,
@@ -75,7 +75,7 @@ impl Timestamp {
         self.0 as f64
     }
 
-    /// Создание из миллисекунд (для совместимости)
+    /// Create from milliseconds (for compatibility)
     pub fn from_millis(value: u64) -> Self {
         Self(value)
     }
@@ -85,7 +85,7 @@ impl Timestamp {
     }
 }
 
-/// Value Object - OHLCV данные с автогенерацией
+/// Value Object - OHLCV data with generated helpers
 #[derive(Debug, Clone, Copy, PartialEq, Constructor, Serialize, Deserialize)]
 pub struct OHLCV {
     pub open: Price,
@@ -96,7 +96,7 @@ pub struct OHLCV {
 }
 
 impl OHLCV {
-    /// Проверяет валидность OHLCV данных
+    /// Check the validity of OHLCV data
     pub fn is_valid(&self) -> bool {
         self.high >= self.open
             && self.high >= self.close
@@ -107,7 +107,7 @@ impl OHLCV {
     }
 }
 
-/// Value Object - Торговый символ с автогенерацией
+/// Value Object - Trading symbol with generated helpers
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deref, DerefMut, Display, Serialize, Deserialize)]
 #[display(fmt = "Symbol({})", _0)]
 pub struct Symbol(String);
@@ -131,7 +131,7 @@ impl From<&str> for Symbol {
     }
 }
 
-/// Value Object - Временной интервал (только нужные варианты)
+/// Value Object - Time interval (only required variants)
 #[derive(
     Debug,
     Clone,

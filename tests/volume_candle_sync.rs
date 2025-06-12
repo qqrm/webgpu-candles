@@ -33,29 +33,25 @@ fn create_test_candles(count: usize) -> Vec<Candle> {
 
 #[wasm_bindgen_test]
 fn volume_candle_position_sync() {
-    // Создаем тестовые данные
+    // Create test data
     let test_candles = create_test_candles(20);
     let visible_len = test_candles.len();
 
-    // Проверяем что volume bars и свечи используют одинаковые x позиции
+    // Check that volume bars and candles use the same x positions
     for (i, _candle) in test_candles.iter().enumerate() {
         let candle_x = candle_x_position(i, visible_len);
-        let volume_x = candle_x_position(i, visible_len); // Та же функция должна использоваться
+        let volume_x = candle_x_position(i, visible_len); // same function should be used
 
         assert_eq!(
             candle_x, volume_x,
-            "Volume bar и свеча {} должны иметь одинаковую x позицию: candle={:.6}, volume={:.6}",
+            "Volume bar and candle {} must share the same x position: candle={:.6}, volume={:.6}",
             i, candle_x, volume_x
         );
     }
 
-    // Проверяем что последняя свеча и volume bar точно справа
+    // Ensure the last candle and volume bar are exactly at the right
     let last_x = candle_x_position(visible_len - 1, visible_len);
-    assert_eq!(
-        last_x, 1.0,
-        "Последний элемент должен быть точно в x=1.0, получено x={:.10}",
-        last_x
-    );
+    assert_eq!(last_x, 1.0, "Last element must be exactly at x=1.0, got x={:.10}", last_x);
 }
 
 #[wasm_bindgen_test]
@@ -63,25 +59,25 @@ fn volume_width_sync() {
     let test_candles = create_test_candles(10);
     let visible_len = test_candles.len();
 
-    // Проверяем что step_size одинаковый для свечей и volume bars
+    // Check that step_size is the same for candles and volume bars
     let step_size = 2.0 / visible_len as f32;
     let expected_width = (step_size * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
-    // Эмулируем логику из кода
+    // Emulate logic from the code
     for i in 0..visible_len {
         let x = candle_x_position(i, visible_len);
         let half_width = expected_width * 0.5;
 
-        // Проверяем что границы не пересекаются и не выходят за [-1, 1]
+        // Ensure boundaries stay within [-1, 1]
         assert!(
             x - half_width >= -1.0,
-            "Левая граница элемента {} выходит за границы: {:.6}",
+            "Left boundary of element {} out of bounds: {:.6}",
             i,
             x - half_width
         );
         assert!(
             x + half_width <= 1.0,
-            "Правая граница элемента {} выходит за границы: {:.6}",
+            "Right boundary of element {} out of bounds: {:.6}",
             i,
             x + half_width
         );
@@ -90,58 +86,54 @@ fn volume_width_sync() {
 
 #[wasm_bindgen_test]
 fn debug_positioning_logic() {
-    // Тестируем только логику позиционирования без GPU
+    // Test positioning logic without GPU
     let test_candles = create_test_candles(15);
     let visible_len = test_candles.len();
 
-    // Проверяем что volume bars и свечи используют идентичную логику позиционирования
+    // Check that volume bars and candles use identical positioning logic
     let mut candle_positions = Vec::new();
     let mut volume_positions = Vec::new();
 
-    // Эмулируем логику создания позиций для свечей и volume bars
+    // Emulate position creation logic for candles and volume bars
     for i in 0..visible_len {
-        let candle_x = candle_x_position(i, visible_len); // Для свечей
-        let volume_x = candle_x_position(i, visible_len); // Для volume bars (должна быть та же функция)
+        let candle_x = candle_x_position(i, visible_len); // for candles
+        let volume_x = candle_x_position(i, visible_len); // for volume bars (same function)
 
         candle_positions.push(candle_x);
         volume_positions.push(volume_x);
     }
 
-    // Проверяем что позиции совпадают
+    // Verify that positions match
     for (i, (candle_x, volume_x)) in
         candle_positions.iter().zip(volume_positions.iter()).enumerate()
     {
         assert!(
             (candle_x - volume_x).abs() < f32::EPSILON,
-            "Позиция {} не совпадает: candle={:.6}, volume={:.6}",
+            "Position {} mismatch: candle={:.6}, volume={:.6}",
             i,
             candle_x,
             volume_x
         );
     }
 
-    // Проверяем правую привязку
+    // Check right edge alignment
     if !candle_positions.is_empty() {
         let last_candle = candle_positions.last().unwrap();
         let last_volume = volume_positions.last().unwrap();
 
-        assert_eq!(
-            *last_candle, 1.0,
-            "Последняя свеча должна быть в x=1.0, получено {:.10}",
-            last_candle
-        );
+        assert_eq!(*last_candle, 1.0, "Last candle should be at x=1.0, got {:.10}", last_candle);
         assert_eq!(
             *last_volume, 1.0,
-            "Последний volume bar должен быть в x=1.0, получено {:.10}",
+            "Last volume bar should be at x=1.0, got {:.10}",
             last_volume
         );
     }
 
-    // Дополнительная проверка: все позиции должны быть монотонно возрастающими
+    // Additional check: positions must be strictly increasing
     for i in 1..candle_positions.len() {
         assert!(
             candle_positions[i] > candle_positions[i - 1],
-            "Позиции свечей должны возрастать: pos[{}]={:.6} should be > pos[{}]={:.6}",
+            "Candle positions should increase: pos[{}]={:.6} should be > pos[{}]={:.6}",
             i,
             candle_positions[i],
             i - 1,
