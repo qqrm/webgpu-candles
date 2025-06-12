@@ -60,7 +60,6 @@ impl Chart {
         // Update the viewport
         self.update_viewport_for_data();
     }
-
     /// Add a new candle in real time
     pub fn add_realtime_candle(&mut self, candle: Candle) {
         let is_empty = self.get_candle_count() == 0;
