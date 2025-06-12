@@ -33,6 +33,7 @@ trunk build --dist dist-local
 
 Local builds are saved to `dist-local`. In GitHub Actions the `dist` path is
 used and the files are copied to [`docs/`](docs/) to publish the demo.
+The `docs/version` file stores the SHA of the last commit.
 
 When using Trunk, open **`index.html`** (served automatically when using `trunk serve`). The file contains a Trunk hook so the WASM is loaded for you:
 
@@ -103,7 +104,7 @@ See [TESTS.md](TESTS.md) for more details about the test suite.
 
 ## Deployment monitor
 
-The monitor workflow (`deploy-monitor.yml`) waits for the `build` workflow to finish. If the deployed version matches the last commit SHA, it sends a Telegram message. Add `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` as repository secrets for notifications. The build writes the current commit hash to `dist/version`, so the deployed site exposes `/version` with that value.
+The monitor workflow (`deploy-monitor.yml`) waits for the `build` workflow to finish. If the deployed version matches the last commit SHA, it sends a Telegram message. Add `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` as repository secrets for notifications. The build writes the current commit hash to `docs/version`, so the deployed site exposes `/version` with that value.
 
 
 ## Docker
