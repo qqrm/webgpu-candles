@@ -41,7 +41,6 @@ struct KlineInfo {
 
 /// Структура для исторических данных Binance Klines API
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct BinanceHistoricalKline(
     u64,                   // Open time
     String,                // Open

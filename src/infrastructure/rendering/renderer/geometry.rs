@@ -133,7 +133,7 @@ impl WebGpuRenderer {
         if candles.is_empty() {
             get_logger().error(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                "⚠️ No candles to render"
+                "⚠️ No candles to render",
             );
             return (vec![], ChartUniforms::new());
         }
@@ -142,7 +142,10 @@ impl WebGpuRenderer {
         if candles.len() % 100 == 0 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("🔧 Creating optimized geometry for {} candles", candles.len())
+                &format!(
+                    "🔧 Creating optimized geometry for {} candles",
+                    candles.len()
+                ),
             );
         }
 
@@ -182,8 +185,10 @@ impl WebGpuRenderer {
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
-            &format!("📏 Price range: {:.2} - {:.2}, Candle width: {:.4}, step:{:.4}",
-                min_price, max_price, _candle_width, step_size)
+            &format!(
+                "📏 Price range: {:.2} - {:.2}, Candle width: {:.4}, step:{:.4}",
+                min_price, max_price, _candle_width, step_size
+            ),
         );
 
         // Ensure we have a valid price range
@@ -199,8 +204,13 @@ impl WebGpuRenderer {
         if visible_candles.len() % 50 == 0 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("🔧 Rendering {} candles (showing last {} of {}) [zoom: {:.2}x]",
-                    visible_candles.len(), visible_count, candles.len(), self.zoom_level)
+                &format!(
+                    "🔧 Rendering {} candles (showing last {} of {}) [zoom: {:.2}x]",
+                    visible_candles.len(),
+                    visible_count,
+                    candles.len(),
+                    self.zoom_level
+                ),
             );
         }
 
@@ -228,8 +238,10 @@ impl WebGpuRenderer {
             if i < 3 || i >= visible_candles.len() - 3 {
                 get_logger().info(
                     LogComponent::Infrastructure("WebGpuRenderer"),
-                    &format!("🕯️ Candle {}: x={:.3}, Y=({:.3},{:.3},{:.3},{:.3}) width={:.4}",
-                        i, x, open_y, high_y, low_y, close_y, candle_width)
+                    &format!(
+                        "🕯️ Candle {}: x={:.3}, Y=({:.3},{:.3},{:.3},{:.3}) width={:.4}",
+                        i, x, open_y, high_y, low_y, close_y, candle_width
+                    ),
                 );
             }
 
@@ -321,8 +333,11 @@ impl WebGpuRenderer {
         if vertices.len() > 1000 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("✅ Generated {} vertices for {} visible candles + indicators",
-                    vertices.len(), visible_candles.len())
+                &format!(
+                    "✅ Generated {} vertices for {} visible candles + indicators",
+                    vertices.len(),
+                    visible_candles.len()
+                ),
             );
         }
 
@@ -374,7 +389,6 @@ impl WebGpuRenderer {
 
         let mut vertices = Vec::with_capacity(candles.len() * 6);
         let candle_count = candles.len();
-        let step_size = 2.0 / candle_count as f32;
         let price_range = max_price - min_price;
 
         // Функция для нормализации цены в NDC координаты
@@ -435,8 +449,12 @@ impl WebGpuRenderer {
         if !vertices.is_empty() {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("📈 Generated {} SMA20 points, {} EMA12 points, {} total MA vertices",
-                    sma20_points.len(), ema12_points.len(), vertices.len())
+                &format!(
+                    "📈 Generated {} SMA20 points, {} EMA12 points, {} total MA vertices",
+                    sma20_points.len(),
+                    ema12_points.len(),
+                    vertices.len()
+                ),
             );
         }
 
@@ -500,7 +518,7 @@ impl WebGpuRenderer {
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
-            &format!("📊 Generated {} grid vertices", vertices.len())
+            &format!("📊 Generated {} grid vertices", vertices.len()),
         );
 
         vertices
@@ -562,61 +580,14 @@ impl WebGpuRenderer {
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
-            &format!("📊 Generated {} volume vertices for {} candles (max volume: {:.2})",
-                vertices.len(), candles.len(), max_volume)
+            &format!(
+                "📊 Generated {} volume vertices for {} candles (max volume: {:.2})",
+                vertices.len(),
+                candles.len(),
+                max_volume
+            ),
         );
 
         vertices
-    }
-
-    /// Создать данные для instanced рендеринга свечей
-    pub(super) fn create_instanced_geometry(
-        &self,
-        chart: &Chart,
-    ) -> (Vec<CandleVertex>, Vec<CandleInstance>, ChartUniforms) {
-        let (_, uniforms) = self.create_geometry(chart);
-        let candles = chart.get_series_for_zoom(self.zoom_level).get_candles();
-        if candles.is_empty() {
-            return (BASE_TEMPLATE.to_vec(), Vec::new(), uniforms);
-        }
-
-        let visible_count = ((BASE_CANDLES as f64) / self.zoom_level)
-            .max(10.0)
-            .min(candles.len() as f64) as usize;
-        let start_index = candles.len().saturating_sub(visible_count);
-        let mut instances = Vec::with_capacity(visible_count);
-
-        let price_range = uniforms.viewport[3] - uniforms.viewport[2];
-        let price_norm =
-            |p: f32| -> f32 { -0.5 + ((p - uniforms.viewport[2]) / price_range) * 1.3 };
-
-        let step_size = 2.0 / visible_count as f32;
-        let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
-        let width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1);
-
-        for (i, c) in candles.iter().skip(start_index).enumerate() {
-            let x = candle_x_position(i, visible_count);
-            let open_y = price_norm(c.ohlcv.open.value() as f32);
-            let high_y = price_norm(c.ohlcv.high.value() as f32);
-            let low_y = price_norm(c.ohlcv.low.value() as f32);
-            let close_y = price_norm(c.ohlcv.close.value() as f32);
-            let body_top = open_y.max(close_y);
-            let body_bottom = open_y.min(close_y);
-            instances.push(CandleInstance {
-                x,
-                width,
-                body_top,
-                body_bottom,
-                high: high_y,
-                low: low_y,
-                bullish: if close_y >= open_y { 1.0 } else { 0.0 },
-                _padding: 0.0,
-            });
-        }
-
-        // Базовый шаблон - один раз
-        let template = BASE_TEMPLATE.to_vec();
-
-        (template, instances, uniforms)
     }
 }

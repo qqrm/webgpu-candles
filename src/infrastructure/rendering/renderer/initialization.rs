@@ -196,13 +196,6 @@ impl WebGpuRenderer {
             mapped_at_creation: false,
         });
 
-        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Instance Buffer"),
-            size: (std::mem::size_of::<CandleInstance>() * 10000) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
             "✅ Full WebGPU renderer initialized successfully.",
@@ -218,14 +211,12 @@ impl WebGpuRenderer {
             config,
             render_pipeline,
             vertex_buffer,
-            instance_buffer,
             uniform_buffer,
             uniform_bind_group,
             template_vertices: 0,
             instance_count: 0,
             cached_vertices: Vec::new(),
             cached_instances: Vec::new(),
-            cached_additional_vertices: Vec::new(),
             cached_uniforms: ChartUniforms::new(),
             cached_candle_count: 0,
             cached_zoom_level: 1.0,
