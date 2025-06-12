@@ -300,6 +300,29 @@ impl CandleGeometry {
 
         vertices.extend_from_slice(&body_vertices);
 
+        // Небольшое скругление углов с помощью дополнительных треугольников
+        let corner = width * 0.2;
+        let rounded_corners = [
+            // Верхний левый угол
+            CandleVertex::body_vertex(x_normalized - half_width, body_top - corner, is_bullish),
+            CandleVertex::body_vertex(x_normalized - half_width + corner, body_top, is_bullish),
+            CandleVertex::body_vertex(x_normalized - half_width, body_top, is_bullish),
+            // Верхний правый угол
+            CandleVertex::body_vertex(x_normalized + half_width - corner, body_top, is_bullish),
+            CandleVertex::body_vertex(x_normalized + half_width, body_top - corner, is_bullish),
+            CandleVertex::body_vertex(x_normalized + half_width, body_top, is_bullish),
+            // Нижний левый угол
+            CandleVertex::body_vertex(x_normalized - half_width, body_bottom, is_bullish),
+            CandleVertex::body_vertex(x_normalized - half_width + corner, body_bottom, is_bullish),
+            CandleVertex::body_vertex(x_normalized - half_width, body_bottom + corner, is_bullish),
+            // Нижний правый угол
+            CandleVertex::body_vertex(x_normalized + half_width, body_bottom, is_bullish),
+            CandleVertex::body_vertex(x_normalized + half_width, body_bottom + corner, is_bullish),
+            CandleVertex::body_vertex(x_normalized + half_width - corner, body_bottom, is_bullish),
+        ];
+
+        vertices.extend_from_slice(&rounded_corners);
+
         // Создаем линии для фитилей (верхний и нижний)
         let wick_width = width * 0.1; // Фитиль тоньше тела
         let wick_half = wick_width * 0.5;

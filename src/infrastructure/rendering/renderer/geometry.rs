@@ -185,6 +185,28 @@ impl WebGpuRenderer {
             ];
             vertices.extend_from_slice(&body_vertices);
 
+            // Скругляем углы небольшими треугольниками
+            let corner = candle_width * 0.2;
+            let corners = vec![
+                // Верхний левый
+                CandleVertex::body_vertex(x - half_width, actual_body_top - corner, is_bullish),
+                CandleVertex::body_vertex(x - half_width + corner, actual_body_top, is_bullish),
+                CandleVertex::body_vertex(x - half_width, actual_body_top, is_bullish),
+                // Верхний правый
+                CandleVertex::body_vertex(x + half_width - corner, actual_body_top, is_bullish),
+                CandleVertex::body_vertex(x + half_width, actual_body_top - corner, is_bullish),
+                CandleVertex::body_vertex(x + half_width, actual_body_top, is_bullish),
+                // Нижний левый
+                CandleVertex::body_vertex(x - half_width, body_bottom, is_bullish),
+                CandleVertex::body_vertex(x - half_width + corner, body_bottom, is_bullish),
+                CandleVertex::body_vertex(x - half_width, body_bottom + corner, is_bullish),
+                // Нижний правый
+                CandleVertex::body_vertex(x + half_width, body_bottom, is_bullish),
+                CandleVertex::body_vertex(x + half_width, body_bottom + corner, is_bullish),
+                CandleVertex::body_vertex(x + half_width - corner, body_bottom, is_bullish),
+            ];
+            vertices.extend_from_slice(&corners);
+
             // Добавляем фитили (верхний и нижний)
             let wick_width = candle_width * 0.1; // Тонкие фитили
             let wick_half = wick_width * 0.5;
