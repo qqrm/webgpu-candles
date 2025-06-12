@@ -232,6 +232,14 @@ function debugString(val) {
     // TODO we could test for more things here, like `Set`s and `Map`s.
     return className;
 }
+/**
+ * Экспортируемая функция для JavaScript
+ * @returns {Promise<void>}
+ */
+export function test_binance_websocket() {
+    const ret = wasm.test_binance_websocket();
+    return ret;
+}
 
 export function start_app() {
     wasm.start_app();
@@ -257,17 +265,8 @@ export function get_renderer_performance() {
     return v1;
 }
 
-/**
- * Экспортируемая функция для JavaScript
- * @returns {Promise<void>}
- */
-export function test_binance_websocket() {
-    const ret = wasm.test_binance_websocket();
-    return ret;
-}
-
 function __wbg_adapter_34(arg0, arg1, arg2) {
-    wasm.closure81_externref_shim(arg0, arg1, arg2);
+    wasm.closure54_externref_shim(arg0, arg1, arg2);
 }
 
 function __wbg_adapter_41(arg0, arg1) {
@@ -1853,48 +1852,48 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1461 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper1460 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 230, __wbg_adapter_41);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1476 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper1475 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 237, __wbg_adapter_44);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1478 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper1477 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 237, __wbg_adapter_47);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1480 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper1479 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 237, __wbg_adapter_44);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1482 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper1481 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 237, __wbg_adapter_44);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1689 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper1688 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 301, __wbg_adapter_54);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1721 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper1720 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 308, __wbg_adapter_57);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper3323 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper3322 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 315, __wbg_adapter_60);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper524 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 82, __wbg_adapter_34);
+    imports.wbg.__wbindgen_closure_wrapper461 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 55, __wbg_adapter_34);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper526 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 82, __wbg_adapter_34);
+    imports.wbg.__wbindgen_closure_wrapper463 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 55, __wbg_adapter_34);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper528 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 82, __wbg_adapter_34);
+    imports.wbg.__wbindgen_closure_wrapper465 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 55, __wbg_adapter_34);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {
