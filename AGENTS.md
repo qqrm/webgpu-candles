@@ -6,6 +6,7 @@
   - `cargo check --tests --benches`
   - `cargo clippy --tests --benches --fix --allow-dirty -- -D warnings`
   - If your changes touch only Markdown files, you can skip the build checks above.
+- Do not mention these commands in commit messages.
 - Running tests (e.g. `wasm-pack test`) won't work due to wasm; they will run in GitHub Actions.
 - One of the readiness criteria is the absence of formatting issues and linter warnings.
 - Do not suppress warnings about unused code via `#[allow(dead_code)]`. Remove dead code instead.
