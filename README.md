@@ -73,6 +73,7 @@ src/
 ```
 
 For more architectural details see [ARCHITECTURE.md](ARCHITECTURE.md).
+Planned features are listed in [FEATURES.md](FEATURES.md).
 
 ## Demo
 
