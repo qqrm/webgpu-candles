@@ -63,12 +63,16 @@ impl Chart {
 
     /// Add a new candle in real time
     pub fn add_realtime_candle(&mut self, candle: Candle) {
+        let is_empty = self.get_candle_count() == 0;
+
         if let Some(base) = self.series.get_mut(&TimeInterval::OneMinute) {
             base.add_candle(candle.clone());
         }
         self.update_aggregates(candle);
 
-        self.update_viewport_for_data();
+        if is_empty {
+            self.update_viewport_for_data();
+        }
     }
 
     /// Get total number of candles
