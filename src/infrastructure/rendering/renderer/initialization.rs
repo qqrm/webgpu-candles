@@ -1,5 +1,6 @@
 use super::*;
 use leptos::SignalGetUntracked;
+use std::collections::VecDeque;
 
 impl WebGpuRenderer {
     pub async fn is_webgpu_supported() -> bool {
@@ -220,7 +221,7 @@ impl WebGpuRenderer {
             zoom_level: 1.0,
             pan_offset: 0.0,
             last_frame_time: 0.0,
-            fps_samples: Vec::new(),
+            fps_log: VecDeque::new(),
             line_visibility: LineVisibility::default(),
         })
     }

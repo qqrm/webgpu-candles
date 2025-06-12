@@ -9,6 +9,7 @@ use crate::infrastructure::rendering::gpu_structures::{
 use gloo::utils::document;
 use js_sys;
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
@@ -69,7 +70,7 @@ pub struct WebGpuRenderer {
 
     // ⏱️ Метрики производительности
     last_frame_time: f64,
-    fps_samples: Vec<f64>,
+    fps_log: VecDeque<f64>,
 
     // 📊 Видимость линий индикаторов
     line_visibility: LineVisibility,

@@ -10,7 +10,7 @@
 ### Additional Changes
 - [x] `CandleSeries` switched to `VecDeque`
 - [x] Store `Chart` in state
-- [ ] Log vector on `VecDeque`
+ - [x] Log vector on `VecDeque`
 
 ## WebGPU Performance Benchmark
 - [x] Measure FPS for different data volumes
