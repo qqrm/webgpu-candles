@@ -35,7 +35,7 @@ impl Candle {
     }
 }
 
-/// Доменная сущность - Временной ряд свечей
+/// Domain entity - Candle series
 #[derive(Debug, Clone)]
 pub struct CandleSeries {
     candles: VecDeque<Candle>,
@@ -48,16 +48,16 @@ impl CandleSeries {
     }
 
     pub fn add_candle(&mut self, candle: Candle) {
-        // Проверяем, обновляем ли мы существующую свечу или добавляем новую
+        // Check whether to update the existing candle or add a new one
         if let Some(last_candle) = self.candles.back_mut() {
             if last_candle.timestamp == candle.timestamp {
                 *last_candle = candle;
                 return;
             }
 
-            // Проверяем хронологический порядок
+            // Ensure chronological order
             if candle.timestamp.value() < last_candle.timestamp.value() {
-                // Если новая свеча старше последней, нужна вставка с сортировкой
+                // If the new candle is older than the last, insert it sorted
                 self.insert_candle_sorted(candle);
                 return;
             }
@@ -65,22 +65,22 @@ impl CandleSeries {
 
         self.candles.push_back(candle);
 
-        // Ограничиваем размер для производительности
+        // Limit size for performance
         if self.candles.len() > self.max_size {
             self.candles.pop_front();
         }
     }
 
-    /// Вставка свечи с сохранением сортировки по времени
+    /// Insert a candle while keeping time order
     fn insert_candle_sorted(&mut self, candle: Candle) {
-        // Находим правильную позицию для вставки
+        // Find the correct insertion position
         let insert_pos = self
             .candles
             .iter()
             .position(|c| c.timestamp.value() >= candle.timestamp.value())
             .unwrap_or(self.candles.len());
 
-        // Если свеча с таким timestamp уже существует, заменяем её
+        // Replace the candle if one with the same timestamp exists
         if insert_pos < self.candles.len() && self.candles[insert_pos].timestamp == candle.timestamp
         {
             self.candles[insert_pos] = candle;
@@ -88,7 +88,7 @@ impl CandleSeries {
             self.candles.insert(insert_pos, candle);
         }
 
-        // Ограничиваем размер
+        // Limit the size
         if self.candles.len() > self.max_size {
             self.candles.pop_front();
         }
@@ -110,22 +110,22 @@ impl CandleSeries {
         self.candles.len()
     }
 
-    /// Максимальное количество свечей в серии
+    /// Maximum number of candles in the series
     pub fn max_size(&self) -> usize {
         self.max_size
     }
 
-    /// Ёмкость серии (максимальное количество свечей)
+    /// Capacity of the series (maximum candle count)
     pub fn capacity(&self) -> usize {
         self.max_size
     }
 
-    /// Получить последнюю цену закрытия
+    /// Get the last closing price
     pub fn get_latest_price(&self) -> Option<&Price> {
         self.candles.back().map(|candle| &candle.ohlcv.close)
     }
 
-    /// Получить ценовой диапазон всех свечей
+    /// Get the price range of all candles
     pub fn price_range(&self) -> Option<(&Price, &Price)> {
         if self.candles.is_empty() {
             return None;

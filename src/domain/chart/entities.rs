@@ -3,7 +3,7 @@ use crate::domain::market_data::services::Aggregator;
 use crate::domain::market_data::{Candle, CandleSeries, TimeInterval, Volume};
 use std::collections::HashMap;
 
-/// Доменная сущность - График
+/// Domain entity - Chart
 #[derive(Debug, Clone)]
 pub struct Chart {
     pub id: String,
@@ -31,12 +31,12 @@ impl Chart {
         self.update_aggregates(candle);
     }
 
-    /// Добавить исторические данные (замещает существующие)
+    /// Add historical data, replacing existing values
     pub fn set_historical_data(&mut self, mut candles: Vec<Candle>) {
-        // Сортируем по времени для стабильности
+        // Sort by timestamp for stability
         candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
 
-        // Создаем новую серию с исходным лимитом
+        // Create a new series with the original limit
         let limit = self
             .series
             .get(&TimeInterval::OneMinute)
@@ -53,11 +53,11 @@ impl Chart {
             self.update_aggregates(candle);
         }
 
-        // Обновляем viewport
+        // Update the viewport
         self.update_viewport_for_data();
     }
 
-    /// Добавить новую свечу в реальном времени
+    /// Add a new candle in real time
     pub fn add_realtime_candle(&mut self, candle: Candle) {
         if let Some(base) = self.series.get_mut(&TimeInterval::OneMinute) {
             base.add_candle(candle.clone());
@@ -67,12 +67,12 @@ impl Chart {
         self.update_viewport_for_data();
     }
 
-    /// Получить общее количество свечей
+    /// Get total number of candles
     pub fn get_candle_count(&self) -> usize {
         self.series.get(&TimeInterval::OneMinute).map(|s| s.count()).unwrap_or(0)
     }
 
-    /// Проверить, есть ли данные
+    /// Check whether data exists
     pub fn has_data(&self) -> bool {
         self.series.get(&TimeInterval::OneMinute).map(|s| s.count() > 0).unwrap_or(false)
     }
@@ -85,18 +85,18 @@ impl Chart {
         self.indicators.retain(|ind| ind.id != indicator_id);
     }
 
-    /// Обновить viewport на основе данных свечей
+    /// Update the viewport based on candle data
     pub fn update_viewport_for_data(&mut self) {
         if let Some(base) = self.series.get(&TimeInterval::OneMinute) {
             if let Some((min_price, max_price)) = base.price_range() {
-                // Добавляем отступы для лучшей визуализации (5% сверху и снизу)
+                // Add padding for better visualization (5% top and bottom)
                 let price_range = max_price.value() - min_price.value();
                 let padding = (price_range * 0.05) as f32;
 
-                self.viewport.min_price = (min_price.value() as f32 - padding).max(0.1); // Минимум $0.1
+                self.viewport.min_price = (min_price.value() as f32 - padding).max(0.1); // Minimum $0.1
                 self.viewport.max_price = max_price.value() as f32 + padding;
 
-                // Обновляем временной диапазон
+                // Update the time range
                 let candles = base.get_candles();
                 if !candles.is_empty() {
                     self.viewport.start_time = candles.front().unwrap().timestamp.value() as f64;
@@ -110,7 +110,7 @@ impl Chart {
         self.viewport.zoom(factor, center_x);
     }
 
-    /// Вертикальный зум по цене
+    /// Vertical zoom by price
     pub fn zoom_price(&mut self, factor: f32, center_y: f32) {
         self.viewport.zoom_price(factor, center_y);
     }

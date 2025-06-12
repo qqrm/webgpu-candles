@@ -46,7 +46,6 @@ impl WebGpuRenderer {
     pub(super) fn create_geometry(&self, chart: &Chart) -> (Vec<CandleVertex>, ChartUniforms) {
         let candles = chart.get_series_for_zoom(self.zoom_level).get_candles();
         if candles.is_empty() {
-
             get_logger()
                 .error(LogComponent::Infrastructure("WebGpuRenderer"), "⚠️ No candles to render");
 

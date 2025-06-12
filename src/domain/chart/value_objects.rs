@@ -1,7 +1,7 @@
 use derive_more::Display;
 use strum::{AsRefStr, EnumIter, EnumString};
 
-/// Value Object - Тип графика
+/// Value Object - Chart type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display, EnumIter, EnumString, AsRefStr)]
 pub enum ChartType {
     #[display(fmt = "Candlestick")]
@@ -27,7 +27,7 @@ pub enum ChartType {
     PointAndFigure,
 }
 
-/// Value Object - Окно просмотра
+/// Value Object - Viewport
 #[derive(Debug, Clone, PartialEq)]
 pub struct Viewport {
     pub start_time: f64,
@@ -73,7 +73,7 @@ impl Viewport {
         self.end_time = center_time + new_range / 2.0;
     }
 
-    /// Масштабирование цен по вертикали
+    /// Scale prices vertically
     pub fn zoom_price(&mut self, factor: f32, center_y: f32) {
         let current_range = self.price_range();
         let new_range = current_range / factor;
@@ -93,7 +93,7 @@ impl Viewport {
         self.max_price += price_delta;
     }
 
-    /// Конвертирует временную координату в экранную X координату
+    /// Convert a timestamp to a screen X coordinate
     pub fn time_to_x(&self, timestamp: f64) -> f32 {
         if self.time_range() == 0.0 {
             return 0.0;
@@ -102,29 +102,29 @@ impl Viewport {
         (normalized * self.width as f64) as f32
     }
 
-    /// Конвертирует цену в экранную Y координату
+    /// Convert a price to a screen Y coordinate
     pub fn price_to_y(&self, price: f32) -> f32 {
         if self.price_range() == 0.0 {
             return self.height as f32 / 2.0;
         }
         let normalized = (price - self.min_price) / self.price_range();
-        self.height as f32 * (1.0 - normalized) // Инвертируем Y
+        self.height as f32 * (1.0 - normalized) // Invert Y
     }
 
-    /// Конвертирует экранную X координату во время
+    /// Convert a screen X coordinate back to time
     pub fn x_to_time(&self, x: f32) -> f64 {
         let normalized = x / self.width as f32;
         self.start_time + self.time_range() * normalized as f64
     }
 
-    /// Конвертирует экранную Y координату в цену
+    /// Convert a screen Y coordinate back to price
     pub fn y_to_price(&self, y: f32) -> f32 {
         let normalized = 1.0 - (y / self.height as f32); // Инвертируем Y
         self.min_price + self.price_range() * normalized
     }
 }
 
-/// Value Object - Цвет
+/// Value Object - Color
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Color {
     pub r: f32,
@@ -160,7 +160,7 @@ impl Color {
         Self { a: alpha, ..*self }
     }
 
-    /// Предустановленные цвета
+    /// Predefined colors
     pub const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
     pub const WHITE: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
     pub const RED: Color = Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 };
@@ -169,7 +169,7 @@ impl Color {
     pub const TRANSPARENT: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
 }
 
-// Конструкторы для цветовых кортежей
+// Constructors for color tuples
 impl From<(f32, f32, f32)> for Color {
     fn from((r, g, b): (f32, f32, f32)) -> Self {
         Self::rgb(r, g, b)
