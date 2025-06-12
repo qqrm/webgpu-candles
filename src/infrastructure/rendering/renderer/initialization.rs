@@ -249,5 +249,7 @@ impl WebGpuRenderer {
     pub fn set_zoom_params(&mut self, zoom_level: f64, pan_offset: f64) {
         self.zoom_level = zoom_level;
         self.pan_offset = pan_offset;
+        // Force geometry refresh on next render
+        self.cached_zoom_level = f64::MAX;
     }
 }

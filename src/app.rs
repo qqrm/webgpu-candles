@@ -340,6 +340,18 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
             let factor = if e.delta_y() < 0.0 { 1.1 } else { 0.9 };
             let center = e.offset_y() as f32 / 500.0;
             chart_signal.update(|c| c.zoom_price(factor as f32, center));
+
+            chart_signal.with_untracked(|ch| {
+                if ch.get_candle_count() > 0 {
+                    with_global_renderer(|r| {
+                        r.set_zoom_params(
+                            ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)),
+                            PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
+                        );
+                        let _ = r.render(ch);
+                    });
+                }
+            });
         }
     };
 
