@@ -1,0 +1,30 @@
+name: deploy-monitor
+on:
+  workflow_run:
+    workflows: ["build"]
+    types:
+      - completed
+
+jobs:
+  monitor:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check version
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          for i in {1..6}; do
+            version=$(curl -fsSL https://example.com/version)
+            if [ "$version" = "${{ github.event.workflow_run.head_sha }}" ]; then
+              curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+                -d "chat_id=${CHAT_ID}" \
+                -d "text=Deployment succeeded: $version"
+              exit 0
+            fi
+            sleep 300
+          done
+          echo "Version not updated"
+          exit 1
+
