@@ -102,6 +102,13 @@ them with:
 wasm-pack test
 ```
 
+Alternatively install Node dependencies and run:
+
+```bash
+npm install
+npm test
+```
+
 See [TESTS.md](TESTS.md) for more details about the test suite.
 
 ## Deployment monitor
