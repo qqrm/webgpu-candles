@@ -11,7 +11,9 @@ pub mod global_state;
 pub mod infrastructure;
 
 // === WASM EXPORTS ===
+use futures::lock::Mutex;
 use leptos::*;
+use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
@@ -24,6 +26,19 @@ pub fn start_app() {
 
     // Initialize infrastructure services
     crate::infrastructure::initialize_infrastructure_services();
+
+    // Initialize global clients
+    use crate::domain::market_data::{Symbol, TimeInterval};
+    use crate::infrastructure::websocket::{
+        BinanceWebSocketClient, set_global_rest_client, set_global_stream_client,
+    };
+    let symbol = Symbol::from("BTCUSDT");
+    let interval = TimeInterval::OneMinute;
+    set_global_rest_client(Arc::new(Mutex::new(BinanceWebSocketClient::new(
+        symbol.clone(),
+        interval,
+    ))));
+    set_global_stream_client(Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol, interval))));
 
     // Mount Leptos app to body
     web_sys::console::log_1(&"🎯 Mounting Leptos app...".into());
