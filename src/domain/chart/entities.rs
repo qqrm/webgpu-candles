@@ -67,8 +67,6 @@ impl Chart {
             base.add_candle(candle.clone());
         }
         self.update_aggregates(candle);
-
-        self.update_viewport_for_data();
     }
 
     /// Get total number of candles

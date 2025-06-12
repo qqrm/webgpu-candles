@@ -1081,6 +1081,11 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 
             chart.update(|ch| {
                 ch.add_realtime_candle(candle.clone());
+                if (zoom_level().get_untracked() - 1.0).abs() < f64::EPSILON
+                    && pan_offset().get_untracked().abs() < f64::EPSILON
+                {
+                    ch.update_viewport_for_data();
+                }
             });
 
             let count = chart.with(|c| c.get_candle_count());
