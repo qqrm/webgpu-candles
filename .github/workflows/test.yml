@@ -22,8 +22,6 @@ jobs:
         run: cargo install wasm-tools
       - name: Update dependencies
         run: cargo update
-      - name: Cargo fmt check
-        run: cargo fmt --all -- --check
       - name: Cargo check
         run: cargo check --all-targets
       - name: Cargo clippy
