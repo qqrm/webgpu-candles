@@ -131,10 +131,8 @@ impl WebGpuRenderer {
         }
 
         // Create vertices for each visible candle
-        let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
         let step_size = 2.0 / visible_candles.len() as f32;
-        let candle_width =
-            (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
+        let candle_width = (step_size * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
         for (i, candle) in visible_candles.iter().enumerate() {
             let x = candle_x_position(i, visible_candles.len());
@@ -460,8 +458,7 @@ impl WebGpuRenderer {
         let volume_height = volume_top - volume_bottom;
 
         let step_size = 2.0 / candle_count as f32;
-        let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
-        let bar_width = (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH); // Та же логика что и для свечей
+        let bar_width = (step_size * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
         for (i, candle) in candles.iter().enumerate() {
             let x = candle_x_position(i, candle_count);
