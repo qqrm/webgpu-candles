@@ -41,6 +41,7 @@ thread_local! {
     static IS_DRAGGING: RwSignal<bool> = create_rw_signal(false);
     static LAST_MOUSE_X: RwSignal<f64> = create_rw_signal(0.0);
     static LAST_MOUSE_Y: RwSignal<f64> = create_rw_signal(0.0);
+    pub static CURRENT_INTERVAL: RwSignal<TimeInterval> = create_rw_signal(TimeInterval::OneMinute);
 }
 
 /// 📈 Запрашивает дополнительную историю и добавляет в начало списка
@@ -315,11 +316,8 @@ fn header() -> impl IntoView {
 #[component]
 fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
     let labels = move || {
-        let candles = chart.with(|c| {
-            c.get_series_for_zoom(ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)))
-                .get_candles()
-                .clone()
-        });
+        let interval = CURRENT_INTERVAL.with(|i| i.get_untracked());
+        let candles = chart.with(|c| c.get_series(interval).unwrap().get_candles().clone());
         if candles.is_empty() {
             return vec![];
         }
@@ -361,7 +359,8 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
 fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
     let time_labels = move || {
         let zoom = ZOOM_LEVEL.with(|z| z.get_untracked());
-        let candles = chart.with(|c| c.get_series_for_zoom(zoom).get_candles().clone());
+        let interval = CURRENT_INTERVAL.with(|i| i.get_untracked());
+        let candles = chart.with(|c| c.get_series(interval).unwrap().get_candles().clone());
 
         if candles.is_empty() {
             return vec![];
@@ -612,9 +611,8 @@ fn ChartContainer() -> impl IntoView {
                     let _ndc_y = 1.0 - (mouse_y / canvas_height) * 2.0;
 
                     chart_signal.with(|ch| {
-                        let candles = ch
-                            .get_series_for_zoom(ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)))
-                            .get_candles();
+                        let interval = CURRENT_INTERVAL.with(|i| i.get_untracked());
+                        let candles = ch.get_series(interval).unwrap().get_candles();
                         if !candles.is_empty() {
                             let max_visible = 300;
                             let start_idx = if candles.len() > max_visible {
@@ -845,6 +843,8 @@ fn ChartContainer() -> impl IntoView {
                 </div>
             </div>
 
+            <TimeframeSelector />
+
             // Временная шкала под графиком
             <div style="display: flex; justify-content: center; margin-top: 10px;">
                 <TimeScale chart=chart />
@@ -955,6 +955,42 @@ fn ChartTooltip() -> impl IntoView {
                     }
                 })
             }}
+        </div>
+    }
+}
+
+#[component]
+fn TimeframeSelector() -> impl IntoView {
+    let options = vec![
+        TimeInterval::OneMinute,
+        TimeInterval::FiveMinutes,
+        TimeInterval::FifteenMinutes,
+        TimeInterval::ThirtyMinutes,
+        TimeInterval::OneHour,
+        TimeInterval::OneDay,
+        TimeInterval::OneWeek,
+        TimeInterval::OneMonth,
+    ];
+
+    view! {
+        <div style="display:flex;gap:6px;margin-top:8px;">
+            <For
+                each=move || options.clone()
+                key=|i| i.as_ref().to_string()
+                children=|interval| {
+                    let label = interval.as_ref().to_string();
+                    view! {
+                        <button
+                            style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
+                            on:click=move |_| {
+                                CURRENT_INTERVAL.with(|c| c.set(interval));
+                            }
+                        >
+                            {label}
+                        </button>
+                    }
+                }
+            />
         </div>
     }
 }
