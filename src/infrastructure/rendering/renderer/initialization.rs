@@ -237,8 +237,8 @@ impl WebGpuRenderer {
 
     pub fn update(&mut self, chart: &Chart) {
         // Simplified update method - just store vertex count for debugging
-        use crate::app::CURRENT_INTERVAL;
-        let interval = CURRENT_INTERVAL.with(|i| i.get_untracked());
+        use crate::app::current_interval;
+        let interval = current_interval().get_untracked();
         let candles = chart
             .get_series(interval)
             .map(|s| s.get_candles())

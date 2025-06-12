@@ -14,6 +14,7 @@ use crate::{
         logging::{LogComponent, get_logger},
         market_data::{Candle, TimeInterval, value_objects::Symbol},
     },
+    global_state::globals,
     infrastructure::{
         rendering::{
             WebGpuRenderer,
@@ -23,30 +24,50 @@ use crate::{
     },
 };
 
-// 🔗 Global signals for real-time data
-thread_local! {
-    static GLOBAL_CURRENT_PRICE: RwSignal<f64> = create_rw_signal(0.0);
-    static GLOBAL_CANDLE_COUNT: RwSignal<usize> = create_rw_signal(0);
-    static GLOBAL_IS_STREAMING: RwSignal<bool> = create_rw_signal(false);
-    static GLOBAL_MAX_VOLUME: RwSignal<f64> = create_rw_signal(0.0);
-    static LOADING_MORE: RwSignal<bool> = create_rw_signal(false);
-
-    // 🎯 Tooltip data
-    static TOOLTIP_DATA: RwSignal<Option<TooltipData>> = create_rw_signal(None);
-    static TOOLTIP_VISIBLE: RwSignal<bool> = create_rw_signal(false);
-
-    // 🔍 Zoom and pan
-    static ZOOM_LEVEL: RwSignal<f64> = create_rw_signal(1.0);
-    static PAN_OFFSET: RwSignal<f64> = create_rw_signal(0.0);
-    static IS_DRAGGING: RwSignal<bool> = create_rw_signal(false);
-    static LAST_MOUSE_X: RwSignal<f64> = create_rw_signal(0.0);
-    static LAST_MOUSE_Y: RwSignal<f64> = create_rw_signal(0.0);
-    pub static CURRENT_INTERVAL: RwSignal<TimeInterval> = create_rw_signal(TimeInterval::OneMinute);
+// Helper aliases for global signals
+fn global_current_price() -> RwSignal<f64> {
+    globals().current_price
+}
+fn global_candle_count() -> RwSignal<usize> {
+    globals().candle_count
+}
+fn global_is_streaming() -> RwSignal<bool> {
+    globals().is_streaming
+}
+fn global_max_volume() -> RwSignal<f64> {
+    globals().max_volume
+}
+fn loading_more() -> RwSignal<bool> {
+    globals().loading_more
+}
+fn tooltip_data() -> RwSignal<Option<TooltipData>> {
+    globals().tooltip_data
+}
+fn tooltip_visible() -> RwSignal<bool> {
+    globals().tooltip_visible
+}
+fn zoom_level() -> RwSignal<f64> {
+    globals().zoom_level
+}
+fn pan_offset() -> RwSignal<f64> {
+    globals().pan_offset
+}
+fn is_dragging() -> RwSignal<bool> {
+    globals().is_dragging
+}
+fn last_mouse_x() -> RwSignal<f64> {
+    globals().last_mouse_x
+}
+fn last_mouse_y() -> RwSignal<f64> {
+    globals().last_mouse_y
+}
+pub fn current_interval() -> RwSignal<TimeInterval> {
+    globals().current_interval
 }
 
 /// 📈 Fetch additional history and prepend it to the list
 fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
-    if LOADING_MORE.with(|l| l.get()) {
+    if loading_more().get() {
         return;
     }
 
@@ -60,7 +81,7 @@ fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
         _ => return,
     };
 
-    LOADING_MORE.with(|l| l.set(true));
+    loading_more().set(true);
 
     let _ = spawn_local_with_current_owner(async move {
         let client = BinanceWebSocketClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
@@ -82,15 +103,15 @@ fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
                         .map(|c| c.ohlcv.volume.value())
                         .fold(0.0f64, |a, b| a.max(b))
                 });
-                GLOBAL_CANDLE_COUNT.with(|c| c.set(new_count));
-                GLOBAL_MAX_VOLUME.with(|v| v.set(max_volume));
+                global_candle_count().set(new_count);
+                global_max_volume().set(max_volume);
 
                 set_status.set(format!("📈 Loaded {} older candles", new_candles.len()));
             }
             Err(e) => set_status.set(format!("❌ Failed to load more data: {}", e)),
         }
 
-        LOADING_MORE.with(|l| l.set(false));
+        loading_more().set(false);
     });
 }
 
@@ -266,11 +287,11 @@ pub fn app() -> impl IntoView {
 #[component]
 fn header() -> impl IntoView {
     // Use global signals for real data
-    let current_price = GLOBAL_CURRENT_PRICE.with(|price| *price);
-    let candle_count = GLOBAL_CANDLE_COUNT.with(|count| *count);
-    let is_streaming = GLOBAL_IS_STREAMING.with(|streaming| *streaming);
-    let max_volume = GLOBAL_MAX_VOLUME.with(|volume| *volume);
-    let zoom_level = ZOOM_LEVEL.with(|zoom| *zoom);
+    let current_price = global_current_price();
+    let candle_count = global_candle_count();
+    let is_streaming = global_is_streaming();
+    let max_volume = global_max_volume();
+    let zoom_level = zoom_level();
 
     view! {
         <div class="header">
@@ -316,7 +337,7 @@ fn header() -> impl IntoView {
 #[component]
 fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
     let labels = move || {
-        let interval = CURRENT_INTERVAL.with(|i| i.get_untracked());
+        let interval = current_interval().get_untracked();
         let candles = chart.with(|c| c.get_series(interval).unwrap().get_candles().clone());
         if candles.is_empty() {
             return vec![];
@@ -343,8 +364,8 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
                 if ch.get_candle_count() > 0 {
                     with_global_renderer(|r| {
                         r.set_zoom_params(
-                            ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)),
-                            PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
+                            zoom_level().with_untracked(|val| *val),
+                            pan_offset().with_untracked(|val| *val),
                         );
                         let _ = r.render(ch);
                     });
@@ -370,8 +391,8 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
 #[component]
 fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
     let time_labels = move || {
-        let zoom = ZOOM_LEVEL.with(|z| z.get_untracked());
-        let interval = CURRENT_INTERVAL.with(|i| i.get_untracked());
+        let zoom = zoom_level().get_untracked();
+        let interval = current_interval().get_untracked();
         let candles = chart.with(|c| c.get_series(interval).unwrap().get_candles().clone());
 
         if candles.is_empty() {
@@ -414,19 +435,27 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
             let delta = event.delta_y();
             let zoom_factor = if delta < 0.0 { 1.1 } else { 0.9 };
 
-            ZOOM_LEVEL.with(|zoom| {
-                zoom.update(|z| {
-                    *z *= zoom_factor;
-                    *z = z.clamp(0.1, 10.0);
-                });
-                let new_zoom = zoom.get_untracked();
+            let old_zoom = zoom_level().with_untracked(|z| *z);
+            zoom_level().update(|z| {
+                *z *= zoom_factor;
+                *z = z.clamp(0.1, 10.0);
+            });
+            let new_zoom = zoom_level().with_untracked(|z| *z);
+            web_sys::console::log_1(
+                &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
+            );
 
-                chart_signal.with_untracked(|ch| {
+            chart_signal.with_untracked(|ch| {
+                if ch.get_candle_count() > 0 {
                     with_global_renderer(|r| {
-                        r.set_zoom_params(new_zoom, PAN_OFFSET.with(|p| p.get_untracked()));
+                        r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
                         let _ = r.render(ch);
+                        get_logger().info(
+                            LogComponent::Infrastructure("ZoomWheel"),
+                            &format!("✅ Applied zoom {:.2}x to WebGPU renderer", new_zoom),
+                        );
                     });
-                });
+                }
             });
         }
     };
@@ -574,32 +603,31 @@ fn ChartContainer() -> impl IntoView {
             let mouse_y = event.offset_y() as f64;
 
             // 🔍 Handle panning
-            IS_DRAGGING.with(|dragging| {
-                if dragging.get() {
-                    LAST_MOUSE_X.with(|last_x| {
-                        let delta_x = mouse_x - last_x.get();
-                        PAN_OFFSET.with(|offset| {
-                            let pan_sensitivity =
-                                ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)) * 0.001;
-                            offset.update(|o| *o += delta_x * pan_sensitivity);
+            is_dragging().with(|dragging| {
+                if *dragging {
+                    last_mouse_x().with(|last_x| {
+                        let delta_x = mouse_x - *last_x;
+                        pan_offset().update(|o| {
+                            let pan_sensitivity = zoom_level().with_untracked(|val| *val) * 0.001;
+                            *o += delta_x * pan_sensitivity;
                         });
                         chart_signal.update(|ch| {
                             let factor_x = -(delta_x as f32) / ch.viewport.width as f32;
                             ch.pan(factor_x, 0.0);
                         });
-                        last_x.set(mouse_x);
+                        last_mouse_x().set(mouse_x);
                     });
 
-                    LAST_MOUSE_Y.with(|last_y| {
-                        let delta_y = mouse_y - last_y.get();
+                    last_mouse_y().with(|last_y| {
+                        let delta_y = mouse_y - *last_y;
                         chart_signal.update(|ch| {
                             let factor = delta_y as f32 / ch.viewport.height as f32;
                             ch.pan(0.0, factor);
                         });
-                        last_y.set(mouse_y);
+                        last_mouse_y().set(mouse_y);
                     });
 
-                    let need_history = PAN_OFFSET.with(|p| p.with_untracked(|val| *val <= -950.0));
+                    let need_history = pan_offset().with_untracked(|val| *val <= -950.0);
                     if need_history {
                         fetch_more_history(chart_signal, status_clone);
                     }
@@ -610,8 +638,8 @@ fn ChartContainer() -> impl IntoView {
                                 if let Some(renderer_rc) = renderer_opt {
                                     if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
                                         webgpu_renderer.set_zoom_params(
-                                            ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)),
-                                            PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
+                                            zoom_level().with_untracked(|val| *val),
+                                            pan_offset().with_untracked(|val| *val),
                                         );
                                         let _ = webgpu_renderer.render(ch);
                                     }
@@ -627,7 +655,7 @@ fn ChartContainer() -> impl IntoView {
                     let _ndc_y = 1.0 - (mouse_y / canvas_height) * 2.0;
 
                     chart_signal.with(|ch| {
-                        let interval = CURRENT_INTERVAL.with(|i| i.get_untracked());
+                        let interval = current_interval().get_untracked();
                         let candles = ch.get_series(interval).unwrap().get_candles();
                         if !candles.is_empty() {
                             let max_visible = 300;
@@ -648,16 +676,15 @@ fn ChartContainer() -> impl IntoView {
 
                             if candle_idx >= 0 && (candle_idx as usize) < visible.len() {
                                 let candle = visible[candle_idx as usize];
-                                let tooltip_data =
-                                    TooltipData::new(candle.clone(), mouse_x, mouse_y);
+                                let data = TooltipData::new(candle.clone(), mouse_x, mouse_y);
 
-                                TOOLTIP_DATA.with(|data| data.set(Some(tooltip_data)));
-                                TOOLTIP_VISIBLE.with(|visible| visible.set(true));
+                                tooltip_data().set(Some(data));
+                                tooltip_visible().set(true);
                             } else {
-                                TOOLTIP_VISIBLE.with(|visible| visible.set(false));
+                                tooltip_visible().set(false);
                             }
                         } else {
-                            TOOLTIP_VISIBLE.with(|visible| visible.set(false));
+                            tooltip_visible().set(false);
                         }
                     });
                 }
@@ -666,8 +693,8 @@ fn ChartContainer() -> impl IntoView {
     };
 
     let handle_mouse_leave = move |_event: web_sys::MouseEvent| {
-        TOOLTIP_VISIBLE.with(|visible| visible.set(false));
-        IS_DRAGGING.with(|dragging| dragging.set(false));
+        tooltip_visible().set(false);
+        is_dragging().set(false);
     };
 
     // 🔍 Mouse wheel zoom - simplified without effects
@@ -680,43 +707,34 @@ fn ChartContainer() -> impl IntoView {
             let delta_y = event.delta_y();
             let zoom_factor = if delta_y < 0.0 { 1.1 } else { 0.9 }; // Zoom in/out
 
-            ZOOM_LEVEL.with(|zoom| {
-                let old_zoom = zoom.with_untracked(|z| *z);
-                zoom.update(|z| {
-                    *z *= zoom_factor;
-                    *z = z.clamp(0.1, 10.0); // Clamp zoom from 0.1x to 10x
-                });
-                let new_zoom = zoom.with_untracked(|z| *z);
-                web_sys::console::log_1(
-                    &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
-                );
-
-                // Apply zoom immediately without effects
-                chart_signal.with_untracked(|ch| {
-                    if ch.get_candle_count() > 0 {
-                        with_global_renderer(|r| {
-                            r.set_zoom_params(
-                                new_zoom,
-                                PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
-                            );
-                            let _ = r.render(ch);
-                            get_logger().info(
-                                LogComponent::Infrastructure("ZoomWheel"),
-                                &format!("✅ Applied zoom {:.2}x to WebGPU renderer", new_zoom),
-                            );
-                        });
-                    }
-                });
+            let old_zoom = zoom_level().with_untracked(|z| *z);
+            zoom_level().update(|z| {
+                *z *= zoom_factor;
+                *z = z.clamp(0.1, 10.0); // Clamp zoom from 0.1x to 10x
             });
+            let new_zoom = zoom_level().with_untracked(|z| *z);
+            web_sys::console::log_1(
+                &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
+            );
 
+            // Apply zoom immediately without effects
+            chart_signal.with_untracked(|ch| {
+                if ch.get_candle_count() > 0 {
+                    with_global_renderer(|r| {
+                        r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
+                        let _ = r.render(ch);
+                        get_logger().info(
+                            LogComponent::Infrastructure("ZoomWheel"),
+                            &format!("✅ Applied zoom {:.2}x to WebGPU renderer", new_zoom),
+                        );
+                    });
+                }
+            });
             get_logger().info(
                 LogComponent::Presentation("ChartZoom"),
-                &format!(
-                    "🔍 Zoom level: {:.2}x",
-                    ZOOM_LEVEL.with(|z| z.with_untracked(|z_val| *z_val))
-                ),
+                &format!("🔍 Zoom level: {:.2}x", zoom_level().with_untracked(|z_val| *z_val)),
             );
-            let need_history = PAN_OFFSET.with(|p| p.with_untracked(|val| *val <= -950.0));
+            let need_history = pan_offset().with_untracked(|val| *val <= -950.0);
             if need_history {
                 fetch_more_history(chart_signal, status_clone);
             }
@@ -727,9 +745,9 @@ fn ChartContainer() -> impl IntoView {
     let handle_mouse_down = move |event: web_sys::MouseEvent| {
         if event.button() == 0 {
             // Left mouse button
-            IS_DRAGGING.with(|dragging| dragging.set(true));
-            LAST_MOUSE_X.with(|last_x| last_x.set(event.offset_x() as f64));
-            LAST_MOUSE_Y.with(|last_y| last_y.set(event.offset_y() as f64));
+            is_dragging().set(true);
+            last_mouse_x().set(event.offset_x() as f64);
+            last_mouse_y().set(event.offset_y() as f64);
 
             // Give the canvas focus for keyboard events
             if let Some(target) = event.target() {
@@ -742,7 +760,7 @@ fn ChartContainer() -> impl IntoView {
 
     // 🖱️ End panning
     let handle_mouse_up = move |_event: web_sys::MouseEvent| {
-        IS_DRAGGING.with(|dragging| dragging.set(false));
+        is_dragging().set(false);
     };
 
     // ⌨️ Zoom keys (+/- and PageUp/PageDown)
@@ -756,41 +774,33 @@ fn ChartContainer() -> impl IntoView {
             match key.as_str() {
                 "+" | "=" => {
                     event.prevent_default();
-                    ZOOM_LEVEL.with(|zoom| {
-                        zoom.update(|z| {
-                            *z *= 1.2;
-                            *z = z.min(10.0);
-                        });
+                    zoom_level().update(|z| {
+                        *z *= 1.2;
+                        *z = z.min(10.0);
                     });
                     zoom_changed = true;
                 }
                 "-" | "_" => {
                     event.prevent_default();
-                    ZOOM_LEVEL.with(|zoom| {
-                        zoom.update(|z| {
-                            *z *= 0.8;
-                            *z = z.max(0.1);
-                        });
+                    zoom_level().update(|z| {
+                        *z *= 0.8;
+                        *z = z.max(0.1);
                     });
                     zoom_changed = true;
                 }
                 "PageUp" => {
                     event.prevent_default();
-                    ZOOM_LEVEL.with(|zoom| {
-                        zoom.update(|z| {
-                            *z *= 1.5;
-                            *z = z.min(10.0);
-                        });
+                    zoom_level().update(|z| {
+                        *z *= 1.5;
+                        *z = z.min(10.0);
                     });
                     zoom_changed = true;
                 }
                 "PageDown" => {
                     event.prevent_default();
-                    ZOOM_LEVEL.with(|zoom| {
-                        zoom.update(|z| {
-                            *z *= 0.67;
-                            *z = z.max(0.1);
-                        });
+                    zoom_level().update(|z| {
+                        *z *= 0.67;
+                        *z = z.max(0.1);
                     });
                     zoom_changed = true;
                 }
@@ -798,17 +808,14 @@ fn ChartContainer() -> impl IntoView {
             }
 
             if zoom_changed {
-                let new_zoom = ZOOM_LEVEL.with(|z| z.with_untracked(|z_val| *z_val));
+                let new_zoom = zoom_level().with_untracked(|z_val| *z_val);
                 web_sys::console::log_1(&format!("⌨️ Keyboard zoom: {:.2}x", new_zoom).into());
 
                 // Apply zoom to the renderer for keyboard commands
                 chart_signal.with_untracked(|ch| {
                     if ch.get_candle_count() > 0 {
                         with_global_renderer(|r| {
-                            r.set_zoom_params(
-                                new_zoom,
-                                PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
-                            );
+                            r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
                             let _ = r.render(ch);
                             get_logger().info(
                                 LogComponent::Infrastructure("KeyboardZoom"),
@@ -825,7 +832,7 @@ fn ChartContainer() -> impl IntoView {
                     LogComponent::Presentation("KeyboardZoom"),
                     &format!("⌨️ Zoom level: {:.2}x", new_zoom),
                 );
-                let need_history = PAN_OFFSET.with(|p| p.with_untracked(|val| *val <= -950.0));
+                let need_history = pan_offset().with_untracked(|val| *val <= -950.0);
                 if need_history {
                     fetch_more_history(chart_signal, status_clone);
                 }
@@ -881,7 +888,7 @@ fn ChartContainer() -> impl IntoView {
 /// 💰 Price scale on the right side of the chart
 #[component]
 fn PriceScale() -> impl IntoView {
-    let current_price = GLOBAL_CURRENT_PRICE.with(|price| *price);
+    let current_price = global_current_price();
 
     // Calculate price levels for display (same as in the grid)
     let price_levels = move || {
@@ -936,8 +943,8 @@ fn PriceScale() -> impl IntoView {
 /// 🎯 Chart Tooltip component inside the chart wrapper
 #[component]
 fn ChartTooltip() -> impl IntoView {
-    let tooltip_visible = TOOLTIP_VISIBLE.with(|visible| *visible);
-    let tooltip_data = TOOLTIP_DATA.with(|data| *data);
+    let tooltip_visible = tooltip_visible();
+    let tooltip_data = tooltip_data();
 
     view! {
         <div
@@ -999,7 +1006,7 @@ fn TimeframeSelector() -> impl IntoView {
                         <button
                             style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
                             on:click=move |_| {
-                                CURRENT_INTERVAL.with(|c| c.set(interval));
+                                current_interval().set(interval);
                             }
                         >
                             {label}
@@ -1020,7 +1027,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
     let ws_client = BinanceWebSocketClient::new(symbol, interval);
 
     // Set the streaming status
-    GLOBAL_IS_STREAMING.with(|streaming| streaming.set(false));
+    global_is_streaming().set(false);
 
     // 📈 First load historical data
     set_status.set("📈 Loading historical data...".to_string());
@@ -1036,12 +1043,10 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 
             // Update global signals using the historical data
             let cnt = chart.with(|c| c.get_candle_count());
-            GLOBAL_CANDLE_COUNT.with(|count| count.set(cnt));
+            global_candle_count().set(cnt);
 
             if let Some(last_candle) = historical_candles.last() {
-                GLOBAL_CURRENT_PRICE.with(|price| {
-                    price.set(last_candle.ohlcv.close.value());
-                });
+                global_current_price().set(last_candle.ohlcv.close.value());
             }
 
             // Compute the maximum volume from history
@@ -1049,7 +1054,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
                 .iter()
                 .map(|c| c.ohlcv.volume.value())
                 .fold(0.0f64, |a, b| a.max(b));
-            GLOBAL_MAX_VOLUME.with(|volume| volume.set(max_vol));
+            global_max_volume().set(max_vol);
 
             set_status.set("✅ Historical data loaded. Starting real-time stream...".to_string());
         }
@@ -1064,7 +1069,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 
     // 🔌 Start the WebSocket for real-time updates
     set_status.set("🔌 Starting WebSocket stream...".to_string());
-    GLOBAL_IS_STREAMING.with(|streaming| streaming.set(true));
+    global_is_streaming().set(true);
 
     let mut ws_client =
         BinanceWebSocketClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
@@ -1072,16 +1077,14 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
     let _ = spawn_local_with_current_owner(async move {
         let handler = move |candle: Candle| {
             // Update the price in the global signal
-            GLOBAL_CURRENT_PRICE.with(|price| {
-                price.set(candle.ohlcv.close.value());
-            });
+            global_current_price().set(candle.ohlcv.close.value());
 
             chart.update(|ch| {
                 ch.add_realtime_candle(candle.clone());
             });
 
             let count = chart.with(|c| c.get_candle_count());
-            GLOBAL_CANDLE_COUNT.with(|cnt| cnt.set(count));
+            global_candle_count().set(count);
 
             let max_vol = chart.with(|c| {
                 c.get_series(TimeInterval::OneMinute)
@@ -1091,7 +1094,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
                     .map(|c| c.ohlcv.volume.value())
                     .fold(0.0f64, |a, b| a.max(b))
             });
-            GLOBAL_MAX_VOLUME.with(|volume| volume.set(max_vol));
+            global_max_volume().set(max_vol);
 
             // Update the status
             set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
@@ -1099,7 +1102,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 
         if let Err(e) = ws_client.start_stream(handler).await {
             set_status.set(format!("❌ WebSocket error: {}", e));
-            GLOBAL_IS_STREAMING.with(|streaming| streaming.set(false));
+            global_is_streaming().set(false);
         }
     });
 }
