@@ -24,10 +24,11 @@ trunk build --dist dist-local
 ```
 
 Local builds are saved to `dist-local`. In GitHub Actions the `dist` path is
-used and the files are copied to [`docs/`](docs/) to publish the demo.
+used and copied into [`docs/`](docs/) for the demo published via GitHub Pages.
 
-The `dist` directory itself is not version-controlled. It is listed in
-[`\.gitignore`](.gitignore) so build artifacts don't pollute the repository.
+During development the `dist` directory is ignored. The build workflow
+regenerates and commits it automatically, so remove any local `dist` files
+before committing changes.
 
 When using Trunk, open **`index.html`** (served automatically when using `trunk serve`). The file contains a Trunk hook so the WASM is loaded for you:
 
