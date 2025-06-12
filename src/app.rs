@@ -768,14 +768,11 @@ fn ChartContainer() -> impl IntoView {
             let zoom_factor = if delta_y < 0.0 { 1.1 } else { 0.9 }; // Zoom in/out
 
             let old_zoom = zoom_level().with_untracked(|z| *z);
-            zoom_level().update(|z| {
-                *z *= zoom_factor;
-                *z = z.clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL); // Clamp zoom
-                // to range 0.5x-5x
-            });
+            let new_zoom = (old_zoom * zoom_factor).clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL);
+            zoom_level().set(new_zoom);
+            let applied_factor = (new_zoom / old_zoom) as f32;
             let center_x = event.offset_x() as f32 / 800.0;
-            chart_signal.update(|ch| ch.zoom(zoom_factor as f32, center_x));
-            let new_zoom = zoom_level().with_untracked(|z| *z);
+            chart_signal.update(|ch| ch.zoom(applied_factor, center_x));
             web_sys::console::log_1(
                 &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
             );
