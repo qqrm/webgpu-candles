@@ -113,6 +113,16 @@ npm test
 
 See [TESTS.md](TESTS.md) for more details about the test suite.
 
+Coverage can be collected with:
+
+```bash
+wasm-pack test --headless --chrome --coverage
+wasm-tools coverage target/wasm32-unknown-unknown/debug/deps/*.wasm > lcov.info
+```
+
+The generated `lcov.info` file can be uploaded by CI.
+The `coverage` workflow publishes the latest percentage to `docs/coverage.md`.
+
 ## Deployment monitor
 
 The monitor workflow (`deploy-monitor.yml`) waits for the `build` workflow to finish. If the deployed version matches the last commit SHA, it sends a Telegram message. Add `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` as repository secrets for notifications. The build writes the current commit hash to `docs/version`, so the deployed site exposes `/version` with that value.
