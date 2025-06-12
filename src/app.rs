@@ -27,6 +27,11 @@ use crate::{
 /// Maximum number of candles visible at 1x zoom
 const MAX_VISIBLE_CANDLES: f64 = 300.0;
 
+/// Minimum allowed zoom level
+const MIN_ZOOM_LEVEL: f64 = 0.5;
+/// Maximum allowed zoom level
+const MAX_ZOOM_LEVEL: f64 = 5.0;
+
 /// Pan offset required to trigger history loading
 pub const HISTORY_FETCH_THRESHOLD: f64 = -50.0;
 
@@ -485,7 +490,7 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
             let old_zoom = zoom_level().with_untracked(|z| *z);
             zoom_level().update(|z| {
                 *z *= zoom_factor;
-                *z = z.clamp(0.1, 10.0);
+                *z = z.clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL); // keep zoom within 0.5-5x
             });
             let new_zoom = zoom_level().with_untracked(|z| *z);
             web_sys::console::log_1(
@@ -759,7 +764,8 @@ fn ChartContainer() -> impl IntoView {
             let old_zoom = zoom_level().with_untracked(|z| *z);
             zoom_level().update(|z| {
                 *z *= zoom_factor;
-                *z = z.clamp(0.1, 10.0); // Clamp zoom from 0.1x to 10x
+                *z = z.clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL); // Clamp zoom
+                // to range 0.5x-5x
             });
             let center_x = event.offset_x() as f32 / 800.0;
             chart_signal.update(|ch| ch.zoom(zoom_factor as f32, center_x));
@@ -827,7 +833,7 @@ fn ChartContainer() -> impl IntoView {
                     event.prevent_default();
                     zoom_level().update(|z| {
                         *z *= 1.2;
-                        *z = z.min(10.0);
+                        *z = z.min(MAX_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
@@ -835,7 +841,7 @@ fn ChartContainer() -> impl IntoView {
                     event.prevent_default();
                     zoom_level().update(|z| {
                         *z *= 0.8;
-                        *z = z.max(0.1);
+                        *z = z.max(MIN_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
@@ -843,7 +849,7 @@ fn ChartContainer() -> impl IntoView {
                     event.prevent_default();
                     zoom_level().update(|z| {
                         *z *= 1.5;
-                        *z = z.min(10.0);
+                        *z = z.min(MAX_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
@@ -851,7 +857,7 @@ fn ChartContainer() -> impl IntoView {
                     event.prevent_default();
                     zoom_level().update(|z| {
                         *z *= 0.67;
-                        *z = z.max(0.1);
+                        *z = z.max(MIN_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
