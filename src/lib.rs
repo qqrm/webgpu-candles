@@ -3,6 +3,7 @@
 
 pub mod app;
 pub mod domain;
+pub mod global_state;
 pub mod infrastructure;
 
 // === WASM EXPORTS ===

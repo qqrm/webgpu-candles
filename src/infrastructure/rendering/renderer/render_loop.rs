@@ -23,8 +23,8 @@ impl WebGpuRenderer {
             }
         }
 
-        use crate::app::CURRENT_INTERVAL;
-        let interval = CURRENT_INTERVAL.with(|i| i.get_untracked());
+        use crate::app::current_interval;
+        let interval = current_interval().get_untracked();
         let candle_count = chart
             .get_series(interval)
             .map(|s| s.get_candles().len())
