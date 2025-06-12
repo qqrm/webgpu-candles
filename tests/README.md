@@ -1,81 +1,81 @@
 # Chart Positioning Tests
 
-Этот набор тестов покрывает исправления для привязки графика к правой грани и синхронизации всех элементов.
+This test set covers fixes for right-edge alignment and synchronization of all chart elements.
 
-## Покрытые исправления
+## Covered Fixes
 
-### 1. **Привязка к правой грани** (`candle_x_position`)
-- ✅ Последняя свеча точно в позиции `x=1.0`
-- ✅ Равномерное распределение свечей
-- ✅ Монотонное возрастание позиций
+### 1. **Right edge alignment** (`candle_x_position`)
+- ✅ Last candle exactly at `x=1.0`
+- ✅ Even candle spacing
+- ✅ Monotonic position increase
 
-### 2. **Tooltip синхронизация**
-- ✅ Обратная формула правильно находит свечи
-- ✅ Граничные случаи обрабатываются корректно
-- ✅ Согласованность с позиционированием свечей
+### 2. **Tooltip synchronization**
+- ✅ Reverse formula locates candles correctly
+- ✅ Edge cases handled
+- ✅ Consistent with candle positioning
 
-### 3. **Синхронизация элементов**
-- ✅ Volume bars используют те же позиции что и свечи
-- ✅ Индикаторы (SMA/EMA) привязаны к правильным позициям
-- ✅ Все элементы в границах viewport `[-1, 1]`
+### 3. **Element synchronization**
+- ✅ Volume bars share the same positions as candles
+- ✅ Indicators (SMA/EMA) bind to the correct positions
+- ✅ All elements stay within the viewport `[-1, 1]`
 
-## Структура тестов
+## Test Structure
 
-### `tests/offset.rs` - Обновлен
-Базовые тесты функции `candle_x_position`:
-- `candle_offset_calculation()` - основная логика
-- `candle_positioning_edge_cases()` - граничные случаи 
-- `candle_positioning_monotonic()` - монотонность
+### `tests/offset.rs` - Updated
+Basic tests for `candle_x_position`:
+- `candle_offset_calculation()` - core logic
+- `candle_positioning_edge_cases()` - edge cases
+- `candle_positioning_monotonic()` - monotonicity
 
-### `tests/tooltip_positioning.rs` - Новый
-Тесты tooltip логики:
-- `tooltip_reverse_positioning()` - обратная формула
-- `tooltip_mouse_boundaries()` - границы мыши
-- `tooltip_positioning_consistency()` - согласованность
+### `tests/tooltip_positioning.rs` - New
+Tooltip logic tests:
+- `tooltip_reverse_positioning()` - reverse formula
+- `tooltip_mouse_boundaries()` - mouse boundaries
+- `tooltip_positioning_consistency()` - consistency
 
-### `tests/chart_positioning.rs` - Новый  
-Комплексные тесты позиционирования:
-- `chart_positioning_edge_cases()` - различные размеры
-- `right_edge_alignment()` - привязка к правому краю
-- `monotonic_positioning()` - равномерность интервалов
+### `tests/chart_positioning.rs` - New
+Comprehensive positioning tests:
+- `chart_positioning_edge_cases()` - various sizes
+- `right_edge_alignment()` - alignment to the right edge
+- `monotonic_positioning()` - uniform intervals
 
-### `tests/positioning_regression.rs` - Новый
-Регрессионные тесты:
-- `positioning_regression_basic()` - базовые принципы
-- `positioning_regression_math()` - математическая корректность
-- `tooltip_compatibility_regression()` - совместимость tooltip
-- `viewport_bounds_regression()` - границы viewport
-- `spacing_uniformity_regression()` - равномерность
+### `tests/positioning_regression.rs` - New
+Regression tests:
+- `positioning_regression_basic()` - basic principles
+- `positioning_regression_math()` - mathematical correctness
+- `tooltip_compatibility_regression()` - tooltip compatibility
+- `viewport_bounds_regression()` - viewport bounds
+- `spacing_uniformity_regression()` - spacing uniformity
 
-## Запуск тестов
+## Running Tests
 
 ```bash
-# Все WASM тесты
+# All WASM tests
 wasm-pack test --node
 
-# Конкретный тест
+# Specific test
 wasm-pack test --node --test offset
 
-# В браузере (для интеграционных тестов)
+# In a browser (for integration tests)
 wasm-pack test --chrome --headless
 ```
 
-## Ключевые проверки
+## Key Checks
 
-### ✅ Привязка к правой грани
+### ✅ Right edge alignment
 ```rust
 let last_x = candle_x_position(visible_len - 1, visible_len);
-assert_eq!(last_x, 1.0); // Точно справа
+assert_eq!(last_x, 1.0); // Exactly on the right
 ```
 
-### ✅ Tooltip синхронизация
+### ✅ Tooltip synchronization
 ```rust
 let index_float = visible_len as f64 - (1.0 - ndc_x) / step_size - 1.0;
 let calculated_index = index_float.round() as i32;
 assert_eq!(calculated_index as usize, expected_index);
 ```
 
-### ✅ Равномерность распределения
+### ✅ Uniform spacing
 ```rust
 let step = 2.0 / visible_len as f32;
 assert!((actual_step - step).abs() < f32::EPSILON);
@@ -83,17 +83,17 @@ assert!((actual_step - step).abs() < f32::EPSILON);
 
 ## Coverage Matrix
 
-| Функциональность | Unit Tests | Integration Tests | Regression Tests |
+| Feature | Unit Tests | Integration Tests | Regression Tests |
 |------------------|------------|-------------------|------------------|
 | `candle_x_position` | ✅ | ✅ | ✅ |
-| Tooltip логика | ✅ | ✅ | ✅ |
-| Volume синхронизация | ➖ | ✅ | ✅ |
-| Индикаторы | ➖ | ✅ | ✅ |
-| Viewport границы | ✅ | ✅ | ✅ |
+| Tooltip logic | ✅ | ✅ | ✅ |
+| Volume sync | ➖ | ✅ | ✅ |
+| Indicators | ➖ | ✅ | ✅ |
+| Viewport bounds | ✅ | ✅ | ✅ |
 
-## Метрики качества
+## Quality Metrics
 
-- **Coverage**: 100% критических путей
-- **Edge Cases**: Все размеры от 1 до 300 свечей
-- **Precision**: Погрешность < `f32::EPSILON`
-- **Consistency**: Tooltip ↔ Positioning ↔ Rendering 
+- **Coverage**: 100% of critical paths
+- **Edge Cases**: All sizes from 1 to 300 candles
+- **Precision**: Error < `f32::EPSILON`
+- **Consistency**: Tooltip ↔ Positioning ↔ Rendering

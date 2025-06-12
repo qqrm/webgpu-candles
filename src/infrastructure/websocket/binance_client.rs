@@ -92,19 +92,10 @@ impl BinanceWebSocketClient {
         let kline = &kline_data.kline;
 
         // Парсим цены
-        let open = kline
-            .open
-            .parse::<f64>()
-            .map_err(|_| "Invalid open price")?;
-        let high = kline
-            .high
-            .parse::<f64>()
-            .map_err(|_| "Invalid high price")?;
+        let open = kline.open.parse::<f64>().map_err(|_| "Invalid open price")?;
+        let high = kline.high.parse::<f64>().map_err(|_| "Invalid high price")?;
         let low = kline.low.parse::<f64>().map_err(|_| "Invalid low price")?;
-        let close = kline
-            .close
-            .parse::<f64>()
-            .map_err(|_| "Invalid close price")?;
+        let close = kline.close.parse::<f64>().map_err(|_| "Invalid close price")?;
         let volume = kline.volume.parse::<f64>().map_err(|_| "Invalid volume")?;
 
         // Создаем OHLCV
@@ -245,10 +236,8 @@ impl BinanceWebSocketClient {
             return Err(format!("HTTP error: {}", response.status()));
         }
 
-        let klines: Vec<BinanceHistoricalKline> = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse JSON: {e:?}"))?;
+        let klines: Vec<BinanceHistoricalKline> =
+            response.json().await.map_err(|e| format!("Failed to parse JSON: {e:?}"))?;
 
         let mut candles = Vec::new();
 
@@ -277,11 +266,7 @@ impl BinanceWebSocketClient {
 
         get_logger().info(
             LogComponent::Infrastructure("BinanceAPI"),
-            &format!(
-                "✅ Loaded {} historical candles for {}",
-                candles.len(),
-                symbol_upper
-            ),
+            &format!("✅ Loaded {} historical candles for {}", candles.len(), symbol_upper),
         );
 
         Ok(candles)
@@ -314,10 +299,8 @@ impl BinanceWebSocketClient {
             return Err(format!("HTTP error: {}", response.status()));
         }
 
-        let klines: Vec<BinanceHistoricalKline> = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse JSON: {e:?}"))?;
+        let klines: Vec<BinanceHistoricalKline> =
+            response.json().await.map_err(|e| format!("Failed to parse JSON: {e:?}"))?;
 
         let mut candles = Vec::new();
 
@@ -356,9 +339,8 @@ pub async fn create_binance_stream(
     interval: &str,
 ) -> Result<BinanceWebSocketClient, String> {
     let symbol = Symbol::from(symbol);
-    let interval = interval
-        .parse::<TimeInterval>()
-        .map_err(|_| format!("Invalid interval: {interval}"))?;
+    let interval =
+        interval.parse::<TimeInterval>().map_err(|_| format!("Invalid interval: {interval}"))?;
 
     let client = BinanceWebSocketClient::new(symbol, interval);
     Ok(client)
@@ -372,9 +354,8 @@ pub async fn test_binance_websocket() -> Result<(), JsValue> {
         "🧪 Testing Binance WebSocket with gloo...",
     );
 
-    let mut client = create_binance_stream("BTCUSDT", "1m")
-        .await
-        .map_err(|e| JsValue::from_str(&e))?;
+    let mut client =
+        create_binance_stream("BTCUSDT", "1m").await.map_err(|e| JsValue::from_str(&e))?;
 
     // Тестовый обработчик
     let handler = |candle: Candle| {
@@ -386,16 +367,12 @@ pub async fn test_binance_websocket() -> Result<(), JsValue> {
 
     // Запускаем на 10 секунд для теста
     if let Err(e) = client.start_stream(handler).await {
-        get_logger().error(
-            LogComponent::Infrastructure("BinanceWS"),
-            &format!("❌ Stream error: {e}"),
-        );
+        get_logger()
+            .error(LogComponent::Infrastructure("BinanceWS"), &format!("❌ Stream error: {e}"));
         return Err(JsValue::from_str(&e));
     }
 
-    get_logger().info(
-        LogComponent::Infrastructure("BinanceWS"),
-        "✅ Binance WebSocket test completed",
-    );
+    get_logger()
+        .info(LogComponent::Infrastructure("BinanceWS"), "✅ Binance WebSocket test completed");
     Ok(())
 }

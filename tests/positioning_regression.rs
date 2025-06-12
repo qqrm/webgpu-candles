@@ -68,14 +68,9 @@ fn tooltip_compatibility_regression() {
         let index_float = visible_len as f64 - (1.0 - x as f64) / step_size - 1.0;
         let calculated_index = index_float.round() as i32;
 
-        assert!(
-            calculated_index >= 0,
-            "Calculated index should be non-negative"
-        );
-        assert!(
-            (calculated_index as usize) < visible_len,
-            "Calculated index should be in bounds"
-        );
+        assert!(calculated_index >= 0, "Calculated index should be non-negative");
+        assert!((calculated_index as usize) < visible_len, "Calculated index should be in bounds");
+
         assert_eq!(
             calculated_index as usize, expected_index,
             "Tooltip should find correct candle for index {}: got {}",
@@ -92,12 +87,8 @@ fn viewport_bounds_regression() {
     for &size in &test_sizes {
         // Первая позиция не должна быть левее -1.0
         let first = candle_x_position(0, size);
-        assert!(
-            first >= -1.0,
-            "First position {:.6} should be >= -1.0 for size {}",
-            first,
-            size
-        );
+
+        assert!(first >= -1.0, "First position {:.6} should be >= -1.0 for size {}", first, size);
 
         // Последняя позиция должна быть точно 1.0
         let last = candle_x_position(size - 1, size);

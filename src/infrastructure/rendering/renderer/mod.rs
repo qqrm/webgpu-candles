@@ -87,18 +87,14 @@ pub struct LineVisibility {
 
 impl Default for LineVisibility {
     fn default() -> Self {
-        Self {
-            sma_20: true,
-            sma_50: true,
-            sma_200: true,
-            ema_12: true,
-            ema_26: true,
-        }
+        Self { sma_20: true, sma_50: true, sma_200: true, ema_12: true, ema_26: true }
     }
 }
 
 mod geometry;
-pub use geometry::{BASE_CANDLES, BASE_TEMPLATE, candle_x_position};
+pub use geometry::{
+    BASE_CANDLES, BASE_TEMPLATE, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, candle_x_position,
+};
 mod initialization;
 mod performance;
 mod render_loop;

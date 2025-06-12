@@ -53,11 +53,7 @@ impl Default for Viewport {
 
 impl Viewport {
     pub fn new(width: u32, height: u32) -> Self {
-        Self {
-            width,
-            height,
-            ..Default::default()
-        }
+        Self { width, height, ..Default::default() }
     }
 
     pub fn time_range(&self) -> f64 {
@@ -165,42 +161,12 @@ impl Color {
     }
 
     /// Предустановленные цвета
-    pub const BLACK: Color = Color {
-        r: 0.0,
-        g: 0.0,
-        b: 0.0,
-        a: 1.0,
-    };
-    pub const WHITE: Color = Color {
-        r: 1.0,
-        g: 1.0,
-        b: 1.0,
-        a: 1.0,
-    };
-    pub const RED: Color = Color {
-        r: 1.0,
-        g: 0.0,
-        b: 0.0,
-        a: 1.0,
-    };
-    pub const GREEN: Color = Color {
-        r: 0.0,
-        g: 1.0,
-        b: 0.0,
-        a: 1.0,
-    };
-    pub const BLUE: Color = Color {
-        r: 0.0,
-        g: 0.0,
-        b: 1.0,
-        a: 1.0,
-    };
-    pub const TRANSPARENT: Color = Color {
-        r: 0.0,
-        g: 0.0,
-        b: 0.0,
-        a: 0.0,
-    };
+    pub const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+    pub const WHITE: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
+    pub const RED: Color = Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 };
+    pub const GREEN: Color = Color { r: 0.0, g: 1.0, b: 0.0, a: 1.0 };
+    pub const BLUE: Color = Color { r: 0.0, g: 0.0, b: 1.0, a: 1.0 };
+    pub const TRANSPARENT: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
 }
 
 // Конструкторы для цветовых кортежей

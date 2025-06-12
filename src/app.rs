@@ -124,12 +124,7 @@ impl TooltipData {
             time_str
         );
 
-        Self {
-            candle,
-            x,
-            y,
-            formatted_text,
-        }
+        Self { candle, x, y, formatted_text }
     }
 }
 
@@ -142,10 +137,7 @@ pub fn app() -> impl IntoView {
     // Добавляем console.log для диагностики
     web_sys::console::log_1(&"🚀 Starting Bitcoin Chart App".into());
 
-    get_logger().info(
-        LogComponent::Presentation("App"),
-        "🚀 Starting Bitcoin Chart App",
-    );
+    get_logger().info(LogComponent::Presentation("App"), "🚀 Starting Bitcoin Chart App");
 
     web_sys::console::log_1(&"📦 Creating view...".into());
 
@@ -332,22 +324,13 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
             return vec![];
         }
         let max_visible = 300;
-        let start_idx = if candles.len() > max_visible {
-            candles.len() - max_visible
-        } else {
-            0
-        };
-        let (min, max) = candles
-            .iter()
-            .skip(start_idx)
-            .fold((f64::MAX, f64::MIN), |(min, max), c| {
+        let start_idx = if candles.len() > max_visible { candles.len() - max_visible } else { 0 };
+        let (min, max) =
+            candles.iter().skip(start_idx).fold((f64::MAX, f64::MIN), |(min, max), c| {
                 (min.min(c.ohlcv.low.value()), max.max(c.ohlcv.high.value()))
             });
         let step = (max - min) / 8.0;
-        (0..=8)
-            .rev()
-            .map(|i| min + i as f64 * step)
-            .collect::<Vec<_>>()
+        (0..=8).rev().map(|i| min + i as f64 * step).collect::<Vec<_>>()
     };
 
     let handle_wheel = {
@@ -385,11 +368,7 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
         }
 
         let max_visible = 300;
-        let start_idx = if candles.len() > max_visible {
-            candles.len() - max_visible
-        } else {
-            0
-        };
+        let start_idx = if candles.len() > max_visible { candles.len() - max_visible } else { 0 };
 
         // Показываем 5 временных меток
         let num_labels = 5;
@@ -397,10 +376,8 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
 
         for i in 0..num_labels {
             let index = (i * (candles.len() - start_idx)) / (num_labels - 1);
-            if let Some(candle) = candles
-                .iter()
-                .skip(start_idx)
-                .nth(index.min(candles.len() - start_idx - 1))
+            if let Some(candle) =
+                candles.iter().skip(start_idx).nth(index.min(candles.len() - start_idx - 1))
             {
                 let timestamp = candle.timestamp.value();
                 let date = js_sys::Date::new(&(timestamp as f64).into());
@@ -651,7 +628,8 @@ fn ChartContainer() -> impl IntoView {
                             let step_size = 2.0 / visible.len() as f64;
                             // Обратная формула: если x = 1.0 - (visible_len - index - 1) * step_size
                             // то index = visible_len - (1.0 - x) / step_size - 1
-                            let index_float = visible.len() as f64 - (1.0 - ndc_x) / step_size - 1.0;
+                            let index_float =
+                                visible.len() as f64 - (1.0 - ndc_x) / step_size - 1.0;
                             let candle_idx = index_float.round() as i32;
 
                             if candle_idx >= 0 && (candle_idx as usize) < visible.len() {
