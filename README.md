@@ -93,6 +93,11 @@ wasm-pack test
 
 See [TESTS.md](TESTS.md) for more details about the test suite.
 
+## Deployment monitor
+
+The monitor workflow (`deploy-monitor.yml`) waits for the `build` workflow to finish. If the deployed version matches the last commit SHA, it sends a Telegram message. Add `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` as repository secrets for notifications.
+
+
 ## Docker
 
 Build and run the container with:
