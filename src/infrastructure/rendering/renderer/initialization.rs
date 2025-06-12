@@ -1,4 +1,5 @@
 use super::*;
+use leptos::SignalGetUntracked;
 
 impl WebGpuRenderer {
     pub async fn is_webgpu_supported() -> bool {
@@ -236,7 +237,12 @@ impl WebGpuRenderer {
 
     pub fn update(&mut self, chart: &Chart) {
         // Simplified update method - just store vertex count for debugging
-        let candles = chart.get_series_for_zoom(self.zoom_level).get_candles();
+        use crate::app::CURRENT_INTERVAL;
+        let interval = CURRENT_INTERVAL.with(|i| i.get_untracked());
+        let candles = chart
+            .get_series(interval)
+            .map(|s| s.get_candles())
+            .unwrap_or_else(|| chart.get_series_for_zoom(self.zoom_level).get_candles());
         self.instance_count = candles.len() as u32;
 
         get_logger().info(
@@ -249,5 +255,7 @@ impl WebGpuRenderer {
     pub fn set_zoom_params(&mut self, zoom_level: f64, pan_offset: f64) {
         self.zoom_level = zoom_level;
         self.pan_offset = pan_offset;
+        // Force geometry refresh on next render
+        self.cached_zoom_level = f64::MAX;
     }
 }

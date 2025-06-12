@@ -19,7 +19,11 @@ impl Chart {
         series.insert(TimeInterval::OneMinute, CandleSeries::new(max_candles));
         series.insert(TimeInterval::FiveMinutes, CandleSeries::new(max_candles));
         series.insert(TimeInterval::FifteenMinutes, CandleSeries::new(max_candles));
+        series.insert(TimeInterval::ThirtyMinutes, CandleSeries::new(max_candles));
         series.insert(TimeInterval::OneHour, CandleSeries::new(max_candles));
+        series.insert(TimeInterval::OneDay, CandleSeries::new(max_candles));
+        series.insert(TimeInterval::OneWeek, CandleSeries::new(max_candles));
+        series.insert(TimeInterval::OneMonth, CandleSeries::new(max_candles));
 
         Self { id, chart_type, series, viewport: Viewport::default(), indicators: Vec::new() }
     }
@@ -141,8 +145,15 @@ impl Chart {
     }
 
     fn update_aggregates(&mut self, candle: Candle) {
-        let intervals =
-            [TimeInterval::FiveMinutes, TimeInterval::FifteenMinutes, TimeInterval::OneHour];
+        let intervals = [
+            TimeInterval::FiveMinutes,
+            TimeInterval::FifteenMinutes,
+            TimeInterval::ThirtyMinutes,
+            TimeInterval::OneHour,
+            TimeInterval::OneDay,
+            TimeInterval::OneWeek,
+            TimeInterval::OneMonth,
+        ];
 
         for interval in intervals.iter() {
             if let Some(series) = self.series.get_mut(interval) {
