@@ -233,7 +233,7 @@ function debugString(val) {
     return className;
 }
 /**
- * Экспортируемая функция для JavaScript
+ * Exported function for JavaScript
  * @returns {Promise<void>}
  */
 export function test_binance_websocket() {
