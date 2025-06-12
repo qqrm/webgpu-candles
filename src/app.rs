@@ -2,11 +2,11 @@
 
 use js_sys;
 use leptos::html::Canvas;
+use leptos::spawn_local_with_current_owner;
 use leptos::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
 
 use crate::{
     domain::{
@@ -62,7 +62,7 @@ fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
 
     LOADING_MORE.with(|l| l.set(true));
 
-    spawn_local(async move {
+    let _ = spawn_local_with_current_owner(async move {
         let client = BinanceWebSocketClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
         match client.fetch_historical_data_before(end_time, 300).await {
             Ok(mut new_candles) => {
@@ -464,7 +464,7 @@ fn ChartContainer() -> impl IntoView {
     // Effect to initialize WebGPU after mounting
     create_effect(move |_| {
         if canvas_ref.get().is_some() {
-            spawn_local(async move {
+            let _ = spawn_local_with_current_owner(async move {
                 web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
                 set_status.set("🚀 Initializing WebGPU renderer...".to_string());
 
@@ -1069,7 +1069,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
     let mut ws_client =
         BinanceWebSocketClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
 
-    spawn_local(async move {
+    let _ = spawn_local_with_current_owner(async move {
         let handler = move |candle: Candle| {
             // Update the price in the global signal
             GLOBAL_CURRENT_PRICE.with(|price| {
