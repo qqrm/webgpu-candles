@@ -1,6 +1,6 @@
-# Цветовая схема
+# Color Scheme
 
-- `e16c48` — цвет sell (вместо красного)
-- `74c787` — цвет buy (зелёный)
-- `253242` — цвет фона графика
-- `283547` — цвет фона страницы
+- `e16c48` — sell color (used instead of red)
+- `74c787` — buy color (green)
+- `253242` — chart background
+- `283547` — page background
