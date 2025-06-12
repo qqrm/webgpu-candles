@@ -13,6 +13,12 @@ cargo install trunk
 
 Install either [Trunk](https://trunkrs.dev/) or [wasm-pack](https://rustwasm.github.io/wasm-pack/) depending on your preferred workflow.
 
+To automatically format and lint the code before each commit, enable the pre-commit hook:
+
+```bash
+git config core.hooksPath githooks
+```
+
 ## Building with Trunk
 
 Trunk compiles the project and automatically injects the generated WASM into `index.html`:
