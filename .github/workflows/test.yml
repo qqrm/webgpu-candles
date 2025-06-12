@@ -12,8 +12,6 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Install wasm-pack
         run: cargo install wasm-pack
-      - name: Cargo fmt
-        run: cargo fmt --all
       - name: Cargo fmt check
         run: cargo fmt --all -- --check
       - name: Cargo check
