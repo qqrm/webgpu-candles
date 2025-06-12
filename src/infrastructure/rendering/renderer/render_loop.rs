@@ -75,7 +75,7 @@ impl WebGpuRenderer {
         }
 
         let num_vertices = self.template_vertices;
-        let num_instances = self.instance_count;
+        let _num_instances = self.instance_count;
 
         // Get surface texture and start rendering
         let output = self.surface.get_current_texture().map_err(|e| {
@@ -580,14 +580,14 @@ mod tests {
                 config: std::mem::MaybeUninit::zeroed().assume_init(),
                 render_pipeline: std::mem::MaybeUninit::zeroed().assume_init(),
                 vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
-                instance_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
+                _instance_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
                 template_vertices: 0,
                 instance_count: 0,
                 cached_vertices: Vec::new(),
                 cached_instances: Vec::new(),
-                cached_additional_vertices: Vec::new(),
+                _cached_additional_vertices: Vec::new(),
                 cached_uniforms: ChartUniforms::new(),
                 cached_candle_count: 0,
                 cached_zoom_level: 1.0,

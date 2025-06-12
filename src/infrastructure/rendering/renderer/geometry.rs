@@ -119,6 +119,11 @@ pub const BASE_TEMPLATE: [CandleVertex; 18] = [
     },
 ];
 
+/// Минимальная ширина элемента (свеча или volume bar)
+pub const MIN_ELEMENT_WIDTH: f32 = 0.002;
+/// Максимальная ширина элемента (свеча или volume bar)
+pub const MAX_ELEMENT_WIDTH: f32 = 0.1;
+
 /// Позиция свечи/бара с учётом привязки к правому краю
 pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
     let step_size = 2.0 / visible_len as f32;
@@ -133,7 +138,7 @@ impl WebGpuRenderer {
         if candles.is_empty() {
             get_logger().error(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                "⚠️ No candles to render"
+                "⚠️ No candles to render",
             );
             return (vec![], ChartUniforms::new());
         }
@@ -142,7 +147,10 @@ impl WebGpuRenderer {
         if candles.len() % 100 == 0 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("🔧 Creating optimized geometry for {} candles", candles.len())
+                &format!(
+                    "🔧 Creating optimized geometry for {} candles",
+                    candles.len()
+                ),
             );
         }
 
@@ -182,8 +190,10 @@ impl WebGpuRenderer {
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
-            &format!("📏 Price range: {:.2} - {:.2}, Candle width: {:.4}, step:{:.4}",
-                min_price, max_price, _candle_width, step_size)
+            &format!(
+                "📏 Price range: {:.2} - {:.2}, Candle width: {:.4}, step:{:.4}",
+                min_price, max_price, _candle_width, step_size
+            ),
         );
 
         // Ensure we have a valid price range
@@ -199,15 +209,21 @@ impl WebGpuRenderer {
         if visible_candles.len() % 50 == 0 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("🔧 Rendering {} candles (showing last {} of {}) [zoom: {:.2}x]",
-                    visible_candles.len(), visible_count, candles.len(), self.zoom_level)
+                &format!(
+                    "🔧 Rendering {} candles (showing last {} of {}) [zoom: {:.2}x]",
+                    visible_candles.len(),
+                    visible_count,
+                    candles.len(),
+                    self.zoom_level
+                ),
             );
         }
 
         // Create vertices for each visible candle
         let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
         let step_size = 2.0 / visible_candles.len() as f32;
-        let candle_width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1);
+        let candle_width =
+            (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
         for (i, candle) in visible_candles.iter().enumerate() {
             let x = candle_x_position(i, visible_candles.len());
@@ -228,8 +244,10 @@ impl WebGpuRenderer {
             if i < 3 || i >= visible_candles.len() - 3 {
                 get_logger().info(
                     LogComponent::Infrastructure("WebGpuRenderer"),
-                    &format!("🕯️ Candle {}: x={:.3}, Y=({:.3},{:.3},{:.3},{:.3}) width={:.4}",
-                        i, x, open_y, high_y, low_y, close_y, candle_width)
+                    &format!(
+                        "🕯️ Candle {}: x={:.3}, Y=({:.3},{:.3},{:.3},{:.3}) width={:.4}",
+                        i, x, open_y, high_y, low_y, close_y, candle_width
+                    ),
                 );
             }
 
@@ -321,8 +339,11 @@ impl WebGpuRenderer {
         if vertices.len() > 1000 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("✅ Generated {} vertices for {} visible candles + indicators",
-                    vertices.len(), visible_candles.len())
+                &format!(
+                    "✅ Generated {} vertices for {} visible candles + indicators",
+                    vertices.len(),
+                    visible_candles.len()
+                ),
             );
         }
 
@@ -374,7 +395,7 @@ impl WebGpuRenderer {
 
         let mut vertices = Vec::with_capacity(candles.len() * 6);
         let candle_count = candles.len();
-        let step_size = 2.0 / candle_count as f32;
+        let _step_size = 2.0 / candle_count as f32;
         let price_range = max_price - min_price;
 
         // Функция для нормализации цены в NDC координаты
@@ -435,8 +456,12 @@ impl WebGpuRenderer {
         if !vertices.is_empty() {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("📈 Generated {} SMA20 points, {} EMA12 points, {} total MA vertices",
-                    sma20_points.len(), ema12_points.len(), vertices.len())
+                &format!(
+                    "📈 Generated {} SMA20 points, {} EMA12 points, {} total MA vertices",
+                    sma20_points.len(),
+                    ema12_points.len(),
+                    vertices.len()
+                ),
             );
         }
 
@@ -500,7 +525,7 @@ impl WebGpuRenderer {
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
-            &format!("📊 Generated {} grid vertices", vertices.len())
+            &format!("📊 Generated {} grid vertices", vertices.len()),
         );
 
         vertices
@@ -535,7 +560,7 @@ impl WebGpuRenderer {
 
         let step_size = 2.0 / candle_count as f32;
         let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
-        let bar_width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1); // Та же логика что и для свечей
+        let bar_width = (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH); // Та же логика что и для свечей
 
         for (i, candle) in candles.iter().enumerate() {
             let x = candle_x_position(i, candle_count);
@@ -562,14 +587,19 @@ impl WebGpuRenderer {
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
-            &format!("📊 Generated {} volume vertices for {} candles (max volume: {:.2})",
-                vertices.len(), candles.len(), max_volume)
+            &format!(
+                "📊 Generated {} volume vertices for {} candles (max volume: {:.2})",
+                vertices.len(),
+                candles.len(),
+                max_volume
+            ),
         );
 
         vertices
     }
 
     /// Создать данные для instanced рендеринга свечей
+    #[allow(dead_code)]
     pub(super) fn create_instanced_geometry(
         &self,
         chart: &Chart,
@@ -592,7 +622,7 @@ impl WebGpuRenderer {
 
         let step_size = 2.0 / visible_count as f32;
         let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
-        let width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1);
+        let width = (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
         for (i, c) in candles.iter().skip(start_index).enumerate() {
             let x = candle_x_position(i, visible_count);
