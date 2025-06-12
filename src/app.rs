@@ -116,6 +116,9 @@ fn last_mouse_y() -> RwSignal<f64> {
 pub fn current_interval() -> RwSignal<TimeInterval> {
     globals().current_interval
 }
+fn current_symbol() -> RwSignal<Symbol> {
+    globals().current_symbol
+}
 
 /// 📈 Fetch additional history and prepend it to the list
 fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
@@ -136,7 +139,8 @@ fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
     loading_more().set(true);
 
     let _ = spawn_local_with_current_owner(async move {
-        let client = BinanceWebSocketClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
+        let client =
+            BinanceWebSocketClient::new(current_symbol().get_untracked(), TimeInterval::OneMinute);
         match client.fetch_historical_data_before(end_time, 300).await {
             Ok(mut new_candles) => {
                 new_candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
@@ -185,9 +189,11 @@ impl TooltipData {
         // Format time from the timestamp
         let time_str = format!("Time: {}", candle.timestamp.value());
 
+        let symbol = current_symbol().get_untracked();
         let formatted_text = format!(
-            "{} BTC/USDT\n📈 Open:   ${:.2}\n📊 High:   ${:.2}\n📉 Low:    ${:.2}\n💰 Close:  ${:.2}\n📈 Change: ${:.2} ({:.2}%)\n📊 Volume: {:.4}\n{}",
+            "{} {}\n📈 Open:   ${:.2}\n📊 High:   ${:.2}\n📉 Low:    ${:.2}\n💰 Close:  ${:.2}\n📈 Change: ${:.2} ({:.2}%)\n📊 Volume: {:.4}\n{}",
             trend,
+            symbol.value(),
             candle.ohlcv.open.value(),
             candle.ohlcv.high.value(),
             candle.ohlcv.low.value(),
@@ -347,8 +353,8 @@ fn header() -> impl IntoView {
 
     view! {
         <div class="header">
-            <h1>"🌐 Bitcoin WebSocket Chart"</h1>
-            <p>"BTC/USDT • Real-time Leptos + WebGPU"</p>
+            <h1>"🌐 Crypto WebSocket Chart"</h1>
+            <p>{move || format!("{} • Real-time Leptos + WebGPU", current_symbol().get().value())}</p>
 
             <div class="price-info">
                 <div class="price-item">
@@ -629,6 +635,20 @@ fn ChartContainer() -> impl IntoView {
                 }
             });
         }
+    });
+
+    // Restart the WebSocket when the symbol changes
+    create_effect(move |prev: Option<Symbol>| {
+        let ready = renderer.with(|r| r.is_some());
+        let sym = current_symbol().get();
+        if ready && prev.is_none_or(|p| p != sym) {
+            let chart = chart;
+            let set_status = set_status;
+            let _ = spawn_local_with_current_owner(async move {
+                start_websocket_stream(chart, set_status).await;
+            });
+        }
+        sym
     });
 
     // Effect to render when data changes
@@ -927,6 +947,7 @@ fn ChartContainer() -> impl IntoView {
             </div>
 
             <TimeframeSelector />
+            <SymbolSelector />
 
             // Time scale below the chart
             <div style="display: flex; justify-content: center; margin-top: 10px;">
@@ -1078,9 +1099,37 @@ fn TimeframeSelector() -> impl IntoView {
     }
 }
 
+#[component]
+fn SymbolSelector() -> impl IntoView {
+    let options = vec!["BTCUSDT", "ETHUSDT", "SOLUSDT"];
+
+    view! {
+        <div style="display:flex;gap:6px;margin-top:8px;">
+            <For
+                each=move || options.clone()
+                key=|s| s.to_string()
+                children=|sym| {
+                    let label = sym.to_string();
+                    let click_sym = label.clone();
+                    view! {
+                        <button
+                            style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
+                            on:click=move |_| {
+                                current_symbol().set(Symbol::from(click_sym.as_str()));
+                            }
+                        >
+                            {label}
+                        </button>
+                    }
+                }
+            />
+        </div>
+    }
+}
+
 /// 🌐 Start WebSocket stream in Leptos and update global signals
 async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
-    let symbol = Symbol::from("BTCUSDT");
+    let symbol = current_symbol().get_untracked();
     let interval = TimeInterval::OneMinute;
 
     // Create a client for data loading
@@ -1132,7 +1181,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
     global_is_streaming().set(true);
 
     let mut ws_client =
-        BinanceWebSocketClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
+        BinanceWebSocketClient::new(current_symbol().get_untracked(), TimeInterval::OneMinute);
 
     let _ = spawn_local_with_current_owner(async move {
         let handler = move |candle: Candle| {
