@@ -1,3 +1,5 @@
+//! Chart aggregate containing entities and value objects.
+
 pub mod entities;
 pub mod value_objects;
 

@@ -1,3 +1,8 @@
+//! Concrete implementations of services used by the application.
+//!
+//! This module houses rendering and WebSocket communication layers along with
+//! helper utilities such as logging and time providers.
+
 pub mod rendering;
 pub mod websocket;
 

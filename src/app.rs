@@ -1,4 +1,7 @@
-// src/app.rs
+//! Main Leptos application module.
+//!
+//! Handles canvas interactions, zoom/pan logic and connects to the
+//! WebSocket stream providing market data.
 
 use js_sys;
 use leptos::html::Canvas;
@@ -63,9 +66,12 @@ pub fn visible_range_by_time(
     let visible = ((MAX_VISIBLE_CANDLES / zoom).max(10.0).min(candles.len() as f64)) as usize;
 
     let start_ts = viewport.start_time as u64;
+    // Use `partition_point` to find the first candle after `start_ts`.
+    // This avoids scanning the entire slice manually.
     let start_idx = candles.partition_point(|c| c.timestamp.value() < start_ts);
 
     let max_start = candles.len().saturating_sub(visible);
+    // Clamp to ensure we always display `visible` candles.
     let start = start_idx.min(max_start);
     (start, visible)
 }
