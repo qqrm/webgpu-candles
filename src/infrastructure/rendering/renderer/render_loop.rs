@@ -13,9 +13,9 @@ impl WebGpuRenderer {
                     let delta = now - self.last_frame_time;
                     if delta > 0.0 {
                         let fps = 1000.0 / delta;
-                        self.fps_samples.push(fps);
-                        if self.fps_samples.len() > 60 {
-                            self.fps_samples.remove(0);
+                        self.fps_log.push_back(fps);
+                        if self.fps_log.len() > 60 {
+                            self.fps_log.pop_front();
                         }
                     }
                 }
@@ -144,10 +144,10 @@ impl WebGpuRenderer {
 
     /// Получить информацию о производительности
     pub fn get_performance_info(&self) -> String {
-        let avg_fps = if self.fps_samples.is_empty() {
+        let avg_fps = if self.fps_log.is_empty() {
             0.0
         } else {
-            self.fps_samples.iter().sum::<f64>() / self.fps_samples.len() as f64
+            self.fps_log.iter().sum::<f64>() / self.fps_log.len() as f64
         };
 
         serde_json::json!({
@@ -548,7 +548,7 @@ mod tests {
                 zoom_level: 1.0,
                 pan_offset: 0.0,
                 last_frame_time: 0.0,
-                fps_samples: Vec::new(),
+                fps_log: VecDeque::new(),
                 line_visibility: LineVisibility::default(),
             }
         }
@@ -567,5 +567,18 @@ mod tests {
         let r = dummy_renderer();
         assert_eq!(r.check_legend_checkbox_click(15.0, 15.0), Some("sma20".to_string()));
         assert_eq!(r.check_legend_checkbox_click(100.0, 100.0), None);
+    }
+
+    #[test]
+    fn fps_ring_buffer() {
+        let mut r = dummy_renderer();
+        for i in 0..65 {
+            r.fps_log.push_back(i as f64);
+            if r.fps_log.len() > 60 {
+                r.fps_log.pop_front();
+            }
+        }
+        assert_eq!(r.fps_log.len(), 60);
+        assert_eq!(r.fps_log.front().copied(), Some(5.0));
     }
 }
