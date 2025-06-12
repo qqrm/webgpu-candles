@@ -51,7 +51,7 @@ pub struct WebGpuRenderer {
     // Rendering pipeline
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
-    instance_buffer: wgpu::Buffer,
+    _instance_buffer: wgpu::Buffer,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     template_vertices: u32,
@@ -60,7 +60,7 @@ pub struct WebGpuRenderer {
     // 🗄️ Кэшированные данные
     cached_vertices: Vec<CandleVertex>,
     cached_instances: Vec<CandleInstance>,
-    cached_additional_vertices: Vec<CandleVertex>, // Для volume bars и индикаторов
+    _cached_additional_vertices: Vec<CandleVertex>, // Для volume bars и индикаторов
     cached_uniforms: ChartUniforms,
     cached_candle_count: usize,
     cached_zoom_level: f64,
@@ -94,7 +94,9 @@ impl Default for LineVisibility {
 }
 
 mod geometry;
-pub use geometry::{BASE_CANDLES, BASE_TEMPLATE, candle_x_position};
+pub use geometry::{
+    BASE_CANDLES, BASE_TEMPLATE, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, candle_x_position,
+};
 mod initialization;
 mod performance;
 mod render_loop;

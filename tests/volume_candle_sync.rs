@@ -1,5 +1,7 @@
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
-use price_chart_wasm::infrastructure::rendering::renderer::candle_x_position;
+use price_chart_wasm::infrastructure::rendering::renderer::{
+    MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, candle_x_position,
+};
 use wasm_bindgen_test::*;
 
 fn create_test_candles(count: usize) -> Vec<Candle> {
@@ -64,7 +66,8 @@ fn volume_width_sync() {
     // Проверяем что step_size одинаковый для свечей и volume bars
     let step_size = 2.0 / visible_len as f32;
     let zoom_factor = 1.0; // По умолчанию
-    let expected_width = (step_size * zoom_factor * 0.8).max(0.002);
+    let expected_width =
+        (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
     // Эмулируем логику из кода
     for i in 0..visible_len {

@@ -1,4 +1,6 @@
-use price_chart_wasm::infrastructure::rendering::renderer::candle_x_position;
+use price_chart_wasm::infrastructure::rendering::renderer::{
+    MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, candle_x_position,
+};
 use wasm_bindgen_test::*;
 
 #[wasm_bindgen_test]
@@ -10,10 +12,10 @@ fn width_calculation_sync() {
     // Эмулируем логику из кода для свечей
     let step_size = 2.0 / visible_len as f32;
     let zoom_factor = zoom_level.clamp(0.1, 10.0) as f32;
-    let candle_width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1);
+    let candle_width = (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
     // Эмулируем логику из кода для volume bars (после исправления)
-    let bar_width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1);
+    let bar_width = (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
     // Проверяем что ширина одинаковая
     assert_eq!(
@@ -23,8 +25,16 @@ fn width_calculation_sync() {
     );
 
     // Проверяем что ширина находится в допустимых пределах
-    assert!(candle_width >= 0.002, "Ширина слишком мала: {:.6}", candle_width);
-    assert!(candle_width <= 0.1, "Ширина слишком велика: {:.6}", candle_width);
+    assert!(
+        candle_width >= MIN_ELEMENT_WIDTH,
+        "Ширина слишком мала: {:.6}",
+        candle_width
+    );
+    assert!(
+        candle_width <= MAX_ELEMENT_WIDTH,
+        "Ширина слишком велика: {:.6}",
+        candle_width
+    );
 }
 
 #[wasm_bindgen_test]

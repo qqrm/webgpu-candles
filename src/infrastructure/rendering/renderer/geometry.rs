@@ -29,6 +29,11 @@ pub const BASE_TEMPLATE: [CandleVertex; 18] = [
     CandleVertex { position_x: -0.05, position_y: 1.0, element_type: 2.0, color_type: 0.5 },
 ];
 
+/// Минимальная ширина элемента (свеча или volume bar)
+pub const MIN_ELEMENT_WIDTH: f32 = 0.002;
+/// Максимальная ширина элемента (свеча или volume bar)
+pub const MAX_ELEMENT_WIDTH: f32 = 0.1;
+
 /// Позиция свечи/бара с учётом привязки к правому краю
 pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
     let step_size = 2.0 / visible_len as f32;
@@ -43,6 +48,7 @@ impl WebGpuRenderer {
         if candles.is_empty() {
             get_logger()
                 .error(LogComponent::Infrastructure("WebGpuRenderer"), "⚠️ No candles to render");
+
             return (vec![], ChartUniforms::new());
         }
 
@@ -119,7 +125,8 @@ impl WebGpuRenderer {
         // Create vertices for each visible candle
         let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
         let step_size = 2.0 / visible_candles.len() as f32;
-        let candle_width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1);
+        let candle_width =
+            (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
         for (i, candle) in visible_candles.iter().enumerate() {
             let x = candle_x_position(i, visible_candles.len());
@@ -286,7 +293,7 @@ impl WebGpuRenderer {
 
         let mut vertices = Vec::with_capacity(candles.len() * 6);
         let candle_count = candles.len();
-        let step_size = 2.0 / candle_count as f32;
+        let _step_size = 2.0 / candle_count as f32;
         let price_range = max_price - min_price;
 
         // Функция для нормализации цены в NDC координаты
@@ -446,7 +453,7 @@ impl WebGpuRenderer {
 
         let step_size = 2.0 / candle_count as f32;
         let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
-        let bar_width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1); // Та же логика что и для свечей
+        let bar_width = (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH); // Та же логика что и для свечей
 
         for (i, candle) in candles.iter().enumerate() {
             let x = candle_x_position(i, candle_count);
@@ -485,6 +492,7 @@ impl WebGpuRenderer {
     }
 
     /// Создать данные для instanced рендеринга свечей
+    #[allow(dead_code)]
     pub(super) fn create_instanced_geometry(
         &self,
         chart: &Chart,
@@ -506,7 +514,7 @@ impl WebGpuRenderer {
 
         let step_size = 2.0 / visible_count as f32;
         let zoom_factor = self.zoom_level.clamp(0.1, 10.0) as f32;
-        let width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1);
+        let width = (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
         for (i, c) in candles.iter().skip(start_index).enumerate() {
             let x = candle_x_position(i, visible_count);
