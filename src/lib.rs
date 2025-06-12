@@ -9,6 +9,7 @@ pub mod app;
 pub mod domain;
 pub mod global_state;
 pub mod infrastructure;
+pub mod macros;
 
 // === WASM EXPORTS ===
 use leptos::*;

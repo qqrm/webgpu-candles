@@ -11,13 +11,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
 
+use crate::global_signal;
 use crate::{
     domain::{
         chart::Chart,
         logging::{LogComponent, get_logger},
         market_data::{Candle, TimeInterval, value_objects::Symbol},
     },
-    global_state::globals,
     infrastructure::{
         rendering::{
             WebGpuRenderer,
@@ -77,45 +77,19 @@ pub fn visible_range_by_time(
 }
 
 // Helper aliases for global signals
-fn global_current_price() -> RwSignal<f64> {
-    globals().current_price
-}
-fn global_candle_count() -> RwSignal<usize> {
-    globals().candle_count
-}
-fn global_is_streaming() -> RwSignal<bool> {
-    globals().is_streaming
-}
-fn global_max_volume() -> RwSignal<f64> {
-    globals().max_volume
-}
-fn loading_more() -> RwSignal<bool> {
-    globals().loading_more
-}
-fn tooltip_data() -> RwSignal<Option<TooltipData>> {
-    globals().tooltip_data
-}
-fn tooltip_visible() -> RwSignal<bool> {
-    globals().tooltip_visible
-}
-fn zoom_level() -> RwSignal<f64> {
-    globals().zoom_level
-}
-fn pan_offset() -> RwSignal<f64> {
-    globals().pan_offset
-}
-fn is_dragging() -> RwSignal<bool> {
-    globals().is_dragging
-}
-fn last_mouse_x() -> RwSignal<f64> {
-    globals().last_mouse_x
-}
-fn last_mouse_y() -> RwSignal<f64> {
-    globals().last_mouse_y
-}
-pub fn current_interval() -> RwSignal<TimeInterval> {
-    globals().current_interval
-}
+global_signal!(global_current_price, current_price: f64);
+global_signal!(global_candle_count, candle_count: usize);
+global_signal!(global_is_streaming, is_streaming: bool);
+global_signal!(global_max_volume, max_volume: f64);
+global_signal!(loading_more, loading_more: bool);
+global_signal!(tooltip_data, tooltip_data: Option<TooltipData>);
+global_signal!(tooltip_visible, tooltip_visible: bool);
+global_signal!(zoom_level, zoom_level: f64);
+global_signal!(pan_offset, pan_offset: f64);
+global_signal!(is_dragging, is_dragging: bool);
+global_signal!(last_mouse_x, last_mouse_x: f64);
+global_signal!(last_mouse_y, last_mouse_y: f64);
+global_signal!(pub current_interval, current_interval: TimeInterval);
 
 /// 📈 Fetch additional history and prepend it to the list
 fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
