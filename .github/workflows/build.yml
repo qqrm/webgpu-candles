@@ -19,6 +19,8 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Install trunk
         run: cargo install trunk
+      - name: Clean dist
+        run: rm -rf dist
       - name: Build
         run: trunk build --release --dist dist
       - name: Commit dist

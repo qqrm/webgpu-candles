@@ -859,6 +859,8 @@ fn ChartContainer() -> impl IntoView {
                 </div>
             </div>
 
+            <TimeframeSelector />
+
             // Временная шкала под графиком
             <div style="display: flex; justify-content: center; margin-top: 10px;">
                 <TimeScale chart=chart />
@@ -969,6 +971,42 @@ fn ChartTooltip() -> impl IntoView {
                     }
                 })
             }}
+        </div>
+    }
+}
+
+#[component]
+fn TimeframeSelector() -> impl IntoView {
+    let options = vec![
+        TimeInterval::OneMinute,
+        TimeInterval::FiveMinutes,
+        TimeInterval::FifteenMinutes,
+        TimeInterval::ThirtyMinutes,
+        TimeInterval::OneHour,
+        TimeInterval::OneDay,
+        TimeInterval::OneWeek,
+        TimeInterval::OneMonth,
+    ];
+
+    view! {
+        <div style="display:flex;gap:6px;margin-top:8px;">
+            <For
+                each=move || options.clone()
+                key=|i| i.as_ref().to_string()
+                children=|interval| {
+                    let label = interval.as_ref().to_string();
+                    view! {
+                        <button
+                            style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
+                            on:click=move |_| {
+                                CURRENT_INTERVAL.with(|c| c.set(interval));
+                            }
+                        >
+                            {label}
+                        </button>
+                    }
+                }
+            />
         </div>
     }
 }

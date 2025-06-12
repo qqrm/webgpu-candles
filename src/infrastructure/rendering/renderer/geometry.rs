@@ -45,7 +45,6 @@ pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
 
 impl WebGpuRenderer {
     pub(super) fn create_geometry(&self, chart: &Chart) -> (Vec<CandleVertex>, ChartUniforms) {
-
         use crate::app::CURRENT_INTERVAL;
 
         let interval = CURRENT_INTERVAL.with(|i| i.get_untracked());
