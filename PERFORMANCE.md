@@ -1,27 +1,27 @@
-# Отслеживание оптимизаций
+# Performance Tracking
 
-## Перечень улучшений
-- [ ] Профилировать использование GPU памяти
-- [x] Снизить количество обновлений буфера вершин
-- [ ] Задействовать instanced drawing для свечей
-- [x] Кэшировать результаты вычислений на стороне GPU
-- [ ] Минимизировать синхронизацию CPU и GPU
+## Improvement Checklist
+- [ ] Profile GPU memory usage
+- [x] Reduce vertex buffer updates
+- [ ] Use instanced drawing for candles
+- [x] Cache computations on the GPU side
+- [ ] Minimize CPU/GPU synchronization
 
-### Дополнительные изменения
-- [x] `CandleSeries` на `VecDeque`
- - [x] Хранение `Chart` в состоянии
-- [ ] Вектор логов на `VecDeque`
+### Additional Changes
+- [x] `CandleSeries` switched to `VecDeque`
+- [x] Store `Chart` in state
+- [ ] Log vector on `VecDeque`
 
-## Бенчмарк производительности WebGPU
-- [x] Измерять FPS при разных объёмах данных
-- [x] Логировать время работы рендер-пассов через `wgpu::CommandEncoder::finish`
-- [x] Использовать `Performance.now()` в браузере для замера кадра
-- [x] Автоматизировать запуск тестовой сцены с фиксированным числом свечей
+## WebGPU Performance Benchmark
+- [x] Measure FPS for different data volumes
+- [x] Log render pass times through `wgpu::CommandEncoder::finish`
+- [x] Use `Performance.now()` in the browser for frame timing
+- [x] Automate running a fixed-candle test scene
 
-Бенчмарк запускается так:
+The benchmark is run with:
 
 ```bash
 wasm-pack test --headless --chrome -- --nocapture
 ```
 
-Workflow `perf.yml` сохраняет файл `perf-log`.
+Workflow `perf.yml` stores the `perf-log` file.

@@ -1,12 +1,11 @@
-# Тестовый набор
+# Test Suite
 
-Папка `tests/` содержит интеграционные тесты для ключевых компонентов.
-Сейчас в каталоге `tests/` три файла:
+The `tests/` folder contains integration tests for the main components. Currently it has three files:
 
-- `viewport.rs` — проверяются методы структуры `Viewport` (конвертация координат, панорамирование и зум).
-- `geometry.rs` — генерируются вершины свечей и сравниваются со снапшотом.
-- `offset.rs` — проверяется вычисление позиции свечи по индексу и количеству.
+- `viewport.rs` — verifies `Viewport` methods (coordinate conversions, panning and zoom)
+- `geometry.rs` — generates candle vertices and compares them with a snapshot
+- `offset.rs` — checks candle positioning by index and count
 
-Эталоны снапшотов хранятся в каталоге `tests/fixtures`.
+Snapshot fixtures are stored in `tests/fixtures`.
 
-Внутренние модульные тесты для рендерера расположены в `src/infrastructure/rendering/renderer/render_loop.rs`.
+Internal module tests for the renderer can be found in `src/infrastructure/rendering/renderer/render_loop.rs`.

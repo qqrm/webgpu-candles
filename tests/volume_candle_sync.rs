@@ -110,10 +110,8 @@ fn debug_positioning_logic() {
     }
 
     // Проверяем что позиции совпадают
-    for (i, (candle_x, volume_x)) in candle_positions
-        .iter()
-        .zip(volume_positions.iter())
-        .enumerate()
+    for (i, (candle_x, volume_x)) in
+        candle_positions.iter().zip(volume_positions.iter()).enumerate()
     {
         assert!(
             (candle_x - volume_x).abs() < f32::EPSILON,

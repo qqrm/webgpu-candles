@@ -11,10 +11,6 @@ impl WebGpuRenderer {
         }
         let end = performance.now();
         let elapsed = (end - start) / 1000.0;
-        if elapsed > 0.0 {
-            num_frames as f64 / elapsed
-        } else {
-            0.0
-        }
+        if elapsed > 0.0 { num_frames as f64 / elapsed } else { 0.0 }
     }
 }

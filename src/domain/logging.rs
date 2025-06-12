@@ -77,9 +77,7 @@ pub trait Logger: Send + Sync {
         message: &str,
         metadata: &str,
     ) {
-        self.log(LogEntry::new_with_metadata(
-            level, component, message, metadata,
-        ));
+        self.log(LogEntry::new_with_metadata(level, component, message, metadata));
     }
 }
 
@@ -127,18 +125,12 @@ pub fn init_time_provider(time_provider: Box<dyn TimeProvider + Sync + Send>) {
 
 /// Get global logger reference
 pub fn get_logger() -> &'static dyn Logger {
-    GLOBAL_LOGGER
-        .get()
-        .map(|logger| logger.as_ref())
-        .unwrap_or(&NoOpLogger)
+    GLOBAL_LOGGER.get().map(|logger| logger.as_ref()).unwrap_or(&NoOpLogger)
 }
 
 /// Get global time provider reference
 pub fn get_time_provider() -> &'static dyn TimeProvider {
-    GLOBAL_TIME_PROVIDER
-        .get()
-        .map(|provider| provider.as_ref())
-        .unwrap_or(&BasicTimeProvider)
+    GLOBAL_TIME_PROVIDER.get().map(|provider| provider.as_ref()).unwrap_or(&BasicTimeProvider)
 }
 
 /// No-op logger fallback

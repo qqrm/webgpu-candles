@@ -19,9 +19,8 @@ fn minute_candle(timestamp: u64, open: f64) -> Candle {
 
 #[wasm_bindgen_test]
 fn aggregates_five_minutes() {
-    let candles: Vec<Candle> = (0..5)
-        .map(|i| minute_candle(i * 60_000, 100.0 + i as f64))
-        .collect();
+    let candles: Vec<Candle> =
+        (0..5).map(|i| minute_candle(i * 60_000, 100.0 + i as f64)).collect();
 
     let aggregated = Aggregator::aggregate(&candles, TimeInterval::FiveMinutes).unwrap();
 
@@ -35,9 +34,8 @@ fn aggregates_five_minutes() {
 
 #[wasm_bindgen_test]
 fn aggregates_fifteen_minutes() {
-    let candles: Vec<Candle> = (0..15)
-        .map(|i| minute_candle(i * 60_000, 100.0 + i as f64))
-        .collect();
+    let candles: Vec<Candle> =
+        (0..15).map(|i| minute_candle(i * 60_000, 100.0 + i as f64)).collect();
 
     let aggregated = Aggregator::aggregate(&candles, TimeInterval::FifteenMinutes).unwrap();
 

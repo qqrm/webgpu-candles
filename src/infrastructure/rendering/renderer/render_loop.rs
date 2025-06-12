@@ -22,10 +22,7 @@ impl WebGpuRenderer {
             }
         }
 
-        let candle_count = chart
-            .get_series_for_zoom(self.zoom_level)
-            .get_candles()
-            .len();
+        let candle_count = chart.get_series_for_zoom(self.zoom_level).get_candles().len();
 
         // Логируем только каждые 100 кадров для производительности
         if candle_count % 100 == 0 {
@@ -84,19 +81,13 @@ impl WebGpuRenderer {
             JsValue::from_str(&error_msg)
         })?;
 
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let start_pass = web_sys::window()
-            .and_then(|w| w.performance())
-            .map(|p| p.now());
+        let start_pass = web_sys::window().and_then(|w| w.performance()).map(|p| p.now());
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -210,14 +201,10 @@ impl WebGpuRenderer {
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
 
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Clear Only Encoder"),
-            });
+        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Clear Only Encoder"),
+        });
 
         {
             let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -250,10 +237,8 @@ impl WebGpuRenderer {
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
-        get_logger().info(
-            LogComponent::Infrastructure("WebGpuRenderer"),
-            "✅ CLEAR-ONLY TEST COMPLETED!",
-        );
+        get_logger()
+            .info(LogComponent::Infrastructure("WebGpuRenderer"), "✅ CLEAR-ONLY TEST COMPLETED!");
 
         Ok(())
     }
@@ -293,12 +278,7 @@ impl WebGpuRenderer {
                 element_type: 99.0,
                 color_type: 99.0,
             },
-            CandleVertex {
-                position_x: 0.8,
-                position_y: 0.8,
-                element_type: 99.0,
-                color_type: 99.0,
-            },
+            CandleVertex { position_x: 0.8, position_y: 0.8, element_type: 99.0, color_type: 99.0 },
             CandleVertex {
                 position_x: -0.8,
                 position_y: 0.8,
@@ -313,30 +293,21 @@ impl WebGpuRenderer {
         );
 
         // Записываем в буфер
-        self.queue
-            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
+        self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
 
         // Простейшие uniforms
         let test_uniforms = ChartUniforms::default();
-        self.queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[test_uniforms]),
-        );
+        self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[test_uniforms]));
 
         let output = self
             .surface
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
 
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Test Simple Quad Encoder"),
-            });
+        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Test Simple Quad Encoder"),
+        });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -373,10 +344,8 @@ impl WebGpuRenderer {
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
-        get_logger().info(
-            LogComponent::Infrastructure("WebGpuRenderer"),
-            "✅ ULTRA-SIMPLE QUAD RENDERED!",
-        );
+        get_logger()
+            .info(LogComponent::Infrastructure("WebGpuRenderer"), "✅ ULTRA-SIMPLE QUAD RENDERED!");
 
         Ok(())
     }
@@ -406,30 +375,21 @@ impl WebGpuRenderer {
         );
 
         // Записываем в буфер
-        self.queue
-            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
+        self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
 
         // Создаем тестовые uniforms
         let test_uniforms = ChartUniforms::default();
-        self.queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[test_uniforms]),
-        );
+        self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[test_uniforms]));
 
         let output = self
             .surface
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
 
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Test Rectangle Encoder"),
-            });
+        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Test Rectangle Encoder"),
+        });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -494,30 +454,21 @@ impl WebGpuRenderer {
         );
 
         // Записываем в буфер
-        self.queue
-            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
+        self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
 
         // Создаем тестовые uniforms
         let test_uniforms = ChartUniforms::default();
-        self.queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[test_uniforms]),
-        );
+        self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[test_uniforms]));
 
         let output = self
             .surface
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
 
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Test Triangle Encoder"),
-            });
+        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Test Triangle Encoder"),
+        });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -611,10 +562,7 @@ mod tests {
     #[test]
     fn legend_click_detection() {
         let r = dummy_renderer();
-        assert_eq!(
-            r.check_legend_checkbox_click(15.0, 15.0),
-            Some("sma20".to_string())
-        );
+        assert_eq!(r.check_legend_checkbox_click(15.0, 15.0), Some("sma20".to_string()));
         assert_eq!(r.check_legend_checkbox_click(100.0, 100.0), None);
     }
 }

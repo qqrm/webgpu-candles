@@ -89,13 +89,7 @@ pub struct LineVisibility {
 
 impl Default for LineVisibility {
     fn default() -> Self {
-        Self {
-            sma_20: true,
-            sma_50: true,
-            sma_200: true,
-            ema_12: true,
-            ema_26: true,
-        }
+        Self { sma_20: true, sma_50: true, sma_200: true, ema_12: true, ema_26: true }
     }
 }
 

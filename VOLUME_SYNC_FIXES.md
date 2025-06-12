@@ -1,71 +1,71 @@
-# 🔧 Исправления синхронизации объемов и свечей
+# 🔧 Volume and Candle Sync Fixes
 
-## 🐛 Найденная проблема
-Пользователь сообщил: **"объемы и свечи не синхронизированы"**
+## 🐛 Reported Issue
+A user reported: **"volume bars and candles are out of sync"**
 
-## 🔍 Диагностика
-При анализе кода были найдены следующие проблемы в `src/infrastructure/rendering/renderer/geometry.rs`:
+## 🔍 Diagnosis
+Analysis of `src/infrastructure/rendering/renderer/geometry.rs` revealed:
 
-### 1. **Разная логика расчета ширины**
-- **Свечи**: `(step_size * zoom_factor * 0.8).clamp(0.002, 0.1)`
-- **Volume bars**: `(step_size * zoom_factor * 0.8).max(0.002)` ❌ **НЕТ верхнего предела!**
+### 1. **Different width calculation logic**
+- **Candles**: `(step_size * zoom_factor * 0.8).clamp(0.002, 0.1)`
+- **Volume bars**: `(step_size * zoom_factor * 0.8).max(0.002)` ❌ **NO upper limit!**
 
-### 2. **Неконсистентное использование размеров массивов**
-- В логировании использовался `visible_count` вместо `visible_candles.len()`
-- Это могло приводить к индексации вне границ и неправильному логированию
+### 2. **Inconsistent array sizes**
+- Logging used `visible_count` instead of `visible_candles.len()`
+- This could cause out-of-bounds indexing and incorrect logs
 
-## ✅ Исправления
+## ✅ Fixes
 
-### 1. **Синхронизация ширины volume bars** (строка ~550)
+### 1. **Synchronize volume bar width** (around line 550)
 ```diff
 - let bar_width = (step_size * zoom_factor * 0.8).max(0.002);
-+ let bar_width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1); // Та же логика что и для свечей
++ let bar_width = (step_size * zoom_factor * 0.8).clamp(0.002, 0.1); // same logic as candles
 ```
 
-### 2. **Исправление логики логирования** (строка ~208)
+### 2. **Correct logging logic** (around line 208)
 ```diff
 - if i < 3 || i >= visible_count - 3 {
 + if i < 3 || i >= visible_candles.len() - 3 {
 ```
 
-## 🧪 Тестовое покрытие
+## 🧪 Test Coverage
 
-### Новые тесты:
-1. **`tests/width_sync_test.rs`** - проверка синхронизации ширины
-2. **`tests/volume_candle_sync.rs`** - комплексная проверка позиционирования
-3. **Обновленные позиционирующие тесты** - с учетом исправлений
+### New tests:
+1. `tests/width_sync_test.rs` - width synchronization
+2. `tests/volume_candle_sync.rs` - comprehensive positioning check
+3. Updated positioning tests incorporating the fixes
 
-### Результаты тестирования:
+### Test results:
 ```bash
 ✅ width_calculation_sync ... ok
 ✅ positioning_boundary_test ... ok
 ✅ volume_candle_position_sync ... ok
-✅ Все существующие тесты продолжают работать
+✅ All existing tests continue to pass
 ```
 
-## 🎯 Ожидаемый результат
+## 🎯 Expected Outcome
 
-После исправлений:
-- ✅ Volume bars и свечи используют **идентичную логику позиционирования**
-- ✅ Volume bars и свечи имеют **одинаковую ширину** при том же zoom level
-- ✅ Последние volume bars и свечи **точно привязаны к правой грани** (x=1.0)
-- ✅ Все элементы графика **синхронизированы** и выровнены
+After the fixes:
+- ✅ Volume bars and candles use **identical positioning logic**
+- ✅ Volume bars and candles have **equal width** at the same zoom level
+- ✅ The last volume bars and candles are **exactly aligned to the right edge** (x=1.0)
+- ✅ All chart elements are **synchronized** and aligned
 
-## 🔧 Техническая сводка
+## 🔧 Summary Table
 
-| Компонент | До исправления | После исправления |
-|-----------|----------------|-------------------|
-| **Position X** | ✅ candle_x_position() | ✅ candle_x_position() |
-| **Width calc** | ❌ Разная логика | ✅ Идентичная логика |
-| **Bounds** | ❌ Volume: только min | ✅ Volume: min+max |
-| **Logging** | ❌ visible_count | ✅ visible_candles.len() |
-| **Right edge** | ✅ x=1.0 | ✅ x=1.0 |
+| Component       | Before fix          | After fix             |
+|-----------------|---------------------|-----------------------|
+| **Position X**  | ✅ `candle_x_position()` | ✅ `candle_x_position()` |
+| **Width calc**  | ❌ Different logic  | ✅ Same logic          |
+| **Bounds**      | ❌ Volume: only min | ✅ Volume: min+max     |
+| **Logging**     | ❌ `visible_count`  | ✅ `visible_candles.len()` |
+| **Right edge**  | ✅ x=1.0            | ✅ x=1.0               |
 
-## 📊 Покрытые сценарии
-- Различные уровни зума (0.1x - 10.0x)
-- Различные количества видимых свечей (1-300)
-- Граничные условия позиционирования
-- Синхронизация всех элементов графика (свечи, объемы, сетка, индикаторы)
+## 📊 Covered Scenarios
+- Various zoom levels (0.1x - 10.0x)
+- Different numbers of visible candles (1-300)
+- Positioning edge cases
+- Synchronization of all chart elements (candles, volume, grid, indicators)
 
 ---
-**Статус**: ✅ **ИСПРАВЛЕНО И ПРОТЕСТИРОВАНО** 
+**Status**: ✅ **FIXED AND TESTED**

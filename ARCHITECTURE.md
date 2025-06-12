@@ -1,24 +1,24 @@
-# 🦀 Bitcoin Chart WASM - Актуальная архитектура v4.0
+# 🦀 Bitcoin Chart WASM - Current Architecture v4.0
 
-## 📊 Что у нас есть сейчас
+## 📊 Current Status
 
-**Real-time Bitcoin торговый график с WebGPU + Leptos + WebSocket**
+**Real-time Bitcoin chart using WebGPU, Leptos and WebSocket**
 
-- ✅ Живые данные от Binance WebSocket
-- ✅ WebGPU рендеринг (60 FPS)
-- ✅ Скользящие средние: SMA20, EMA12
-- ✅ Сплошная линия текущей цены
-- ✅ Интерактивный tooltip
-- ✅ Профессиональный вид (как TradingView)
-Подробнее об оптимизациях смотрите в [PERFORMANCE.md](./PERFORMANCE.md).
+- ✅ Live data from Binance WebSocket
+- ✅ WebGPU rendering (60 FPS)
+- ✅ Moving averages: SMA20, EMA12
+- ✅ Solid line for the current price
+- ✅ Interactive tooltip
+- ✅ Professional look similar to TradingView
+See [PERFORMANCE.md](./PERFORMANCE.md) for optimization details.
 
-## 🗂️ Файловая структура
+## 🗂️ File Structure
 
 ```
 src/
-├── app.rs                  # Leptos UI компоненты + реактивность
+├── app.rs                  # Leptos UI components and reactivity
 ├── lib.rs                  # WASM exports (hydrate, main)
-├── candle_shader.wgsl      # WebGPU шейдеры для свечей
+├── candle_shader.wgsl      # WebGPU shaders for candles
 ├── domain/
 │   ├── chart/
 │   │   ├── entities.rs     # Chart, ChartData
@@ -26,20 +26,20 @@ src/
 │   ├── market_data/
 │   │   ├── entities.rs     # Candle, CandleSeries
 │   │   ├── value_objects.rs # OHLCV, Price, Volume, Symbol
-│   │   └── services.rs     # Validation, data operations
+│   │   └── services.rs     # Validation and operations
 │   ├── logging.rs          # Logger abstractions
-│   └── errors.rs           # AppError (simplified)
+│   └── errors.rs           # Simplified AppError
 └── infrastructure/
     ├── websocket/
-    │   ├── binance_client.rs # WebSocket клиент Binance
+    │   ├── binance_client.rs # Binance WebSocket client
     │   └── dto.rs           # JSON DTO structures
     ├── rendering/
-    │   ├── renderer/          # WebGPU рендерер по частям
+    │   ├── renderer/          # WebGPU renderer pieces
     │   └── gpu_structures.rs  # GPU vertex structures
     └── mod.rs               # Infrastructure services
 ```
 
-## ⚡ Поток данных
+## ⚡ Data Flow
 
 ```
 Binance WebSocket → BinanceClient → Leptos Signals → WebGPU → Canvas
@@ -47,64 +47,64 @@ Binance WebSocket → BinanceClient → Leptos Signals → WebGPU → Canvas
                                     Tooltip + UI Updates
 ```
 
-## 🧩 Ключевые компоненты
+## 🧩 Key Components
 
 ### **app.rs - Leptos Frontend**
-- `App()` - главный компонент с CSS
-- `Header()` - цена, количество свечей, статус
-- `ChartContainer()` - WebGPU рендеринг + mouse events
-- `ChartTooltip()` - интерактивный tooltip
+- `App()` - main component with CSS
+- `Header()` - price, candle count, status
+- `ChartContainer()` - WebGPU rendering + mouse events
+- `ChartTooltip()` - interactive tooltip
 
-### **renderer** - GPU рендеринг
-- Рендеринг свечей (зеленые/красные)
-- Скользящие средние (SMA20, EMA12)
-- Сплошная линия цены (желтая)
-- 300-свечной скроллинг буфер
+### **renderer** - GPU rendering
+- Candle rendering (green/red)
+- Moving averages (SMA20, EMA12)
+- Solid price line (yellow)
+- 300-candle scrolling buffer
 
 ### **binance_client.rs - WebSocket**
-- Подключение к `wss://stream.binance.com`
-- Парсинг kline events
-- Обновление Leptos сигналов
+- Connects to `wss://stream.binance.com`
+- Parses kline events
+- Updates Leptos signals
 
-## 📡 Глобальные сигналы
+## 📡 Global Signals
 
 ```rust
-GLOBAL_CURRENT_PRICE: f64    // Текущая цена BTC
-GLOBAL_CANDLE_COUNT: usize   // Количество свечей
-GLOBAL_IS_STREAMING: bool    // WebSocket статус
-TOOLTIP_DATA: TooltipData    // Данные tooltip
+GLOBAL_CURRENT_PRICE: f64    // Current BTC price
+GLOBAL_CANDLE_COUNT: usize   // Number of candles
+GLOBAL_IS_STREAMING: bool    // WebSocket status
+TOOLTIP_DATA: TooltipData    // Tooltip info
 ```
 
-## 🎨 Визуальные элементы
+## 🎨 Visual Elements
 
-- **Свечи**: Зеленые (рост) / Красные (падение)
-- **SMA20**: Красная линия (простое среднее 20 периодов) 
-- **EMA12**: Фиолетовая линия (экспоненциальное среднее 12 периодов)
-- **Цена**: Сплошная желтая линия + оранжевый лейбл
-- **Tooltip**: Черный с OHLC + Volume + % change
+- **Candles**: green (up) / red (down)
+- **SMA20**: red line (simple 20-period average)
+- **EMA12**: purple line (12-period exponential average)
+- **Price**: yellow solid line + orange label
+- **Tooltip**: black with OHLC + Volume + % change
 
-## 🔧 Технические детали
+## 🔧 Technical Details
 
 **WebGPU Pipeline:**
-- Вершинный буфер: 100k вершин
-- Шейдеры: `candle_shader.wgsl`
-- Координаты: NDC [-1, 1]
-- Цвета: через uniform buffer
+- Vertex buffer: 100k vertices
+- Shaders: `candle_shader.wgsl`
+- Coordinates: NDC [-1, 1]
+- Colors: via uniform buffer
 
 **WebSocket:**
 - Interval: 1m candles
 - Symbol: BTCUSDT
-- Auto-reconnect с экспоненциальной задержкой (см. [реализацию](src/infrastructure/websocket/binance_client.rs#L146-L223))
+- Auto-reconnect with exponential backoff (see [implementation](src/infrastructure/websocket/binance_client.rs#L146-L223))
 
 **Leptos:**
-- SSR отключен (client-only)
-- Реактивные updates
-- CSS встроенный
+- SSR disabled (client only)
+- Reactive updates
+- Inline CSS
 
-## 📦 Сборка
+## 📦 Build
 
 ```bash
-# Установите wasm32 таргет один раз
+# Install the wasm32 target once
 rustup target add wasm32-unknown-unknown
 
 # Development
@@ -117,12 +117,12 @@ wasm-pack build --target web --release
 python -m http.server 8080
 ```
 
-## 🎯 Статус проекта
+## 🎯 Project Status
 
-**Готово:**
-- Real-time торговый график ✅
-- Технические индикаторы ✅  
-- Профессиональный UI ✅
-- WebGPU производительность ✅
+**Done:**
+- Real-time trading chart ✅
+- Technical indicators ✅
+- Professional UI ✅
+- WebGPU performance ✅
 
-**Архитектура:** Простая, чистая, работающая 🚀 
+**Architecture:** simple, clean, working 🚀

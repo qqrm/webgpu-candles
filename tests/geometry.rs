@@ -31,14 +31,8 @@ fn sample_candles() -> Vec<Candle> {
 #[wasm_bindgen_test]
 fn candle_geometry_snapshot() {
     let candles = sample_candles();
-    let min_price = candles
-        .iter()
-        .map(|c| c.ohlcv.low.value())
-        .fold(f64::INFINITY, f64::min);
-    let max_price = candles
-        .iter()
-        .map(|c| c.ohlcv.high.value())
-        .fold(f64::NEG_INFINITY, f64::max);
+    let min_price = candles.iter().map(|c| c.ohlcv.low.value()).fold(f64::INFINITY, f64::min);
+    let max_price = candles.iter().map(|c| c.ohlcv.high.value()).fold(f64::NEG_INFINITY, f64::max);
     let price_range = max_price - min_price;
     let normalize = |p: f64| ((p - min_price) / price_range * 2.0 - 1.0) as f32;
 
@@ -60,9 +54,7 @@ fn candle_geometry_snapshot() {
             width,
         );
         result.extend(
-            verts
-                .into_iter()
-                .map(|v| [v.position_x, v.position_y, v.element_type, v.color_type]),
+            verts.into_iter().map(|v| [v.position_x, v.position_y, v.element_type, v.color_type]),
         );
     }
 

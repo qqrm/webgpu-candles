@@ -44,10 +44,7 @@ pub struct CandleSeries {
 
 impl CandleSeries {
     pub fn new(max_size: usize) -> Self {
-        Self {
-            candles: VecDeque::new(),
-            max_size,
-        }
+        Self { candles: VecDeque::new(), max_size }
     }
 
     pub fn add_candle(&mut self, candle: Candle) {

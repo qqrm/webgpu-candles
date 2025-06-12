@@ -7,116 +7,26 @@ pub const BASE_CANDLES: f32 = 300.0;
 /// Шаблон из 18 вершин для одной свечи (тело + верхний и нижний фитиль)
 pub const BASE_TEMPLATE: [CandleVertex; 18] = [
     // Тело
-    CandleVertex {
-        position_x: -0.5,
-        position_y: 0.0,
-        element_type: 0.0,
-        color_type: 0.0,
-    },
-    CandleVertex {
-        position_x: 0.5,
-        position_y: 0.0,
-        element_type: 0.0,
-        color_type: 0.0,
-    },
-    CandleVertex {
-        position_x: -0.5,
-        position_y: 1.0,
-        element_type: 0.0,
-        color_type: 0.0,
-    },
-    CandleVertex {
-        position_x: 0.5,
-        position_y: 0.0,
-        element_type: 0.0,
-        color_type: 0.0,
-    },
-    CandleVertex {
-        position_x: 0.5,
-        position_y: 1.0,
-        element_type: 0.0,
-        color_type: 0.0,
-    },
-    CandleVertex {
-        position_x: -0.5,
-        position_y: 1.0,
-        element_type: 0.0,
-        color_type: 0.0,
-    },
+    CandleVertex { position_x: -0.5, position_y: 0.0, element_type: 0.0, color_type: 0.0 },
+    CandleVertex { position_x: 0.5, position_y: 0.0, element_type: 0.0, color_type: 0.0 },
+    CandleVertex { position_x: -0.5, position_y: 1.0, element_type: 0.0, color_type: 0.0 },
+    CandleVertex { position_x: 0.5, position_y: 0.0, element_type: 0.0, color_type: 0.0 },
+    CandleVertex { position_x: 0.5, position_y: 1.0, element_type: 0.0, color_type: 0.0 },
+    CandleVertex { position_x: -0.5, position_y: 1.0, element_type: 0.0, color_type: 0.0 },
     // Верхний фитиль
-    CandleVertex {
-        position_x: -0.05,
-        position_y: 0.0,
-        element_type: 1.0,
-        color_type: 0.5,
-    },
-    CandleVertex {
-        position_x: 0.05,
-        position_y: 0.0,
-        element_type: 1.0,
-        color_type: 0.5,
-    },
-    CandleVertex {
-        position_x: -0.05,
-        position_y: 1.0,
-        element_type: 1.0,
-        color_type: 0.5,
-    },
-    CandleVertex {
-        position_x: 0.05,
-        position_y: 0.0,
-        element_type: 1.0,
-        color_type: 0.5,
-    },
-    CandleVertex {
-        position_x: 0.05,
-        position_y: 1.0,
-        element_type: 1.0,
-        color_type: 0.5,
-    },
-    CandleVertex {
-        position_x: -0.05,
-        position_y: 1.0,
-        element_type: 1.0,
-        color_type: 0.5,
-    },
+    CandleVertex { position_x: -0.05, position_y: 0.0, element_type: 1.0, color_type: 0.5 },
+    CandleVertex { position_x: 0.05, position_y: 0.0, element_type: 1.0, color_type: 0.5 },
+    CandleVertex { position_x: -0.05, position_y: 1.0, element_type: 1.0, color_type: 0.5 },
+    CandleVertex { position_x: 0.05, position_y: 0.0, element_type: 1.0, color_type: 0.5 },
+    CandleVertex { position_x: 0.05, position_y: 1.0, element_type: 1.0, color_type: 0.5 },
+    CandleVertex { position_x: -0.05, position_y: 1.0, element_type: 1.0, color_type: 0.5 },
     // Нижний фитиль
-    CandleVertex {
-        position_x: -0.05,
-        position_y: 0.0,
-        element_type: 2.0,
-        color_type: 0.5,
-    },
-    CandleVertex {
-        position_x: 0.05,
-        position_y: 0.0,
-        element_type: 2.0,
-        color_type: 0.5,
-    },
-    CandleVertex {
-        position_x: -0.05,
-        position_y: 1.0,
-        element_type: 2.0,
-        color_type: 0.5,
-    },
-    CandleVertex {
-        position_x: 0.05,
-        position_y: 0.0,
-        element_type: 2.0,
-        color_type: 0.5,
-    },
-    CandleVertex {
-        position_x: 0.05,
-        position_y: 1.0,
-        element_type: 2.0,
-        color_type: 0.5,
-    },
-    CandleVertex {
-        position_x: -0.05,
-        position_y: 1.0,
-        element_type: 2.0,
-        color_type: 0.5,
-    },
+    CandleVertex { position_x: -0.05, position_y: 0.0, element_type: 2.0, color_type: 0.5 },
+    CandleVertex { position_x: 0.05, position_y: 0.0, element_type: 2.0, color_type: 0.5 },
+    CandleVertex { position_x: -0.05, position_y: 1.0, element_type: 2.0, color_type: 0.5 },
+    CandleVertex { position_x: 0.05, position_y: 0.0, element_type: 2.0, color_type: 0.5 },
+    CandleVertex { position_x: 0.05, position_y: 1.0, element_type: 2.0, color_type: 0.5 },
+    CandleVertex { position_x: -0.05, position_y: 1.0, element_type: 2.0, color_type: 0.5 },
 ];
 
 /// Минимальная ширина элемента (свеча или volume bar)
@@ -136,10 +46,9 @@ impl WebGpuRenderer {
     pub(super) fn create_geometry(&self, chart: &Chart) -> (Vec<CandleVertex>, ChartUniforms) {
         let candles = chart.get_series_for_zoom(self.zoom_level).get_candles();
         if candles.is_empty() {
-            get_logger().error(
-                LogComponent::Infrastructure("WebGpuRenderer"),
-                "⚠️ No candles to render",
-            );
+            get_logger()
+                .error(LogComponent::Infrastructure("WebGpuRenderer"), "⚠️ No candles to render");
+
             return (vec![], ChartUniforms::new());
         }
 
@@ -147,10 +56,7 @@ impl WebGpuRenderer {
         if candles.len() % 100 == 0 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!(
-                    "🔧 Creating optimized geometry for {} candles",
-                    candles.len()
-                ),
+                &format!("🔧 Creating optimized geometry for {} candles", candles.len()),
             );
         }
 
@@ -159,9 +65,8 @@ impl WebGpuRenderer {
         let _chart_height = 2.0; // NDC height (-1 to 1)
 
         // 🔍 Применяем зум - показываем меньше свечей при увеличении зума
-        let visible_count = ((BASE_CANDLES as f64) / self.zoom_level)
-            .max(10.0)
-            .min(candle_count as f64) as usize;
+        let visible_count =
+            ((BASE_CANDLES as f64) / self.zoom_level).max(10.0).min(candle_count as f64) as usize;
         let start_index = candle_count.saturating_sub(visible_count);
         let visible_candles: Vec<Candle> = candles.iter().skip(start_index).cloned().collect();
 
@@ -198,10 +103,8 @@ impl WebGpuRenderer {
 
         // Ensure we have a valid price range
         if (max_price - min_price).abs() < 0.01 {
-            get_logger().error(
-                LogComponent::Infrastructure("WebGpuRenderer"),
-                "❌ Invalid price range!",
-            );
+            get_logger()
+                .error(LogComponent::Infrastructure("WebGpuRenderer"), "❌ Invalid price range!");
             return (vec![], ChartUniforms::new());
         }
 
@@ -359,12 +262,7 @@ impl WebGpuRenderer {
         let uniforms = ChartUniforms {
             view_proj_matrix,
             viewport: [self.width as f32, self.height as f32, min_price, max_price],
-            time_range: [
-                0.0,
-                visible_candles.len() as f32,
-                visible_candles.len() as f32,
-                0.0,
-            ],
+            time_range: [0.0, visible_candles.len() as f32, visible_candles.len() as f32, 0.0],
             bullish_color: [0.455, 0.780, 0.529, 1.0], // #74c787 - зеленый
             bearish_color: [0.882, 0.424, 0.282, 1.0], // #e16c48 - красный
             wick_color: [0.6, 0.6, 0.6, 0.9],          // Светло-серый
@@ -405,10 +303,7 @@ impl WebGpuRenderer {
         let mut sma20_points = Vec::with_capacity(candles.len().saturating_sub(19));
         for i in 19..candle_count {
             // Начинаем с 20-й свечи
-            let sum: f32 = candles[i - 19..=i]
-                .iter()
-                .map(|c| c.ohlcv.close.value() as f32)
-                .sum();
+            let sum: f32 = candles[i - 19..=i].iter().map(|c| c.ohlcv.close.value() as f32).sum();
             let sma20 = sum / 20.0;
             let x = candle_x_position(i, candle_count);
             let y = price_to_ndc(sma20);
@@ -544,10 +439,8 @@ impl WebGpuRenderer {
         let mut vertices = Vec::with_capacity(candle_count * 6);
 
         // Находим максимальный объем для нормализации
-        let max_volume = candles
-            .iter()
-            .map(|c| c.ohlcv.volume.value() as f32)
-            .fold(0.0f32, |a, b| a.max(b));
+        let max_volume =
+            candles.iter().map(|c| c.ohlcv.volume.value() as f32).fold(0.0f32, |a, b| a.max(b));
 
         if max_volume <= 0.0 {
             return Vec::new();
@@ -610,9 +503,8 @@ impl WebGpuRenderer {
             return (BASE_TEMPLATE.to_vec(), Vec::new(), uniforms);
         }
 
-        let visible_count = ((BASE_CANDLES as f64) / self.zoom_level)
-            .max(10.0)
-            .min(candles.len() as f64) as usize;
+        let visible_count =
+            ((BASE_CANDLES as f64) / self.zoom_level).max(10.0).min(candles.len() as f64) as usize;
         let start_index = candles.len().saturating_sub(visible_count);
         let mut instances = Vec::with_capacity(visible_count);
 
