@@ -5,6 +5,9 @@ on:
   workflow_dispatch:
 
 permissions: write-all
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
