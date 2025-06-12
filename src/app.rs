@@ -116,7 +116,7 @@ fn last_mouse_y() -> RwSignal<f64> {
 pub fn current_interval() -> RwSignal<TimeInterval> {
     globals().current_interval
 }
-fn current_symbol() -> RwSignal<Symbol> {
+pub fn current_symbol() -> RwSignal<Symbol> {
     globals().current_symbol
 }
 
