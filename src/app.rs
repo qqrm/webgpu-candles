@@ -24,6 +24,16 @@ use crate::{
     },
 };
 
+/// Maximum number of candles visible at 1x zoom
+const MAX_VISIBLE_CANDLES: f64 = 300.0;
+
+/// Calculate visible range based on zoom level
+pub fn visible_range(len: usize, zoom: f64) -> (usize, usize) {
+    let visible = ((MAX_VISIBLE_CANDLES / zoom).max(10.0).min(len as f64)) as usize;
+    let start = len.saturating_sub(visible);
+    (start, visible)
+}
+
 // Helper aliases for global signals
 fn global_current_price() -> RwSignal<f64> {
     globals().current_price
@@ -342,10 +352,13 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
         if candles.is_empty() {
             return vec![];
         }
-        let max_visible = 300;
-        let start_idx = if candles.len() > max_visible { candles.len() - max_visible } else { 0 };
-        let (min, max) =
-            candles.iter().skip(start_idx).fold((f64::MAX, f64::MIN), |(min, max), c| {
+
+        let (start_idx, visible) = visible_range(candles.len(), zoom_level().get_untracked());
+        let (min, max) = candles
+            .iter()
+            .skip(start_idx)
+            .take(visible)
+            .fold((f64::MAX, f64::MIN), |(min, max), c| {
                 (min.min(c.ohlcv.low.value()), max.max(c.ohlcv.high.value()))
             });
         let step = (max - min) / 8.0;
@@ -399,17 +412,16 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
             return vec![];
         }
 
-        let max_visible = 300;
-        let start_idx = if candles.len() > max_visible { candles.len() - max_visible } else { 0 };
+        let (start_idx, visible) = visible_range(candles.len(), zoom);
 
         // Show 5 time labels
         let num_labels = 5;
         let mut labels = Vec::new();
 
         for i in 0..num_labels {
-            let index = (i * (candles.len() - start_idx)) / (num_labels - 1);
+            let index = (i * visible) / (num_labels - 1);
             if let Some(candle) =
-                candles.iter().skip(start_idx).nth(index.min(candles.len() - start_idx - 1))
+                candles.iter().skip(start_idx).nth(index.min(visible.saturating_sub(1)))
             {
                 let timestamp = candle.timestamp.value();
                 let date = js_sys::Date::new(&(timestamp as f64).into());
@@ -658,13 +670,10 @@ fn ChartContainer() -> impl IntoView {
                         let interval = current_interval().get_untracked();
                         let candles = ch.get_series(interval).unwrap().get_candles();
                         if !candles.is_empty() {
-                            let max_visible = 300;
-                            let start_idx = if candles.len() > max_visible {
-                                candles.len() - max_visible
-                            } else {
-                                0
-                            };
-                            let visible: Vec<_> = candles.iter().skip(start_idx).collect();
+                            let (start_idx, visible_count) =
+                                visible_range(candles.len(), zoom_level().get_untracked());
+                            let visible: Vec<_> =
+                                candles.iter().skip(start_idx).take(visible_count).collect();
 
                             // Use the same logic as in candle_x_position
                             let step_size = 2.0 / visible.len() as f64;
