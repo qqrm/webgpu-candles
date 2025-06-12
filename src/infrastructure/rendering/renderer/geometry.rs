@@ -2,26 +2,26 @@ use super::*;
 use crate::domain::logging::{LogComponent, get_logger};
 use leptos::SignalGetUntracked;
 
-/// Базовое количество ячеек сетки
+/// Base number of grid cells
 pub const BASE_CANDLES: f32 = 300.0;
 
-/// Шаблон из 18 вершин для одной свечи (тело + верхний и нижний фитиль)
+/// Template of 18 vertices for one candle (body + upper and lower wick)
 pub const BASE_TEMPLATE: [CandleVertex; 18] = [
-    // Тело
+    // Body
     CandleVertex { position_x: -0.5, position_y: 0.0, element_type: 0.0, color_type: 0.0 },
     CandleVertex { position_x: 0.5, position_y: 0.0, element_type: 0.0, color_type: 0.0 },
     CandleVertex { position_x: -0.5, position_y: 1.0, element_type: 0.0, color_type: 0.0 },
     CandleVertex { position_x: 0.5, position_y: 0.0, element_type: 0.0, color_type: 0.0 },
     CandleVertex { position_x: 0.5, position_y: 1.0, element_type: 0.0, color_type: 0.0 },
     CandleVertex { position_x: -0.5, position_y: 1.0, element_type: 0.0, color_type: 0.0 },
-    // Верхний фитиль
+    // Upper wick
     CandleVertex { position_x: -0.05, position_y: 0.0, element_type: 1.0, color_type: 0.5 },
     CandleVertex { position_x: 0.05, position_y: 0.0, element_type: 1.0, color_type: 0.5 },
     CandleVertex { position_x: -0.05, position_y: 1.0, element_type: 1.0, color_type: 0.5 },
     CandleVertex { position_x: 0.05, position_y: 0.0, element_type: 1.0, color_type: 0.5 },
     CandleVertex { position_x: 0.05, position_y: 1.0, element_type: 1.0, color_type: 0.5 },
     CandleVertex { position_x: -0.05, position_y: 1.0, element_type: 1.0, color_type: 0.5 },
-    // Нижний фитиль
+    // Lower wick
     CandleVertex { position_x: -0.05, position_y: 0.0, element_type: 2.0, color_type: 0.5 },
     CandleVertex { position_x: 0.05, position_y: 0.0, element_type: 2.0, color_type: 0.5 },
     CandleVertex { position_x: -0.05, position_y: 1.0, element_type: 2.0, color_type: 0.5 },
@@ -30,16 +30,16 @@ pub const BASE_TEMPLATE: [CandleVertex; 18] = [
     CandleVertex { position_x: -0.05, position_y: 1.0, element_type: 2.0, color_type: 0.5 },
 ];
 
-/// Минимальная ширина элемента (свеча или volume bar)
+/// Minimum element width (candle or volume bar)
 pub const MIN_ELEMENT_WIDTH: f32 = 0.002;
-/// Максимальная ширина элемента (свеча или volume bar)
+/// Maximum element width (candle or volume bar)
 pub const MAX_ELEMENT_WIDTH: f32 = 0.1;
 
-/// Позиция свечи/бара с учётом привязки к правому краю
+/// Candle/bar position taking right edge into account
 pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
     let step_size = 2.0 / visible_len as f32;
-    // Привязываем последнюю свечу точно к правому краю (x=1.0)
-    // Первая свеча будет в позиции (1.0 - (visible_len-1) * step_size)
+    // Snap last candle exactly to the right edge (x=1.0)
+    // First candle will be at (1.0 - (visible_len-1) * step_size)
     1.0 - (visible_len as f32 - index as f32 - 1.0) * step_size
 }
 
@@ -60,7 +60,7 @@ impl WebGpuRenderer {
             return (vec![], ChartUniforms::new());
         }
 
-        // ⚡ Производительность: логируем реже
+        // ⚡ Performance: log less frequently
         if candles.len() % 100 == 0 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
@@ -72,19 +72,20 @@ impl WebGpuRenderer {
         let chart_width = 2.0; // NDC width (-1 to 1)
         let _chart_height = 2.0; // NDC height (-1 to 1)
 
-        // 🔍 Применяем зум - показываем меньше свечей при увеличении зума
-        let visible_count =
-            ((BASE_CANDLES as f64) / self.zoom_level).max(10.0).min(candle_count as f64) as usize;
-        let start_index = candle_count.saturating_sub(visible_count);
-        let visible_candles: Vec<Candle> = candles.iter().skip(start_index).cloned().collect();
+        // 🔍 Apply zoom - show fewer candles when zooming in
+        let candle_vec: Vec<Candle> = candles.iter().cloned().collect();
+        let (start_index, visible_count) =
+            crate::app::visible_range_by_time(&candle_vec, &chart.viewport, self.zoom_level);
+        let visible_candles: Vec<Candle> =
+            candle_vec.iter().skip(start_index).take(visible_count).cloned().collect();
 
         let mut vertices = Vec::with_capacity(visible_candles.len() * 24);
 
-        // Используем значения из viewport для вертикальной панорамировки
+        // Use viewport values for vertical panning
         let mut min_price = chart.viewport.min_price;
         let mut max_price = chart.viewport.max_price;
         if (max_price - min_price).abs() < f32::EPSILON {
-            // Если диапазон равен нулю, вычисляем по данным
+            // If the range is zero, calculate it from data
             for candle in &visible_candles {
                 min_price = min_price.min(candle.ohlcv.low.value() as f32);
                 max_price = max_price.max(candle.ohlcv.high.value() as f32);
@@ -116,7 +117,7 @@ impl WebGpuRenderer {
             return (vec![], ChartUniforms::new());
         }
 
-        // Логируем реже для производительности
+        // Log less often for performance
         if visible_candles.len() % 50 == 0 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
@@ -137,11 +138,11 @@ impl WebGpuRenderer {
         for (i, candle) in visible_candles.iter().enumerate() {
             let x = candle_x_position(i, visible_candles.len());
 
-            // Нормализация Y - используем верхнюю часть экрана [-0.5, 0.8] для свечей
+            // Normalize Y - use the upper part of the screen [-0.5, 0.8] for candles
             let price_range = max_price - min_price;
             let price_norm = |price: f64| -> f32 {
                 let normalized = (price as f32 - min_price) / price_range;
-                -0.5 + normalized * 1.3 // Map to [-0.5, 0.8] - освобождаем место для volume
+                -0.5 + normalized * 1.3 // Map to [-0.5, 0.8] - leave room for volume
             };
 
             let open_y = price_norm(candle.ohlcv.open.value());
@@ -149,7 +150,7 @@ impl WebGpuRenderer {
             let low_y = price_norm(candle.ohlcv.low.value());
             let close_y = price_norm(candle.ohlcv.close.value());
 
-            // Логируем только первые 3 и последние 3 свечи
+            // Log only the first 3 and last 3 candles
             if i < 3 || i >= visible_candles.len() - 3 {
                 get_logger().info(
                     LogComponent::Infrastructure("WebGpuRenderer"),
@@ -164,7 +165,7 @@ impl WebGpuRenderer {
             let body_top = open_y.max(close_y);
             let body_bottom = open_y.min(close_y);
 
-            // Минимальная высота для видимости
+            // Minimum height for visibility
             let min_height = 0.005;
             let actual_body_top = if (body_top - body_bottom).abs() < min_height {
                 body_bottom + min_height
@@ -174,7 +175,7 @@ impl WebGpuRenderer {
 
             let is_bullish = close_y >= open_y;
 
-            // Тело свечи
+            // Candle body
             let body_vertices = vec![
                 CandleVertex::body_vertex(x - half_width, body_bottom, is_bullish),
                 CandleVertex::body_vertex(x + half_width, body_bottom, is_bullish),
@@ -185,11 +186,33 @@ impl WebGpuRenderer {
             ];
             vertices.extend_from_slice(&body_vertices);
 
-            // Добавляем фитили (верхний и нижний)
-            let wick_width = candle_width * 0.1; // Тонкие фитили
+            // Round corners with small triangles
+            let corner = candle_width * 0.2;
+            let corners = vec![
+                // Top left
+                CandleVertex::body_vertex(x - half_width, actual_body_top - corner, is_bullish),
+                CandleVertex::body_vertex(x - half_width + corner, actual_body_top, is_bullish),
+                CandleVertex::body_vertex(x - half_width, actual_body_top, is_bullish),
+                // Top right
+                CandleVertex::body_vertex(x + half_width - corner, actual_body_top, is_bullish),
+                CandleVertex::body_vertex(x + half_width, actual_body_top - corner, is_bullish),
+                CandleVertex::body_vertex(x + half_width, actual_body_top, is_bullish),
+                // Bottom left
+                CandleVertex::body_vertex(x - half_width, body_bottom, is_bullish),
+                CandleVertex::body_vertex(x - half_width + corner, body_bottom, is_bullish),
+                CandleVertex::body_vertex(x - half_width, body_bottom + corner, is_bullish),
+                // Bottom right
+                CandleVertex::body_vertex(x + half_width, body_bottom, is_bullish),
+                CandleVertex::body_vertex(x + half_width, body_bottom + corner, is_bullish),
+                CandleVertex::body_vertex(x + half_width - corner, body_bottom, is_bullish),
+            ];
+            vertices.extend_from_slice(&corners);
+
+            // Add wicks (upper and lower)
+            let wick_width = candle_width * 0.1; // thin wicks
             let wick_half = wick_width * 0.5;
 
-            // Верхний фитиль
+            // Upper wick
             if high_y > actual_body_top {
                 let upper_wick = vec![
                     CandleVertex::wick_vertex(x - wick_half, actual_body_top),
@@ -202,7 +225,7 @@ impl WebGpuRenderer {
                 vertices.extend_from_slice(&upper_wick);
             }
 
-            // Нижний фитиль
+            // Lower wick
             if low_y < body_bottom {
                 let lower_wick = vec![
                     CandleVertex::wick_vertex(x - wick_half, low_y),
@@ -216,13 +239,13 @@ impl WebGpuRenderer {
             }
         }
 
-        // Добавляем сплошную линию текущей цены
+        // Add a solid line for the current price
         if let Some(last_candle) = visible_candles.last() {
             let current_price = last_candle.ohlcv.close.value() as f32;
             let price_range = max_price - min_price;
-            let price_y = -0.5 + ((current_price - min_price) / price_range) * 1.3; // Та же область что и свечи
+            let price_y = -0.5 + ((current_price - min_price) / price_range) * 1.3; // same area as candles
 
-            // Сплошная горизонтальная линия через весь экран
+            // Solid horizontal line across the entire screen
             let line_thickness = 0.002;
             let price_line = vec![
                 CandleVertex::current_price_vertex(-1.0, price_y - line_thickness),
@@ -235,16 +258,16 @@ impl WebGpuRenderer {
             vertices.extend_from_slice(&price_line);
         }
 
-        // 📊 Добавляем сетку графика для профессионального вида
+        // 📊 Add chart grid for a professional look
         vertices.extend(self.create_grid_lines(min_price, max_price, visible_candles.len()));
 
-        // 📊 Добавляем volume bars под графиком
+        // 📊 Add volume bars below the chart
         vertices.extend(self.create_volume_bars(&visible_candles));
 
-        // 📈 Добавляем скользящие средние (SMA20 и EMA12)
+        // 📈 Add moving averages (SMA20 and EMA12)
         vertices.extend(self.create_moving_averages(&visible_candles, min_price, max_price));
 
-        // Логируем только если много вершин
+        // Log only when there are many vertices
         if vertices.len() > 1000 {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
@@ -269,22 +292,22 @@ impl WebGpuRenderer {
             view_proj_matrix,
             viewport: [self.width as f32, self.height as f32, min_price, max_price],
             time_range: [0.0, visible_candles.len() as f32, visible_candles.len() as f32, 0.0],
-            bullish_color: [0.455, 0.780, 0.529, 1.0], // #74c787 - зеленый
-            bearish_color: [0.882, 0.424, 0.282, 1.0], // #e16c48 - красный
-            wick_color: [0.6, 0.6, 0.6, 0.9],          // Светло-серый
-            sma20_color: [1.0, 0.2, 0.2, 0.9],         // Ярко-красный
-            sma50_color: [1.0, 0.8, 0.0, 0.9],         // Желтый
-            sma200_color: [0.2, 0.4, 0.8, 0.9],        // Синий
-            ema12_color: [0.8, 0.2, 0.8, 0.9],         // Фиолетовый
-            ema26_color: [0.0, 0.8, 0.8, 0.9],         // Голубой
-            current_price_color: [1.0, 1.0, 0.0, 0.8], // 💰 Ярко-желтый
+            bullish_color: [0.455, 0.780, 0.529, 1.0], // #74c787 - green
+            bearish_color: [0.882, 0.424, 0.282, 1.0], // #e16c48 - red
+            wick_color: [0.6, 0.6, 0.6, 0.9],          // light gray
+            sma20_color: [1.0, 0.2, 0.2, 0.9],         // bright red
+            sma50_color: [1.0, 0.8, 0.0, 0.9],         // yellow
+            sma200_color: [0.2, 0.4, 0.8, 0.9],        // blue
+            ema12_color: [0.8, 0.2, 0.8, 0.9],         // purple
+            ema26_color: [0.0, 0.8, 0.8, 0.9],         // cyan
+            current_price_color: [1.0, 1.0, 0.0, 0.8], // 💰 bright yellow
             render_params: [candle_width, spacing_ratio as f32, 0.004, 0.0],
         };
 
         (vertices, uniforms)
     }
 
-    /// 📈 Создать геометрию для скользящих средних
+    /// 📈 Create geometry for moving averages
     fn create_moving_averages(
         &self,
         candles: &[crate::domain::market_data::Candle],
@@ -294,7 +317,7 @@ impl WebGpuRenderer {
         use crate::infrastructure::rendering::gpu_structures::{CandleGeometry, IndicatorType};
 
         if candles.len() < 20 {
-            return Vec::new(); // Недостаточно данных для SMA20
+            return Vec::new(); // Not enough data for SMA20
         }
 
         let mut vertices = Vec::with_capacity(candles.len() * 6);
@@ -302,13 +325,13 @@ impl WebGpuRenderer {
 
         let price_range = max_price - min_price;
 
-        // Функция для нормализации цены в NDC координаты
+        // Helper to normalize price to NDC coordinates
         let price_to_ndc = |price: f32| -> f32 { -0.8 + ((price - min_price) / price_range) * 1.6 };
 
-        // Расчёт SMA20 (Simple Moving Average 20)
+        // Calculate SMA20 (Simple Moving Average 20)
         let mut sma20_points = Vec::with_capacity(candles.len().saturating_sub(19));
         for i in 19..candle_count {
-            // Начинаем с 20-й свечи
+            // Start from the 20th candle
             let sum: f32 = candles[i - 19..=i].iter().map(|c| c.ohlcv.close.value() as f32).sum();
             let sma20 = sum / 20.0;
             let x = candle_x_position(i, candle_count);
@@ -316,18 +339,18 @@ impl WebGpuRenderer {
             sma20_points.push((x, y));
         }
 
-        // Расчёт EMA12 (Exponential Moving Average 12)
+        // Calculate EMA12 (Exponential Moving Average 12)
         let mut ema12_points = Vec::with_capacity(candles.len().saturating_sub(11));
         if candle_count >= 12 {
             let multiplier = 2.0 / (12.0 + 1.0); // EMA multiplier
-            let mut ema = candles[0].ohlcv.close.value() as f32; // Начальное значение
+            let mut ema = candles[0].ohlcv.close.value() as f32; // initial value
 
             for (i, candle) in candles.iter().enumerate().skip(1) {
                 let close = candle.ohlcv.close.value() as f32;
                 ema = (close * multiplier) + (ema * (1.0 - multiplier));
 
                 if i >= 11 {
-                    // Показываем EMA только после 12 свечей
+                    // Show EMA only after 12 candles
                     let x = candle_x_position(i, candle_count);
                     let y = price_to_ndc(ema);
                     ema12_points.push((x, y));
@@ -335,12 +358,12 @@ impl WebGpuRenderer {
             }
         }
 
-        // Создаём геометрию для линий
+        // Build geometry for the lines
         if !sma20_points.is_empty() {
             let sma20_vertices = CandleGeometry::create_indicator_line_vertices(
                 &sma20_points,
                 IndicatorType::SMA20,
-                0.003, // Толщина линии
+                0.003, // line thickness
             );
             vertices.extend(sma20_vertices);
         }
@@ -349,7 +372,7 @@ impl WebGpuRenderer {
             let ema12_vertices = CandleGeometry::create_indicator_line_vertices(
                 &ema12_points,
                 IndicatorType::EMA12,
-                0.003, // Толщина линии
+                0.003, // line thickness
             );
             vertices.extend(ema12_vertices);
         }
@@ -369,26 +392,26 @@ impl WebGpuRenderer {
         vertices
     }
 
-    /// 📊 Создать сетку графика (горизонтальные и вертикальные линии)
+    /// 📊 Create chart grid (horizontal and vertical lines)
     fn create_grid_lines(
         &self,
         min_price: f32,
         max_price: f32,
         candle_count: usize,
     ) -> Vec<CandleVertex> {
-        let num_price_lines = 8; // 8 горизонтальных линий
-        let num_vertical_lines = 10; // 10 вертикальных линий
+        let num_price_lines = 8; // 8 horizontal lines
+        let num_vertical_lines = 10; // 10 vertical lines
         let mut vertices = Vec::with_capacity((num_price_lines + num_vertical_lines) * 6);
-        let line_thickness = 0.001; // Тонкие линии сетки
+        let line_thickness = 0.001; // thin grid lines
 
-        // Горизонтальные линии сетки (ценовые уровни)
+        // Horizontal grid lines (price levels)
         let price_range = max_price - min_price;
 
         for i in 1..num_price_lines {
             let price_level = min_price + (price_range * i as f32 / num_price_lines as f32);
-            let y = -0.5 + ((price_level - min_price) / price_range) * 1.3; // Та же область что и свечи
+            let y = -0.5 + ((price_level - min_price) / price_range) * 1.3; // same area as candles
 
-            // Горизонтальная линия через весь график
+            // Horizontal line across the entire chart
             let horizontal_line = vec![
                 CandleVertex::grid_vertex(-1.0, y - line_thickness),
                 CandleVertex::grid_vertex(1.0, y - line_thickness),
@@ -400,9 +423,9 @@ impl WebGpuRenderer {
             vertices.extend_from_slice(&horizontal_line);
         }
 
-        // Вертикальные линии сетки (временные интервалы) - покрывают весь график
+        // Vertical grid lines (time intervals) covering the whole chart
         if candle_count > 0 {
-            let num_vertical_lines = 10; // 10 вертикальных линий
+            let num_vertical_lines = 10; // 10 vertical lines
             let vertical_step = candle_count / num_vertical_lines;
 
             for i in 1..num_vertical_lines {
@@ -410,11 +433,11 @@ impl WebGpuRenderer {
                 if candle_index < candle_count {
                     let x = candle_x_position(candle_index, candle_count);
 
-                    // Вертикальная линия через весь график (включая volume область)
+                    // Vertical line through the entire chart (including volume area)
                     let vertical_line = vec![
-                        CandleVertex::grid_vertex(x - line_thickness, -1.0), //От самого низа
+                        CandleVertex::grid_vertex(x - line_thickness, -1.0), // from bottom
                         CandleVertex::grid_vertex(x + line_thickness, -1.0),
-                        CandleVertex::grid_vertex(x - line_thickness, 0.8), //До верха свечей
+                        CandleVertex::grid_vertex(x - line_thickness, 0.8), // to top of candles
                         CandleVertex::grid_vertex(x + line_thickness, -1.0),
                         CandleVertex::grid_vertex(x + line_thickness, 0.8),
                         CandleVertex::grid_vertex(x - line_thickness, 0.8),
@@ -432,7 +455,7 @@ impl WebGpuRenderer {
         vertices
     }
 
-    /// 📊 Создать volume bars под основным графиком
+    /// 📊 Create volume bars below the main chart
     fn create_volume_bars(
         &self,
         candles: &[crate::domain::market_data::Candle],
@@ -444,7 +467,7 @@ impl WebGpuRenderer {
         let candle_count = candles.len();
         let mut vertices = Vec::with_capacity(candle_count * 6);
 
-        // Находим максимальный объем для нормализации
+        // Find the maximum volume for normalization
         let max_volume =
             candles.iter().map(|c| c.ohlcv.volume.value() as f32).fold(0.0f32, |a, b| a.max(b));
 
@@ -452,7 +475,7 @@ impl WebGpuRenderer {
             return Vec::new();
         }
 
-        // Volume область занимает нижнюю часть экрана [-1.0, -0.6]
+        // Volume area occupies the lower part of the screen [-1.0, -0.6]
         let volume_top = -0.6;
         let volume_bottom = -1.0;
         let volume_height = volume_top - volume_bottom;
@@ -468,10 +491,10 @@ impl WebGpuRenderer {
 
             let half_width = bar_width * 0.5;
 
-            // Определяем цвет volume bar: зеленый если цена выросла, красный если упала
+            // Determine volume bar color: green if price rose, red if it fell
             let is_bullish = candle.ohlcv.close.value() >= candle.ohlcv.open.value();
 
-            // Volume bar как прямоугольник (2 треугольника)
+            // Volume bar as a rectangle (2 triangles)
             let volume_bar = vec![
                 CandleVertex::volume_vertex(x - half_width, volume_bottom, is_bullish),
                 CandleVertex::volume_vertex(x + half_width, volume_bottom, is_bullish),

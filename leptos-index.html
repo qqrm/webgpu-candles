@@ -38,7 +38,7 @@
     </style>
 </head>
 <body>
-    <!-- Loading screen показывается пока загружается WASM -->
+    <!-- Loading screen shown while WASM loads -->
     <div id="loading">
         <div class="spinner"></div>
         <div>
@@ -47,19 +47,19 @@
         </div>
     </div>
 
-    <!-- Leptos приложение монтируется в body автоматически -->
+    <!-- Leptos app mounts to body automatically -->
     
     <script type="module">
         import init, { hydrate } from './pkg/price_chart_wasm.js';
 
         async function run() {
-            // Инициализация WASM
+            // Initialize WASM
             await init();
             
-            // Скрываем loading screen
+            // Hide loading screen
             document.getElementById('loading').style.display = 'none';
             
-            // Запускаем Leptos приложение
+            // Launch Leptos app
             hydrate();
         }
         

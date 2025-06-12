@@ -1,3 +1,8 @@
+//! Concrete implementations of services used by the application.
+//!
+//! This module houses rendering and WebSocket communication layers along with
+//! helper utilities such as logging and time providers.
+
 pub mod rendering;
 pub mod websocket;
 
@@ -17,7 +22,7 @@ pub mod services {
         }
 
         pub fn new_production() -> Self {
-            Self::new(LogLevel::Info)
+            Self::new(LogLevel::Warn)
         }
 
         pub fn new_development() -> Self {

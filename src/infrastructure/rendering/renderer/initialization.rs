@@ -1,5 +1,6 @@
 use super::*;
 use leptos::SignalGetUntracked;
+use std::collections::VecDeque;
 
 impl WebGpuRenderer {
     pub async fn is_webgpu_supported() -> bool {
@@ -188,7 +189,7 @@ impl WebGpuRenderer {
 
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
-            size: (std::mem::size_of::<CandleVertex>() * 100000) as u64, // 100k вершин = 1.6MB буфер
+            size: (std::mem::size_of::<CandleVertex>() * 100000) as u64, // 100k vertices ~= 1.6MB buffer
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -220,7 +221,7 @@ impl WebGpuRenderer {
             zoom_level: 1.0,
             pan_offset: 0.0,
             last_frame_time: 0.0,
-            fps_samples: Vec::new(),
+            fps_log: VecDeque::new(),
             line_visibility: LineVisibility::default(),
         })
     }
@@ -251,7 +252,7 @@ impl WebGpuRenderer {
         );
     }
 
-    /// 🔍 Устанавливает параметры зума и панорамирования
+    /// 🔍 Set zoom and pan parameters
     pub fn set_zoom_params(&mut self, zoom_level: f64, pan_offset: f64) {
         self.zoom_level = zoom_level;
         self.pan_offset = pan_offset;

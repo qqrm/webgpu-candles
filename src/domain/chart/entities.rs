@@ -73,6 +73,7 @@ impl Chart {
         if is_empty {
             self.update_viewport_for_data();
         }
+
     }
 
     /// Get total number of candles

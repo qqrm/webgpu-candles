@@ -92,6 +92,8 @@ wasm-pack test --headless --chrome -- --nocapture
 
 FPS is printed to the console and the `perf.yml` workflow saves the log as an
 artifact. Current metric values are stored in [docs/perf.md](docs/perf.md).
+`tests/performance_limit.rs` logs when FPS drops below 30 for large charts.
+
 
 ## Tests
 
@@ -102,7 +104,24 @@ them with:
 wasm-pack test
 ```
 
+Alternatively install Node dependencies and run:
+
+```bash
+npm install
+npm test
+```
+
 See [TESTS.md](TESTS.md) for more details about the test suite.
+
+Coverage can be collected with:
+
+```bash
+wasm-pack test --headless --chrome --coverage
+wasm-tools coverage target/wasm32-unknown-unknown/debug/deps/*.wasm > lcov.info
+```
+
+The generated `lcov.info` file can be uploaded by CI.
+The `coverage` workflow publishes the latest percentage to `docs/coverage.md`.
 
 ## Deployment monitor
 

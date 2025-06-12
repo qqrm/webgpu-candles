@@ -59,7 +59,7 @@ fn candle_series_add_and_price_range() {
     let (min, max) = series.price_range().unwrap();
     assert_eq!(min.value(), 9.0);
     assert_eq!(max.value(), 14.0);
-    // добавляем 4 свечу и проверяем ограничение размера
+    // add the 4th candle and check size limit
     series.add_candle(Candle::new(
         Timestamp::from_millis(3),
         OHLCV::new(

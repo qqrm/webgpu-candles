@@ -12,11 +12,20 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Install wasm-pack
         run: cargo install wasm-pack
+      - name: Install wasm-tools
+        run: cargo install wasm-tools
       - name: Cargo fmt check
         run: cargo fmt --all -- --check
       - name: Cargo check
         run: cargo check
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
-      - name: Run tests
-        run: wasm-pack test --headless --chrome
+      - name: Run tests with coverage
+        run: wasm-pack test --headless --chrome --coverage
+      - name: Generate lcov
+        run: wasm-tools coverage target/wasm32-unknown-unknown/debug/deps/*.wasm > lcov.info
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: lcov.info

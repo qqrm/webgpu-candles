@@ -3,19 +3,19 @@ use wasm_bindgen_test::*;
 
 #[wasm_bindgen_test]
 fn tooltip_reverse_positioning() {
-    // Тестируем что обратная формула правильно находит индекс свечи по координатам мыши
+    // Ensure the reverse formula finds the candle index by mouse coordinates
     let visible_len = 10;
 
     for expected_index in 0..visible_len {
-        // Получаем x позицию для свечи
+        // Get x position for the candle
         let x = candle_x_position(expected_index, visible_len);
 
-        // Применяем обратную формулу (как в tooltip логике)
+        // Apply the reverse formula (as in tooltip logic)
         let step_size = 2.0 / visible_len as f64;
         let calculated_index = visible_len as f64 - (1.0 - x as f64) / step_size - 1.0;
         let rounded_index = calculated_index.round() as usize;
 
-        // Проверяем что получили тот же индекс
+        // Verify we obtained the same index
         assert_eq!(
             rounded_index, expected_index,
             "For index {}, x={:.6}, calculated_index={:.6}, rounded={}",
@@ -29,14 +29,14 @@ fn tooltip_mouse_boundaries() {
     let visible_len = 5;
     let step_size = 2.0 / visible_len as f64;
 
-    // Тест крайних координат
+    // Test extreme coordinates
 
-    // Левая граница - должна дать индекс 0 или отрицательный
+    // Left boundary should return index 0 or negative
     let left_boundary = -1.0;
     let left_index = visible_len as f64 - (1.0 - left_boundary) / step_size - 1.0;
     assert!(left_index <= 0.0, "Left boundary should give index <= 0, got {}", left_index);
 
-    // Правая граница - должна дать последний индекс или больше
+    // Right boundary should return the last index or higher
     let right_boundary = 1.0;
     let right_index = visible_len as f64 - (1.0 - right_boundary) / step_size - 1.0;
     assert!(
@@ -49,24 +49,24 @@ fn tooltip_mouse_boundaries() {
 
 #[wasm_bindgen_test]
 fn tooltip_positioning_consistency() {
-    // Проверяем что позиционирование tooltip согласовано с позиционированием свечей
+    // Verify tooltip positioning matches candle positioning
     let test_cases = vec![1, 2, 5, 10, 50, 100, 300];
 
     for &visible_len in &test_cases {
         let step_size = 2.0 / visible_len as f64;
 
-        // Для каждой свечи проверяем что tooltip найдет правильный индекс
+        // For each candle check that tooltip finds the correct index
         for expected_index in 0..visible_len {
             let candle_x = candle_x_position(expected_index, visible_len);
 
-            // Конвертируем в NDC координаты (как в реальном коде)
+            // Convert to NDC coordinates (as in real code)
             let ndc_x = candle_x as f64;
 
-            // Применяем логику из app.rs
+            // Apply logic from app.rs
             let index_float = visible_len as f64 - (1.0 - ndc_x) / step_size - 1.0;
             let calculated_index = index_float.round() as i32;
 
-            // Проверяем что индекс в допустимых границах и корректный
+            // Ensure index is within bounds and correct
             assert!(
                 calculated_index >= 0,
                 "Index should be non-negative for visible_len={}, expected_index={}, got {}",

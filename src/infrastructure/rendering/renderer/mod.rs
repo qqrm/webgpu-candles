@@ -1,3 +1,8 @@
+//! WebGPU renderer responsible for drawing the chart.
+//!
+//! This module manages GPU buffers and performs the render loop. The renderer
+//! is kept behind a global handle to simplify access from the UI layer.
+
 use crate::domain::market_data::Candle;
 use crate::domain::{
     chart::Chart,
@@ -9,6 +14,7 @@ use crate::infrastructure::rendering::gpu_structures::{
 use gloo::utils::document;
 use js_sys;
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
@@ -18,14 +24,14 @@ thread_local! {
     static GLOBAL_RENDERER: RefCell<Option<Rc<RefCell<WebGpuRenderer>>>> = const { RefCell::new(None) };
 }
 
-/// Сохранить глобальный экземпляр рендерера
+/// Store the global renderer instance
 pub fn set_global_renderer(renderer: Rc<RefCell<WebGpuRenderer>>) {
     GLOBAL_RENDERER.with(|cell| {
         *cell.borrow_mut() = Some(renderer);
     });
 }
 
-/// Получить изменяемую ссылку на глобальный рендерер
+/// Obtain a mutable reference to the global renderer
 pub fn with_global_renderer<F, R>(f: F) -> Option<R>
 where
     F: FnOnce(&mut WebGpuRenderer) -> R,
@@ -36,7 +42,7 @@ where
     })
 }
 
-/// Настоящий WebGPU рендерер для свечей
+/// Actual WebGPU renderer for candles
 pub struct WebGpuRenderer {
     _canvas_id: String,
     width: u32,
@@ -56,26 +62,26 @@ pub struct WebGpuRenderer {
     template_vertices: u32,
     instance_count: u32,
 
-    // 🗄️ Кэшированные данные
+    // 🗄️ Cached data
     cached_vertices: Vec<CandleVertex>,
     cached_instances: Vec<CandleInstance>,
     cached_uniforms: ChartUniforms,
     cached_candle_count: usize,
     cached_zoom_level: f64,
 
-    // 🔍 Параметры зума и панорамирования
+    // 🔍 Zoom and pan parameters
     zoom_level: f64,
     pan_offset: f64,
 
-    // ⏱️ Метрики производительности
+    // ⏱️ Performance metrics
     last_frame_time: f64,
-    fps_samples: Vec<f64>,
+    fps_log: VecDeque<f64>,
 
-    // 📊 Видимость линий индикаторов
+    // 📊 Indicator line visibility
     line_visibility: LineVisibility,
 }
 
-/// Состояние видимости линий индикаторов
+/// State of indicator line visibility
 #[derive(Debug, Clone)]
 pub struct LineVisibility {
     pub sma_20: bool,

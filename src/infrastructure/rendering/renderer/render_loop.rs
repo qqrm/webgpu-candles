@@ -5,7 +5,7 @@ use serde_json;
 
 impl WebGpuRenderer {
     pub fn render(&mut self, chart: &Chart) -> Result<(), JsValue> {
-        // ⏱️ Измеряем время кадра
+        // ⏱️ Measure frame time
         if let Some(window) = web_sys::window() {
             if let Some(perf) = window.performance() {
                 let now = perf.now();
@@ -13,9 +13,9 @@ impl WebGpuRenderer {
                     let delta = now - self.last_frame_time;
                     if delta > 0.0 {
                         let fps = 1000.0 / delta;
-                        self.fps_samples.push(fps);
-                        if self.fps_samples.len() > 60 {
-                            self.fps_samples.remove(0);
+                        self.fps_log.push_back(fps);
+                        if self.fps_log.len() > 60 {
+                            self.fps_log.pop_front();
                         }
                     }
                 }
@@ -30,7 +30,7 @@ impl WebGpuRenderer {
             .map(|s| s.get_candles().len())
             .unwrap_or_else(|| chart.get_series_for_zoom(self.zoom_level).get_candles().len());
 
-        // Логируем только каждые 100 кадров для производительности
+        // Log only every 100 frames for performance
         if candle_count % 100 == 0 {
             log_info!(
                 LogComponent::Infrastructure("WebGpuRenderer"),
@@ -47,13 +47,13 @@ impl WebGpuRenderer {
             || (self.zoom_level - self.cached_zoom_level).abs() > f64::EPSILON;
 
         if geometry_needs_update {
-            // Быстрый instanced рендеринг с volume bars
+            // Fast instanced rendering with volume bars
             let (vertices, uniforms) = self.create_geometry(chart);
             if vertices.is_empty() {
                 return Ok(());
             }
             self.cached_vertices = vertices;
-            self.cached_instances = vec![]; // Не используем instances для простоты
+            self.cached_instances = vec![]; // Do not use instances for simplicity
             self.cached_uniforms = uniforms;
             self.cached_candle_count = candle_count;
             self.cached_zoom_level = self.zoom_level;
@@ -105,7 +105,7 @@ impl WebGpuRenderer {
                             r: 0.145,
                             g: 0.196,
                             b: 0.259,
-                            a: 1.0, // Цвет фона графика
+                            a: 1.0, // Chart background color
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -142,12 +142,12 @@ impl WebGpuRenderer {
         Ok(())
     }
 
-    /// Получить информацию о производительности
+    /// Get renderer performance information
     pub fn get_performance_info(&self) -> String {
-        let avg_fps = if self.fps_samples.is_empty() {
+        let avg_fps = if self.fps_log.is_empty() {
             0.0
         } else {
-            self.fps_samples.iter().sum::<f64>() / self.fps_samples.len() as f64
+            self.fps_log.iter().sum::<f64>() / self.fps_log.len() as f64
         };
 
         serde_json::json!({
@@ -160,7 +160,7 @@ impl WebGpuRenderer {
         .to_string()
     }
 
-    /// Переключить видимость линии индикатора
+    /// Toggle indicator line visibility
     pub fn toggle_line_visibility(&mut self, line_name: &str) {
         match line_name {
             "sma20" => self.line_visibility.sma_20 = !self.line_visibility.sma_20,
@@ -172,7 +172,7 @@ impl WebGpuRenderer {
         }
     }
 
-    /// Проверить попадание в область чекбокса легенды
+    /// Check if the legend checkbox was clicked
     pub fn check_legend_checkbox_click(&self, mouse_x: f32, mouse_y: f32) -> Option<String> {
         const LEGEND_LEFT: f32 = 10.0;
         const LEGEND_TOP: f32 = 10.0;
@@ -194,7 +194,7 @@ impl WebGpuRenderer {
         None
     }
 
-    /// Самый простой тест - только очистка в яркий цвет (без геометрии)
+    /// Simplest test - clear the screen with a bright color (no geometry)
     pub fn test_clear_only(&self) -> Result<(), JsValue> {
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
@@ -222,7 +222,7 @@ impl WebGpuRenderer {
                             r: 1.0,
                             g: 1.0,
                             b: 0.0,
-                            a: 1.0, // ЯРКО-ЖЕЛТЫЙ
+                            a: 1.0, // bright yellow
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -232,7 +232,7 @@ impl WebGpuRenderer {
                 timestamp_writes: None,
             });
 
-            // НЕ рисуем никакой геометрии - только очистка!
+            // Do not draw any geometry - clear only!
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
                 "🌈 Clear render pass completed",
@@ -248,16 +248,16 @@ impl WebGpuRenderer {
         Ok(())
     }
 
-    /// Ультра-простой тест - красный прямоугольник с фиксированным цветом в шейдере
+    /// Ultra-simple test - red rectangle with fixed shader color
     pub fn test_simple_red_quad(&self) -> Result<(), JsValue> {
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
             "🔴 ULTRA-SIMPLE: Drawing red quad with fixed shader color...",
         );
 
-        // Создаем простейший четырехугольник с фиксированными координатами
+        // Create a basic rectangle with fixed coordinates
         let test_vertices = vec![
-            // Треугольник 1
+            // Triangle 1
             CandleVertex {
                 position_x: -0.8,
                 position_y: -0.8,
@@ -276,7 +276,7 @@ impl WebGpuRenderer {
                 element_type: 99.0,
                 color_type: 99.0,
             },
-            // Треугольник 2
+            // Triangle 2
             CandleVertex {
                 position_x: 0.8,
                 position_y: -0.8,
@@ -297,10 +297,10 @@ impl WebGpuRenderer {
             &format!("🔴 Created {} ultra-simple vertices", test_vertices.len()),
         );
 
-        // Записываем в буфер
+        // Write to buffer
         self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
 
-        // Простейшие uniforms
+        // Basic uniforms
         let test_uniforms = ChartUniforms::default();
         self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[test_uniforms]));
 
@@ -325,7 +325,7 @@ impl WebGpuRenderer {
                             r: 0.2,
                             g: 0.0,
                             b: 0.5,
-                            a: 1.0, // Фиолетовый фон для контраста
+                            a: 1.0, // purple background for contrast
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -355,23 +355,23 @@ impl WebGpuRenderer {
         Ok(())
     }
 
-    /// Простой тест - рисует большой прямоугольник в центре
+    /// Simple test - draw a large rectangle in the center
     pub fn test_big_rectangle(&self) -> Result<(), JsValue> {
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
             "🟩 TESTING: Drawing big green rectangle in center...",
         );
 
-        // Создаем большой прямоугольник в центре экрана
+        // Create a large rectangle in the center of the screen
         let test_vertices = vec![
-            // Первый треугольник
-            CandleVertex::body_vertex(-0.5, -0.5, true), // Лево-низ
-            CandleVertex::body_vertex(0.5, -0.5, true),  // Право-низ
-            CandleVertex::body_vertex(-0.5, 0.5, true),  // Лево-верх
-            // Второй треугольник
-            CandleVertex::body_vertex(0.5, -0.5, true), // Право-низ
-            CandleVertex::body_vertex(0.5, 0.5, true),  // Право-верх
-            CandleVertex::body_vertex(-0.5, 0.5, true), // Лево-верх
+            // First triangle
+            CandleVertex::body_vertex(-0.5, -0.5, true), // left-bottom
+            CandleVertex::body_vertex(0.5, -0.5, true),  // right-bottom
+            CandleVertex::body_vertex(-0.5, 0.5, true),  // left-top
+            // Second triangle
+            CandleVertex::body_vertex(0.5, -0.5, true), // right-bottom
+            CandleVertex::body_vertex(0.5, 0.5, true),  // right-top
+            CandleVertex::body_vertex(-0.5, 0.5, true), // left-top
         ];
 
         get_logger().info(
@@ -379,10 +379,10 @@ impl WebGpuRenderer {
             &format!("🟩 Created {} test rectangle vertices", test_vertices.len()),
         );
 
-        // Записываем в буфер
+        // Write to buffer
         self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
 
-        // Создаем тестовые uniforms
+        // Create test uniforms
         let test_uniforms = ChartUniforms::default();
         self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[test_uniforms]));
 
@@ -407,7 +407,7 @@ impl WebGpuRenderer {
                             r: 0.1,
                             g: 0.1,
                             b: 0.3,
-                            a: 1.0, // Темно-синий фон
+                            a: 1.0, // dark blue background
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -420,7 +420,7 @@ impl WebGpuRenderer {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..6, 0..1); // Рисуем 6 вершин прямоугольника
+            render_pass.draw(0..6, 0..1); // Draw 6 rectangle vertices
 
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
@@ -439,18 +439,18 @@ impl WebGpuRenderer {
         Ok(())
     }
 
-    /// Базовый тест рендеринга - рисует красный треугольник
+    /// Basic rendering test - draws a red triangle
     pub fn test_basic_triangle(&self) -> Result<(), JsValue> {
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
             "🔴 TESTING: Drawing basic red triangle...",
         );
 
-        // Создаем простейшие вершины треугольника
+        // Create the simplest triangle vertices
         let test_vertices = vec![
-            CandleVertex::body_vertex(0.0, 0.5, true), // Верх (зеленый)
-            CandleVertex::body_vertex(-0.5, -0.5, false), // Лево-низ (красный)
-            CandleVertex::body_vertex(0.5, -0.5, true), // Право-низ (зеленый)
+            CandleVertex::body_vertex(0.0, 0.5, true),    // top (green)
+            CandleVertex::body_vertex(-0.5, -0.5, false), // left-bottom (red)
+            CandleVertex::body_vertex(0.5, -0.5, true),   // right-bottom (green)
         ];
 
         get_logger().info(
@@ -458,10 +458,10 @@ impl WebGpuRenderer {
             &format!("🔺 Created {} test vertices", test_vertices.len()),
         );
 
-        // Записываем в буфер
+        // Write to buffer
         self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
 
-        // Создаем тестовые uniforms
+        // Create test uniforms
         let test_uniforms = ChartUniforms::default();
         self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[test_uniforms]));
 
@@ -486,7 +486,7 @@ impl WebGpuRenderer {
                             r: 0.0,
                             g: 0.0,
                             b: 0.3,
-                            a: 1.0, // Темно-синий фон
+                            a: 1.0, // dark blue background
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -499,7 +499,7 @@ impl WebGpuRenderer {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..3, 0..1); // Рисуем 3 вершины треугольника
+            render_pass.draw(0..3, 0..1); // Draw 3 triangle vertices
 
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
@@ -548,7 +548,7 @@ mod tests {
                 zoom_level: 1.0,
                 pan_offset: 0.0,
                 last_frame_time: 0.0,
-                fps_samples: Vec::new(),
+                fps_log: VecDeque::new(),
                 line_visibility: LineVisibility::default(),
             }
         }
@@ -567,5 +567,18 @@ mod tests {
         let r = dummy_renderer();
         assert_eq!(r.check_legend_checkbox_click(15.0, 15.0), Some("sma20".to_string()));
         assert_eq!(r.check_legend_checkbox_click(100.0, 100.0), None);
+    }
+
+    #[test]
+    fn fps_ring_buffer() {
+        let mut r = dummy_renderer();
+        for i in 0..65 {
+            r.fps_log.push_back(i as f64);
+            if r.fps_log.len() > 60 {
+                r.fps_log.pop_front();
+            }
+        }
+        assert_eq!(r.fps_log.len(), 60);
+        assert_eq!(r.fps_log.front().copied(), Some(5.0));
     }
 }

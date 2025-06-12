@@ -1,4 +1,7 @@
-// src/app.rs
+//! Main Leptos application module.
+//!
+//! Handles canvas interactions, zoom/pan logic and connects to the
+//! WebSocket stream providing market data.
 
 use js_sys;
 use leptos::html::Canvas;
@@ -23,6 +26,55 @@ use crate::{
         websocket::BinanceWebSocketClient,
     },
 };
+
+/// Maximum number of candles visible at 1x zoom
+const MAX_VISIBLE_CANDLES: f64 = 300.0;
+
+/// Minimum allowed zoom level
+const MIN_ZOOM_LEVEL: f64 = 0.5;
+/// Maximum allowed zoom level
+const MAX_ZOOM_LEVEL: f64 = 5.0;
+
+/// Pan offset required to trigger history loading
+pub const HISTORY_FETCH_THRESHOLD: f64 = -50.0;
+
+/// Check if more historical data should be fetched
+pub fn should_fetch_history(pan: f64) -> bool {
+    pan <= HISTORY_FETCH_THRESHOLD
+}
+
+/// Calculate visible range based on zoom level and pan offset
+pub fn visible_range(len: usize, zoom: f64, pan: f64) -> (usize, usize) {
+    let visible = ((MAX_VISIBLE_CANDLES / zoom).max(10.0).min(len as f64)) as isize;
+    let base_start = len as isize - visible;
+    let offset = pan.round() as isize;
+    let max_start = len as isize - visible;
+    let start = (base_start + offset).clamp(0, max_start);
+    (start as usize, visible as usize)
+}
+
+/// Determine visible range using timestamps from the viewport
+pub fn visible_range_by_time(
+    candles: &[Candle],
+    viewport: &crate::domain::chart::value_objects::Viewport,
+    zoom: f64,
+) -> (usize, usize) {
+    if candles.is_empty() {
+        return (0, 0);
+    }
+
+    let visible = ((MAX_VISIBLE_CANDLES / zoom).max(10.0).min(candles.len() as f64)) as usize;
+
+    let start_ts = viewport.start_time as u64;
+    // Use `partition_point` to find the first candle after `start_ts`.
+    // This avoids scanning the entire slice manually.
+    let start_idx = candles.partition_point(|c| c.timestamp.value() < start_ts);
+
+    let max_start = candles.len().saturating_sub(visible);
+    // Clamp to ensure we always display `visible` candles.
+    let start = start_idx.min(max_start);
+    (start, visible)
+}
 
 // Helper aliases for global signals
 fn global_current_price() -> RwSignal<f64> {
@@ -342,10 +394,17 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
         if candles.is_empty() {
             return vec![];
         }
-        let max_visible = 300;
-        let start_idx = if candles.len() > max_visible { candles.len() - max_visible } else { 0 };
-        let (min, max) =
-            candles.iter().skip(start_idx).fold((f64::MAX, f64::MIN), |(min, max), c| {
+
+        let (start_idx, visible) = visible_range(
+            candles.len(),
+            zoom_level().get_untracked(),
+            pan_offset().get_untracked(),
+        );
+        let (min, max) = candles
+            .iter()
+            .skip(start_idx)
+            .take(visible)
+            .fold((f64::MAX, f64::MIN), |(min, max), c| {
                 (min.min(c.ohlcv.low.value()), max.max(c.ohlcv.high.value()))
             });
         let step = (max - min) / 8.0;
@@ -399,17 +458,16 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
             return vec![];
         }
 
-        let max_visible = 300;
-        let start_idx = if candles.len() > max_visible { candles.len() - max_visible } else { 0 };
+        let (start_idx, visible) = visible_range(candles.len(), zoom, pan_offset().get_untracked());
 
         // Show 5 time labels
         let num_labels = 5;
         let mut labels = Vec::new();
 
         for i in 0..num_labels {
-            let index = (i * (candles.len() - start_idx)) / (num_labels - 1);
+            let index = (i * visible) / (num_labels - 1);
             if let Some(candle) =
-                candles.iter().skip(start_idx).nth(index.min(candles.len() - start_idx - 1))
+                candles.iter().skip(start_idx).nth(index.min(visible.saturating_sub(1)))
             {
                 let timestamp = candle.timestamp.value();
                 let date = js_sys::Date::new(&(timestamp as f64).into());
@@ -438,7 +496,7 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
             let old_zoom = zoom_level().with_untracked(|z| *z);
             zoom_level().update(|z| {
                 *z *= zoom_factor;
-                *z = z.clamp(0.1, 10.0);
+                *z = z.clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL); // keep zoom within 0.5-5x
             });
             let new_zoom = zoom_level().with_untracked(|z| *z);
             web_sys::console::log_1(
@@ -627,7 +685,8 @@ fn ChartContainer() -> impl IntoView {
                         last_mouse_y().set(mouse_y);
                     });
 
-                    let need_history = pan_offset().with_untracked(|val| *val <= -950.0);
+                    let need_history =
+                        pan_offset().with_untracked(|val| should_fetch_history(*val));
                     if need_history {
                         fetch_more_history(chart_signal, status_clone);
                     }
@@ -658,13 +717,13 @@ fn ChartContainer() -> impl IntoView {
                         let interval = current_interval().get_untracked();
                         let candles = ch.get_series(interval).unwrap().get_candles();
                         if !candles.is_empty() {
-                            let max_visible = 300;
-                            let start_idx = if candles.len() > max_visible {
-                                candles.len() - max_visible
-                            } else {
-                                0
-                            };
-                            let visible: Vec<_> = candles.iter().skip(start_idx).collect();
+                            let (start_idx, visible_count) = visible_range(
+                                candles.len(),
+                                zoom_level().get_untracked(),
+                                pan_offset().get_untracked(),
+                            );
+                            let visible: Vec<_> =
+                                candles.iter().skip(start_idx).take(visible_count).collect();
 
                             // Use the same logic as in candle_x_position
                             let step_size = 2.0 / visible.len() as f64;
@@ -703,16 +762,17 @@ fn ChartContainer() -> impl IntoView {
         let status_clone = set_status;
         move |event: web_sys::WheelEvent| {
             web_sys::console::log_1(&format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into());
+            event.prevent_default();
 
             let delta_y = event.delta_y();
             let zoom_factor = if delta_y < 0.0 { 1.1 } else { 0.9 }; // Zoom in/out
 
             let old_zoom = zoom_level().with_untracked(|z| *z);
-            zoom_level().update(|z| {
-                *z *= zoom_factor;
-                *z = z.clamp(0.1, 10.0); // Clamp zoom from 0.1x to 10x
-            });
-            let new_zoom = zoom_level().with_untracked(|z| *z);
+            let new_zoom = (old_zoom * zoom_factor).clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL);
+            zoom_level().set(new_zoom);
+            let applied_factor = (new_zoom / old_zoom) as f32;
+            let center_x = event.offset_x() as f32 / 800.0;
+            chart_signal.update(|ch| ch.zoom(applied_factor, center_x));
             web_sys::console::log_1(
                 &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
             );
@@ -734,7 +794,7 @@ fn ChartContainer() -> impl IntoView {
                 LogComponent::Presentation("ChartZoom"),
                 &format!("🔍 Zoom level: {:.2}x", zoom_level().with_untracked(|z_val| *z_val)),
             );
-            let need_history = pan_offset().with_untracked(|val| *val <= -950.0);
+            let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
             if need_history {
                 fetch_more_history(chart_signal, status_clone);
             }
@@ -776,7 +836,7 @@ fn ChartContainer() -> impl IntoView {
                     event.prevent_default();
                     zoom_level().update(|z| {
                         *z *= 1.2;
-                        *z = z.min(10.0);
+                        *z = z.min(MAX_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
@@ -784,7 +844,7 @@ fn ChartContainer() -> impl IntoView {
                     event.prevent_default();
                     zoom_level().update(|z| {
                         *z *= 0.8;
-                        *z = z.max(0.1);
+                        *z = z.max(MIN_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
@@ -792,7 +852,7 @@ fn ChartContainer() -> impl IntoView {
                     event.prevent_default();
                     zoom_level().update(|z| {
                         *z *= 1.5;
-                        *z = z.min(10.0);
+                        *z = z.min(MAX_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
@@ -800,7 +860,7 @@ fn ChartContainer() -> impl IntoView {
                     event.prevent_default();
                     zoom_level().update(|z| {
                         *z *= 0.67;
-                        *z = z.max(0.1);
+                        *z = z.max(MIN_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
@@ -832,7 +892,7 @@ fn ChartContainer() -> impl IntoView {
                     LogComponent::Presentation("KeyboardZoom"),
                     &format!("⌨️ Zoom level: {:.2}x", new_zoom),
                 );
-                let need_history = pan_offset().with_untracked(|val| *val <= -950.0);
+                let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
                 if need_history {
                     fetch_more_history(chart_signal, status_clone);
                 }
@@ -868,7 +928,7 @@ fn ChartContainer() -> impl IntoView {
 
             <TimeframeSelector />
 
-            // Временная шкала под графиком
+            // Time scale below the chart
             <div style="display: flex; justify-content: center; margin-top: 10px;">
                 <TimeScale chart=chart />
             </div>
@@ -1018,7 +1078,7 @@ fn TimeframeSelector() -> impl IntoView {
     }
 }
 
-/// 🌐 Запуск WebSocket стрима в Leptos с обновлением глобальных сигналов
+/// 🌐 Start WebSocket stream in Leptos and update global signals
 async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
     let symbol = Symbol::from("BTCUSDT");
     let interval = TimeInterval::OneMinute;
@@ -1081,6 +1141,11 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 
             chart.update(|ch| {
                 ch.add_realtime_candle(candle.clone());
+                if (zoom_level().get_untracked() - 1.0).abs() < f64::EPSILON
+                    && pan_offset().get_untracked().abs() < f64::EPSILON
+                {
+                    ch.update_viewport_for_data();
+                }
             });
 
             let count = chart.with(|c| c.get_candle_count());
