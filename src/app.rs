@@ -572,6 +572,10 @@ fn ChartContainer() -> impl IntoView {
                                 ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)) * 0.001;
                             offset.update(|o| *o += delta_x * pan_sensitivity);
                         });
+                        chart_signal.update(|ch| {
+                            let factor_x = -(delta_x as f32) / ch.viewport.width as f32;
+                            ch.pan(factor_x, 0.0);
+                        });
                         last_x.set(mouse_x);
                     });
 
