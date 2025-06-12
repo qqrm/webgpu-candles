@@ -1,26 +1,20 @@
 # Instructions for Codex Agents
 
-- Все ответы должны быть на русском языке, краткие и по существу.
-- Перед коммитом последовательно выполняй:
--- `cargo fmt --all`
--- `cargo check --tests --benches`
--- `cargo clippy --tests --benches --fix --allow-dirty -- -D warnings`
-- Запуск тестов (например, `wasm-pack test`) не получится из-за wasm — они будут запущены в GitHub Actions.
-- Одним из критериев готовности изменений является отсутствие проблем форматирования и предупреждений линтеров.
-- Не подавляйте предупреждения о неиспользуемом коде через `#[allow(dead_code)]`. Мёртвый код необходимо удалять.
-- При добавлении новой функциональности обязательно пишите тесты.
-- Перед выполнением любой задачи сверяйтесь с [ARCHITECTURE.md](ARCHITECTURE.md) и
-  проверяйте соответствие предложенных изменений текущей архитектуре.
-- При работе с цветами сверяйтесь с [colors.md](colors.md).
-- Все решения по ускорению и оптимизации принимаются после изучения
-  [PERFORMANCE.md](PERFORMANCE.md).
-- Pull request оформляйте кратко и чётко: перечисляйте изменения списком,
-  указывайте ссылки на строки вида `F:path#L1-L2` и прикладывайте результаты
-  тестов.
-- Markdown в проекте должен быть единообразным: используйте заголовки через `#`,
-  оформляйте кодовые блоки с указанием языка и придерживайтесь чёткого
-  структурирования.
-- Комментарии в коде и вся документация пишутся только на английском языке.
-- Сводка по доступным тестам и расположению снапшотов находится в [TESTS.md](TESTS.md).
-- Названия веток и задач переводите на английский язык, даже если они изначально даны на русском.
-- Если формулировка задачи приходит на русском, используйте английский перевод при именовании веток и в описаниях задач.
+- All replies must be in Russian, short and to the point.
+- Before committing run the following commands in sequence:
+  - `cargo fmt --all`
+  - `cargo check --tests --benches`
+  - `cargo clippy --tests --benches --fix --allow-dirty -- -D warnings`
+- Running tests (e.g. `wasm-pack test`) won't work due to wasm; they will run in GitHub Actions.
+- One of the readiness criteria is the absence of formatting issues and linter warnings.
+- Do not suppress warnings about unused code via `#[allow(dead_code)]`. Remove dead code instead.
+- When adding new functionality you must write tests.
+- Before tackling any task consult [ARCHITECTURE.md](ARCHITECTURE.md) and ensure proposed changes match the current architecture.
+- When working with colors consult [colors.md](colors.md).
+- Decisions on acceleration and optimization are made after studying [PERFORMANCE.md](PERFORMANCE.md).
+- Keep pull requests concise and clear: list changes, provide references like `F:path#L1-L2`, and attach test results.
+- Markdown in the project must be consistent: use `#` for headers, specify languages for code blocks, and maintain clear structure.
+- Comments in the code and all documentation are written only in English.
+- A summary of available tests and snapshot locations is found in [TESTS.md](TESTS.md).
+- Translate branch and task names into English even if they were originally given in Russian.
+- If a task description is in Russian, use its English translation when naming branches and in task descriptions.
