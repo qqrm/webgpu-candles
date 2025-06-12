@@ -10,6 +10,12 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
+      - name: Install rustup if needed
+        run: |
+          if ! command -v rustup &>/dev/null; then
+            curl --proto '=https' --tlsv1.2 --retry 10 --retry-delay 5 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs | sh -s -- --default-toolchain none -y
+            echo "$CARGO_HOME/bin" >> $GITHUB_PATH
+          fi
       - name: Install wasm-pack
         run: cargo install wasm-pack
       - name: Install wasm-tools
@@ -21,7 +27,7 @@ jobs:
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: Run tests with coverage
-        run: wasm-pack test --headless --chrome --coverage
+        run: wasm-pack test --headless --chrome --coverage --log-level debug
       - name: Generate lcov
         run: wasm-tools coverage target/wasm32-unknown-unknown/debug/deps/*.wasm > lcov.info
       - name: Upload coverage
