@@ -17,4 +17,5 @@
 - Comments in the code and all documentation are written only in English.
 - A summary of available tests and snapshot locations is found in [TESTS.md](TESTS.md).
 - Translate branch and task names into English even if they were originally given in Russian.
+- Always provide branch names and task titles in English, even if the original request is in Russian.
 - If a task description is in Russian, use its English translation when naming branches and in task descriptions.
