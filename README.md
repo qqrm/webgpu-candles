@@ -74,6 +74,7 @@ src/
 
 For more architectural details see [ARCHITECTURE.md](ARCHITECTURE.md).
 Planned features are listed in [FEATURES.md](FEATURES.md).
+Details on the WebSocket feed are in [WEBSOCKETS.md](WEBSOCKETS.md).
 
 ## Demo
 
