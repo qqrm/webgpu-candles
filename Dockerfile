@@ -8,7 +8,8 @@ WORKDIR /app
 COPY . .
 
 # Сборка проекта через Trunk для production (переопределяем настройки для Docker)
-RUN trunk build --release --dist dist --public-url /
+RUN trunk build --release --dist dist --public-url / && \
+    git rev-parse HEAD > dist/version
 
 FROM nginx:alpine
 WORKDIR /usr/share/nginx/html

@@ -23,6 +23,8 @@ jobs:
         run: rm -rf dist
       - name: Build
         run: trunk build --release --dist dist
+      - name: Record version
+        run: echo $GITHUB_SHA > dist/version
       - name: Commit dist
         run: |
           git config user.name github-actions

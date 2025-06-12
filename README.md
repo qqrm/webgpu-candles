@@ -103,7 +103,7 @@ See [TESTS.md](TESTS.md) for more details about the test suite.
 
 ## Deployment monitor
 
-The monitor workflow (`deploy-monitor.yml`) waits for the `build` workflow to finish. If the deployed version matches the last commit SHA, it sends a Telegram message. Add `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` as repository secrets for notifications.
+The monitor workflow (`deploy-monitor.yml`) waits for the `build` workflow to finish. If the deployed version matches the last commit SHA, it sends a Telegram message. Add `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` as repository secrets for notifications. The build writes the current commit hash to `dist/version`, so the deployed site exposes `/version` with that value.
 
 
 ## Docker
