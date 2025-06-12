@@ -1,6 +1,6 @@
 use crate::domain::market_data::{Candle, OHLCV, Price, TimeInterval, Timestamp, Volume};
 
-/// Структура для хранения данных скользящих средних
+/// Data structure for moving averages
 #[derive(Debug, Clone)]
 pub struct MovingAveragesData {
     pub sma_20: Vec<Price>,
@@ -10,7 +10,7 @@ pub struct MovingAveragesData {
     pub ema_26: Vec<Price>,
 }
 
-/// Доменный сервис для анализа рыночных данных
+/// Domain service for market analysis
 pub struct MarketAnalysisService;
 
 impl Default for MarketAnalysisService {
@@ -24,34 +24,34 @@ impl MarketAnalysisService {
         Self
     }
 
-    /// Валидация свечи - production-ready validation
+    /// Candle validation - production-ready
     pub fn validate_candle(&self, candle: &Candle) -> bool {
-        // 1. Базовая валидация OHLC логики
+        // 1. Basic OHLC validation
         let ohlc_valid = candle.ohlcv.high.value() >= candle.ohlcv.low.value()
             && candle.ohlcv.high.value() >= candle.ohlcv.open.value()
             && candle.ohlcv.high.value() >= candle.ohlcv.close.value()
             && candle.ohlcv.low.value() <= candle.ohlcv.open.value()
             && candle.ohlcv.low.value() <= candle.ohlcv.close.value();
 
-        // 2. Валидация положительных значений
+        // 2. Validate positive values
         let positive_values = candle.ohlcv.open.value() > 0.0
             && candle.ohlcv.high.value() > 0.0
             && candle.ohlcv.low.value() > 0.0
             && candle.ohlcv.close.value() > 0.0
             && candle.ohlcv.volume.value() >= 0.0;
 
-        // 3. Валидация разумных пределов для BTC/USDT
-        let reasonable_price_range = candle.ohlcv.low.value() > 1.0 && // Минимум $1
-                                    candle.ohlcv.high.value() < 1_000_000.0; // Максимум $1M
+        // 3. Validate reasonable bounds for BTC/USDT
+        let reasonable_price_range = candle.ohlcv.low.value() > 1.0 && // Minimum $1
+                                    candle.ohlcv.high.value() < 1_000_000.0; // Maximum $1M
 
-        // 4. Валидация timestamp (не может быть в будущем более чем на 1 минуту)
+        // 4. Validate timestamp (not more than 1 minute in the future)
         let now = js_sys::Date::now() as u64;
-        let timestamp_valid = candle.timestamp.value() <= now + 60_000; // +1 минута буфер
+        let timestamp_valid = candle.timestamp.value() <= now + 60_000; // +1 minute buffer
 
         ohlc_valid && positive_values && reasonable_price_range && timestamp_valid
     }
 
-    /// Вычисляет простую скользящую среднюю (SMA)
+    /// Calculate the Simple Moving Average (SMA)
     pub fn calculate_sma(&self, candles: &[Candle], period: usize) -> Vec<Price> {
         if candles.len() < period {
             return Vec::new();
@@ -69,23 +69,23 @@ impl MarketAnalysisService {
         sma_values
     }
 
-    /// Вычисляет экспоненциальную скользящую среднюю (EMA)
+    /// Calculate the Exponential Moving Average (EMA)
     pub fn calculate_ema(&self, candles: &[Candle], period: usize) -> Vec<Price> {
         if candles.len() < period {
             return Vec::new();
         }
 
         let mut ema_values = Vec::new();
-        let alpha = 2.0 / (period as f64 + 1.0); // Сглаживающий коэффициент
+        let alpha = 2.0 / (period as f64 + 1.0); // Smoothing factor
 
-        // Первое значение EMA = простое среднее за первые period свечей
+        // First EMA value is the simple average over the first period candles
         let first_sma: f64 =
             candles[0..period].iter().map(|candle| candle.ohlcv.close.value()).sum::<f64>()
                 / period as f64;
 
         ema_values.push(Price::from(first_sma));
 
-        // Вычисляем остальные значения EMA
+        // Compute the remaining EMA values
         for candle in candles.iter().skip(period) {
             let current_price = candle.ohlcv.close.value();
             let prev_ema = ema_values.last().unwrap().value();
@@ -97,7 +97,7 @@ impl MarketAnalysisService {
         ema_values
     }
 
-    /// Вычисляет несколько скользящих средних одновременно
+    /// Calculate multiple moving averages at once
     pub fn calculate_multiple_mas(&self, candles: &[Candle]) -> MovingAveragesData {
         MovingAveragesData {
             sma_20: self.calculate_sma(candles, 20),
@@ -108,7 +108,7 @@ impl MarketAnalysisService {
         }
     }
 
-    /// Находит локальные максимумы и минимумы
+    /// Find local highs and lows
     pub fn find_extremes(&self, candles: &[Candle], window: usize) -> (Vec<usize>, Vec<usize>) {
         if candles.len() < window * 2 + 1 {
             return (Vec::new(), Vec::new());
@@ -121,7 +121,7 @@ impl MarketAnalysisService {
             let current_high = candles[i].ohlcv.high;
             let current_low = candles[i].ohlcv.low;
 
-            // Проверяем максимум
+            // Check for a high
             let is_peak = candles[i - window..i]
                 .iter()
                 .chain(candles[i + 1..=i + window].iter())
@@ -131,7 +131,7 @@ impl MarketAnalysisService {
                 peaks.push(i);
             }
 
-            // Проверяем минимум
+            // Check for a low
             let is_trough = candles[i - window..i]
                 .iter()
                 .chain(candles[i + 1..=i + window].iter())
@@ -145,13 +145,13 @@ impl MarketAnalysisService {
         (peaks, troughs)
     }
 
-    /// Вычисляет волатильность (стандартное отклонение доходности)
+    /// Calculate volatility (standard deviation of returns)
     pub fn calculate_volatility(&self, candles: &[Candle], period: usize) -> Option<f64> {
         if candles.len() < period + 1 {
             return None;
         }
 
-        // Вычисляем доходности
+        // Compute returns
         let returns: Vec<f64> = candles
             .windows(2)
             .map(|pair| {
@@ -165,13 +165,13 @@ impl MarketAnalysisService {
             return None;
         }
 
-        // Берем последние period доходностей
+        // Take the last period returns
         let recent_returns = &returns[returns.len() - period..];
 
-        // Вычисляем среднюю доходность
+        // Compute the mean return
         let mean_return: f64 = recent_returns.iter().sum::<f64>() / period as f64;
 
-        // Вычисляем дисперсию
+        // Compute the variance
         let variance: f64 =
             recent_returns.iter().map(|r| (r - mean_return).powi(2)).sum::<f64>() / period as f64;
 
@@ -179,11 +179,11 @@ impl MarketAnalysisService {
     }
 }
 
-/// Сервис для агрегирования нескольких свечей в одну
+/// Service to aggregate multiple candles into one
 pub struct Aggregator;
 
 impl Aggregator {
-    /// Объединяет список свечей в одну свечу указанного интервала
+    /// Combine a list of candles into one for the given interval
     pub fn aggregate(candles: &[Candle], interval: TimeInterval) -> Option<Candle> {
         if candles.is_empty() {
             return None;

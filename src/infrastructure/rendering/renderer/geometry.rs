@@ -52,6 +52,7 @@ impl WebGpuRenderer {
             .get_series(interval)
             .map(|s| s.get_candles())
             .unwrap_or_else(|| chart.get_series_for_zoom(self.zoom_level).get_candles());
+
         if candles.is_empty() {
             get_logger()
                 .error(LogComponent::Infrastructure("WebGpuRenderer"), "⚠️ No candles to render");

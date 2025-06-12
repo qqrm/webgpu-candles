@@ -23,7 +23,7 @@ use crate::{
     },
 };
 
-// 🔗 Глобальные сигналы для real-time данных
+// 🔗 Global signals for real-time data
 thread_local! {
     static GLOBAL_CURRENT_PRICE: RwSignal<f64> = create_rw_signal(0.0);
     static GLOBAL_CANDLE_COUNT: RwSignal<usize> = create_rw_signal(0);
@@ -31,11 +31,11 @@ thread_local! {
     static GLOBAL_MAX_VOLUME: RwSignal<f64> = create_rw_signal(0.0);
     static LOADING_MORE: RwSignal<bool> = create_rw_signal(false);
 
-    // 🎯 Tooltip данные
+    // 🎯 Tooltip data
     static TOOLTIP_DATA: RwSignal<Option<TooltipData>> = create_rw_signal(None);
     static TOOLTIP_VISIBLE: RwSignal<bool> = create_rw_signal(false);
 
-    // 🔍 Зум и панорамирование
+    // 🔍 Zoom and pan
     static ZOOM_LEVEL: RwSignal<f64> = create_rw_signal(1.0);
     static PAN_OFFSET: RwSignal<f64> = create_rw_signal(0.0);
     static IS_DRAGGING: RwSignal<bool> = create_rw_signal(false);
@@ -44,7 +44,7 @@ thread_local! {
     pub static CURRENT_INTERVAL: RwSignal<TimeInterval> = create_rw_signal(TimeInterval::OneMinute);
 }
 
-/// 📈 Запрашивает дополнительную историю и добавляет в начало списка
+/// 📈 Fetch additional history and prepend it to the list
 fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
     if LOADING_MORE.with(|l| l.get()) {
         return;
@@ -94,7 +94,7 @@ fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
     });
 }
 
-/// 🎯 Данные для tooltip
+/// 🎯 Data for the tooltip
 #[derive(Clone, Debug)]
 pub struct TooltipData {
     pub candle: Candle,
@@ -109,7 +109,7 @@ impl TooltipData {
         let change_pct = (change / candle.ohlcv.open.value()) * 100.0;
         let trend = if change >= 0.0 { "🟢" } else { "🔴" };
 
-        // Форматируем время из timestamp
+        // Format time from the timestamp
         let time_str = format!("Time: {}", candle.timestamp.value());
 
         let formatted_text = format!(
@@ -129,13 +129,13 @@ impl TooltipData {
     }
 }
 
-/// 🦀 Главный компонент Bitcoin Chart на Leptos
+/// 🦀 Main Bitcoin Chart component built with Leptos
 #[component]
 pub fn app() -> impl IntoView {
-    // 🚀 Инициализируем глобальный логгер при старте приложения
+    // 🚀 Initialize the global logger on application start
     use crate::domain::logging::get_logger;
 
-    // Добавляем console.log для диагностики
+    // Extra console.log for diagnostics
     web_sys::console::log_1(&"🚀 Starting Bitcoin Chart App".into());
 
     get_logger().info(LogComponent::Presentation("App"), "🚀 Starting Bitcoin Chart App");
@@ -262,10 +262,10 @@ pub fn app() -> impl IntoView {
     }
 }
 
-/// 📊 Заголовок с информацией о цене - теперь с реальными данными!
+/// 📊 Price header with real data
 #[component]
 fn header() -> impl IntoView {
-    // Используем глобальные сигналы для реальных данных
+    // Use global signals for real data
     let current_price = GLOBAL_CURRENT_PRICE.with(|price| *price);
     let candle_count = GLOBAL_CANDLE_COUNT.with(|count| *count);
     let is_streaming = GLOBAL_IS_STREAMING.with(|streaming| *streaming);
@@ -338,6 +338,18 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
             let factor = if e.delta_y() < 0.0 { 1.1 } else { 0.9 };
             let center = e.offset_y() as f32 / 500.0;
             chart_signal.update(|c| c.zoom_price(factor as f32, center));
+
+            chart_signal.with_untracked(|ch| {
+                if ch.get_candle_count() > 0 {
+                    with_global_renderer(|r| {
+                        r.set_zoom_params(
+                            ZOOM_LEVEL.with(|z| z.with_untracked(|val| *val)),
+                            PAN_OFFSET.with(|p| p.with_untracked(|val| *val)),
+                        );
+                        let _ = r.render(ch);
+                    });
+                }
+            });
         }
     };
 
@@ -354,7 +366,7 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
     }
 }
 
-/// ⏰ Временная шкала снизу графика
+/// ⏰ Time scale below the chart
 #[component]
 fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
     let time_labels = move || {
@@ -369,7 +381,7 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
         let max_visible = 300;
         let start_idx = if candles.len() > max_visible { candles.len() - max_visible } else { 0 };
 
-        // Показываем 5 временных меток
+        // Show 5 time labels
         let num_labels = 5;
         let mut labels = Vec::new();
 
@@ -434,10 +446,10 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
     }
 }
 
-/// 🎨 Контейнер для WebGPU графика
+/// 🎨 Container for the WebGPU chart
 #[component]
 fn ChartContainer() -> impl IntoView {
-    // Сигналы для графика
+    // Signals for the chart
     let chart = create_rw_signal(Chart::new(
         "leptos-chart".to_string(),
         crate::domain::chart::ChartType::Candlestick,
@@ -446,17 +458,17 @@ fn ChartContainer() -> impl IntoView {
     let (renderer, set_renderer) = create_signal::<Option<Rc<RefCell<WebGpuRenderer>>>>(None);
     let (status, set_status) = create_signal("Initializing...".to_string());
 
-    // Ссылка на canvas элемент
+    // Reference to the canvas element
     let canvas_ref = create_node_ref::<Canvas>();
 
-    // Эффект для инициализации WebGPU после монтирования
+    // Effect to initialize WebGPU after mounting
     create_effect(move |_| {
         if canvas_ref.get().is_some() {
             spawn_local(async move {
                 web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
                 set_status.set("🚀 Initializing WebGPU renderer...".to_string());
 
-                // Детальная диагностика WebGPU
+                // Detailed WebGPU diagnostics
                 web_sys::console::log_1(&"🏗️ Creating WebGPU renderer...".into());
                 get_logger().info(
                     LogComponent::Infrastructure("WebGPU"),
@@ -477,7 +489,7 @@ fn ChartContainer() -> impl IntoView {
                         set_global_renderer(renderer_rc.clone());
                         set_status.set("✅ WebGPU renderer ready".to_string());
 
-                        // Запускаем WebSocket после инициализации renderer
+                        // Start WebSocket after the renderer is initialized
                         get_logger().info(
                             LogComponent::Infrastructure("WebSocket"),
                             "🌐 Starting WebSocket stream...",
@@ -491,13 +503,13 @@ fn ChartContainer() -> impl IntoView {
                         );
                         set_status.set(format!("❌ WebGPU failed: {:?}\n💡 Try Chrome Canary with --enable-unsafe-webgpu flag", e));
 
-                        // Fallback: показываем хотя бы данные без графика
+                        // Fallback: show data even without the chart
                         get_logger().info(
                             LogComponent::Infrastructure("Fallback"),
                             "🔄 Starting fallback mode without WebGPU...",
                         );
 
-                        // Создаем тестовые данные для демонстрации
+                        // Generate sample data for demo purposes
                         let mut test_candles = Vec::new();
                         let base_price = 90000.0;
                         let base_time = js_sys::Date::now() as u64;
@@ -532,7 +544,7 @@ fn ChartContainer() -> impl IntoView {
         }
     });
 
-    // Эффект для рендеринга при изменении данных
+    // Effect to render when data changes
     create_effect(move |_| {
         renderer.with(|renderer_opt| {
             if let Some(renderer_rc) = renderer_opt {
@@ -552,7 +564,7 @@ fn ChartContainer() -> impl IntoView {
         });
     });
 
-    // 🎯 Mouse events для tooltip
+    // 🎯 Mouse events for the tooltip
     let handle_mouse_move = {
         let chart_signal = chart;
         let renderer_clone = renderer;
@@ -561,7 +573,7 @@ fn ChartContainer() -> impl IntoView {
             let mouse_x = event.offset_x() as f64;
             let mouse_y = event.offset_y() as f64;
 
-            // 🔍 Обработка панорамирования
+            // 🔍 Handle panning
             IS_DRAGGING.with(|dragging| {
                 if dragging.get() {
                     LAST_MOUSE_X.with(|last_x| {
@@ -608,7 +620,7 @@ fn ChartContainer() -> impl IntoView {
                         }
                     });
                 } else {
-                    // Конвертируем в NDC координаты (предполагаем canvas 800x500)
+                    // Convert to NDC coordinates (assuming an 800x500 canvas)
                     let canvas_width = 800.0;
                     let canvas_height = 500.0;
                     let ndc_x = (mouse_x / canvas_width) * 2.0 - 1.0;
@@ -626,10 +638,10 @@ fn ChartContainer() -> impl IntoView {
                             };
                             let visible: Vec<_> = candles.iter().skip(start_idx).collect();
 
-                            // Используем ту же логику что и в candle_x_position
+                            // Use the same logic as in candle_x_position
                             let step_size = 2.0 / visible.len() as f64;
-                            // Обратная формула: если x = 1.0 - (visible_len - index - 1) * step_size
-                            // то index = visible_len - (1.0 - x) / step_size - 1
+                            // Inverse formula: if x = 1.0 - (visible_len - index - 1) * step_size
+                            // then index = visible_len - (1.0 - x) / step_size - 1
                             let index_float =
                                 visible.len() as f64 - (1.0 - ndc_x) / step_size - 1.0;
                             let candle_idx = index_float.round() as i32;
@@ -658,7 +670,7 @@ fn ChartContainer() -> impl IntoView {
         IS_DRAGGING.with(|dragging| dragging.set(false));
     };
 
-    // 🔍 Зум колесиком мыши - упрощенная версия без эффектов
+    // 🔍 Mouse wheel zoom - simplified without effects
     let handle_wheel = {
         let chart_signal = chart;
         let status_clone = set_status;
@@ -672,14 +684,14 @@ fn ChartContainer() -> impl IntoView {
                 let old_zoom = zoom.with_untracked(|z| *z);
                 zoom.update(|z| {
                     *z *= zoom_factor;
-                    *z = z.clamp(0.1, 10.0); // Ограничиваем зум от 0.1x до 10x
+                    *z = z.clamp(0.1, 10.0); // Clamp zoom from 0.1x to 10x
                 });
                 let new_zoom = zoom.with_untracked(|z| *z);
                 web_sys::console::log_1(
                     &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
                 );
 
-                // Сразу применяем зум без эффектов
+                // Apply zoom immediately without effects
                 chart_signal.with_untracked(|ch| {
                     if ch.get_candle_count() > 0 {
                         with_global_renderer(|r| {
@@ -711,15 +723,15 @@ fn ChartContainer() -> impl IntoView {
         }
     };
 
-    // 🖱️ Начало панорамирования
+    // 🖱️ Start panning
     let handle_mouse_down = move |event: web_sys::MouseEvent| {
         if event.button() == 0 {
-            // Левая кнопка мыши
+            // Left mouse button
             IS_DRAGGING.with(|dragging| dragging.set(true));
             LAST_MOUSE_X.with(|last_x| last_x.set(event.offset_x() as f64));
             LAST_MOUSE_Y.with(|last_y| last_y.set(event.offset_y() as f64));
 
-            // Даем canvas фокус для клавиатурных событий
+            // Give the canvas focus for keyboard events
             if let Some(target) = event.target() {
                 if let Ok(canvas) = target.dyn_into::<web_sys::HtmlCanvasElement>() {
                     let _ = canvas.focus();
@@ -728,12 +740,12 @@ fn ChartContainer() -> impl IntoView {
         }
     };
 
-    // 🖱️ Конец панорамирования
+    // 🖱️ End panning
     let handle_mouse_up = move |_event: web_sys::MouseEvent| {
         IS_DRAGGING.with(|dragging| dragging.set(false));
     };
 
-    // ⌨️ Клавиши для зума (+/- и PageUp/PageDown)
+    // ⌨️ Zoom keys (+/- and PageUp/PageDown)
     let handle_keydown = {
         let chart_signal = chart;
         let status_clone = set_status;
@@ -789,7 +801,7 @@ fn ChartContainer() -> impl IntoView {
                 let new_zoom = ZOOM_LEVEL.with(|z| z.with_untracked(|z_val| *z_val));
                 web_sys::console::log_1(&format!("⌨️ Keyboard zoom: {:.2}x", new_zoom).into());
 
-                // Применяем зум к renderer для клавиатурных команд
+                // Apply zoom to the renderer for keyboard commands
                 chart_signal.with_untracked(|ch| {
                     if ch.get_candle_count() > 0 {
                         with_global_renderer(|r| {
@@ -821,7 +833,7 @@ fn ChartContainer() -> impl IntoView {
         }
     };
 
-    // Эффект зума удален - теперь зум обрабатывается прямо в wheel handler
+    // Zoom effect removed - handled directly in the wheel handler
 
     view! {
         <div class="chart-container">
@@ -858,7 +870,7 @@ fn ChartContainer() -> impl IntoView {
                 {move || status.get()}
             </div>
 
-            // Подсказки по управлению
+            // Control hints
             <div style="text-align: center; margin-top: 10px; font-size: 12px; color: #888;">
                 "🔍 Zoom: Mouse wheel, +/- keys, PageUp/PageDown | 🖱️ Pan: Left click + drag | 🎯 Tooltip: Mouse hover"
             </div>
@@ -866,24 +878,24 @@ fn ChartContainer() -> impl IntoView {
     }
 }
 
-/// 💰 Ценовая шкала справа от графика
+/// 💰 Price scale on the right side of the chart
 #[component]
 fn PriceScale() -> impl IntoView {
     let current_price = GLOBAL_CURRENT_PRICE.with(|price| *price);
 
-    // Вычисляем ценовые уровни для отображения (такие же как в сетке)
+    // Calculate price levels for display (same as in the grid)
     let price_levels = move || {
         let price = current_price.get();
         if price <= 0.0 {
             return vec![];
         }
 
-        // Примерный диапазон цен (±3% от текущей цены)
+        // Approximate price range (±3% of the current price)
         let min_price = price * 0.97;
         let max_price = price * 1.03;
         let price_range = max_price - min_price;
 
-        // 8 ценовых уровней (как в сетке)
+        // 8 price levels (as in the grid)
         let num_levels = 8;
         let mut levels = Vec::new();
 
@@ -893,13 +905,13 @@ fn PriceScale() -> impl IntoView {
             levels.push((level_price, position_percent));
         }
 
-        levels.reverse(); // Сверху вниз
+        levels.reverse(); // Top to bottom
         levels
     };
 
     view! {
         <div class="price-scale">
-            // Показываем ценовые уровни
+            // Display price levels
             <For
                 each=price_levels
                 key=|(_price, pos)| (*pos * 100.0) as i64
@@ -913,7 +925,7 @@ fn PriceScale() -> impl IntoView {
                 }
             />
 
-            // Показываем текущую цену (более заметно)
+            // Display the current price (highlighted)
             <div class="current-price-label" style=format!("top: 50%")>
                 <span class="price-value">{move || format!("${:.2}", current_price.get())}</span>
             </div>
@@ -921,7 +933,7 @@ fn PriceScale() -> impl IntoView {
     }
 }
 
-/// 🎯 Chart Tooltip компонент - теперь внутри chart-wrapper
+/// 🎯 Chart Tooltip component inside the chart wrapper
 #[component]
 fn ChartTooltip() -> impl IntoView {
     let tooltip_visible = TOOLTIP_VISIBLE.with(|visible| *visible);
@@ -1004,13 +1016,13 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
     let symbol = Symbol::from("BTCUSDT");
     let interval = TimeInterval::OneMinute;
 
-    // Создаем клиент для загрузки данных
+    // Create a client for data loading
     let ws_client = BinanceWebSocketClient::new(symbol, interval);
 
-    // Устанавливаем статус стрима
+    // Set the streaming status
     GLOBAL_IS_STREAMING.with(|streaming| streaming.set(false));
 
-    // 📈 Сначала загружаем исторические данные
+    // 📈 First load historical data
     set_status.set("📈 Loading historical data...".to_string());
 
     match ws_client.fetch_historical_data(300).await {
@@ -1022,7 +1034,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 
             chart.update(|ch| ch.set_historical_data(historical_candles.clone()));
 
-            // Обновляем глобальные сигналы с историческими данными
+            // Update global signals using the historical data
             let cnt = chart.with(|c| c.get_candle_count());
             GLOBAL_CANDLE_COUNT.with(|count| count.set(cnt));
 
@@ -1032,7 +1044,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
                 });
             }
 
-            // Вычисляем максимальный объем из истории
+            // Compute the maximum volume from history
             let max_vol = historical_candles
                 .iter()
                 .map(|c| c.ohlcv.volume.value())
@@ -1050,7 +1062,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
         }
     }
 
-    // 🔌 Теперь запускаем WebSocket для real-time обновлений
+    // 🔌 Start the WebSocket for real-time updates
     set_status.set("🔌 Starting WebSocket stream...".to_string());
     GLOBAL_IS_STREAMING.with(|streaming| streaming.set(true));
 
@@ -1059,7 +1071,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 
     spawn_local(async move {
         let handler = move |candle: Candle| {
-            // Обновляем цену в глобальном сигнале
+            // Update the price in the global signal
             GLOBAL_CURRENT_PRICE.with(|price| {
                 price.set(candle.ohlcv.close.value());
             });
@@ -1081,7 +1093,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
             });
             GLOBAL_MAX_VOLUME.with(|volume| volume.set(max_vol));
 
-            // Обновляем статус
+            // Update the status
             set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
         };
 

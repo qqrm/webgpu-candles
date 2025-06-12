@@ -49,6 +49,10 @@ Regression tests:
 
 ## Running Tests
 
+Before running the suite ensure the WebAssembly target is installed:
+`rustup target add wasm32-unknown-unknown`
+
+The build script will fail if the target is missing.
 ```bash
 # All WASM tests
 wasm-pack test --node

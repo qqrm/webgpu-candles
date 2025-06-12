@@ -1,6 +1,8 @@
 # WebGPU Candles
 
 A demonstration Bitcoin candlestick chart built with **WebGPU** for rendering and **Leptos** for the reactive UI. Real-time price data is streamed from Binance via WebSocket and drawn directly to a `<canvas>` using Rust compiled to WebAssembly.
+The project requires the `wasm32-unknown-unknown` target, which the build script verifies is installed. Install it with:
+`rustup target add wasm32-unknown-unknown`.
 
 ## Setup
 
@@ -12,6 +14,12 @@ cargo install trunk
 ```
 
 Install either [Trunk](https://trunkrs.dev/) or [wasm-pack](https://rustwasm.github.io/wasm-pack/) depending on your preferred workflow.
+
+To automatically format and lint the code before each commit, enable the pre-commit hook:
+
+```bash
+git config core.hooksPath githooks
+```
 
 ## Building with Trunk
 
