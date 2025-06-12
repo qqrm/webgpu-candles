@@ -1,0 +1,55 @@
+name: coverage
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions: write-all
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+      - name: Install wasm-tools
+        run: cargo install wasm-tools
+      - name: Run tests
+        run: wasm-pack test --headless --chrome --coverage
+      - name: Generate lcov
+        run: wasm-tools coverage target/wasm32-unknown-unknown/debug/deps/*.wasm > lcov.info
+      - name: Compute coverage
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          total = hit = 0
+          with open('lcov.info') as f:
+              for line in f:
+                  if line.startswith('LF:'):
+                      total += int(line[3:])
+                  elif line.startswith('LH:'):
+                      hit += int(line[3:])
+          cov = round(100 * hit / total, 2) if total else 0
+          data = {'coverage': cov}
+          pathlib.Path('docs/coverage_result.json').write_text(json.dumps(data))
+          lines = ['# Latest coverage', '', '| Metric | Value |', '| --- | --- |', f'| coverage | {cov} |']
+          pathlib.Path('docs/coverage.md').write_text('\n'.join(lines) + '\n')
+          PY
+      - name: Commit results
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add docs/coverage.md docs/coverage_result.json
+          git commit -m "Update coverage metrics" || echo "No changes"
+          git push
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage_result
+          path: lcov.info
