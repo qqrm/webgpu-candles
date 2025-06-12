@@ -92,6 +92,8 @@ wasm-pack test --headless --chrome -- --nocapture
 
 FPS is printed to the console and the `perf.yml` workflow saves the log as an
 artifact. Current metric values are stored in [docs/perf.md](docs/perf.md).
+`tests/performance_limit.rs` logs when FPS drops below 30 for large charts.
+
 
 ## Tests
 
