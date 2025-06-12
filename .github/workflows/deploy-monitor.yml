@@ -33,7 +33,7 @@ jobs:
           exit 1
 
       - name: Notify
-        if: success()
+        if: success() && hashFiles('scripts/notify_bot.py') != ''
         env:
           NOTIFY_MESSAGE: "Deployment succeeded: ${{ steps.check_version.outputs.version }}"
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
