@@ -60,5 +60,13 @@ window.wasmBindings = bindings;
 dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
 </script>
+<p id="version" style="position: fixed; bottom: 0; right: 0; font-size: 0.75em; color: #cccccc;"></p>
+<script>
+fetch('version')
+  .then(r => r.text())
+  .then(t => {
+    document.getElementById('version').textContent = t.trim();
+  });
+</script>
 </body>
-</html> 
+</html>

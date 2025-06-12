@@ -1,4 +1,5 @@
 name: deploy-monitor
+# docs/version contains the SHA of the last commit
 on:
   workflow_run:
     workflows: ["build"]
