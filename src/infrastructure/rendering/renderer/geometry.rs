@@ -73,10 +73,10 @@ impl WebGpuRenderer {
         let _chart_height = 2.0; // NDC height (-1 to 1)
 
         // 🔍 Применяем зум - показываем меньше свечей при увеличении зума
-        let visible_count =
-            ((BASE_CANDLES as f64) / self.zoom_level).max(10.0).min(candle_count as f64) as usize;
-        let start_index = candle_count.saturating_sub(visible_count);
-        let visible_candles: Vec<Candle> = candles.iter().skip(start_index).cloned().collect();
+        let (start_index, visible_count) =
+            crate::app::visible_range(candle_count, self.zoom_level, self.pan_offset);
+        let visible_candles: Vec<Candle> =
+            candles.iter().skip(start_index).take(visible_count).cloned().collect();
 
         let mut vertices = Vec::with_capacity(visible_candles.len() * 24);
 
