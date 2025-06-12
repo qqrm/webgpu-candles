@@ -65,9 +65,7 @@ fn volume_width_sync() {
 
     // Проверяем что step_size одинаковый для свечей и volume bars
     let step_size = 2.0 / visible_len as f32;
-    let zoom_factor = 1.0; // По умолчанию
-    let expected_width =
-        (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
+    let expected_width = (step_size * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
     // Эмулируем логику из кода
     for i in 0..visible_len {

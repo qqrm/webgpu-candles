@@ -7,15 +7,13 @@ use wasm_bindgen_test::*;
 fn width_calculation_sync() {
     // Тестируем что ширина volume bars и свечей рассчитывается одинаково
     let visible_len = 20;
-    let zoom_level = 1.5f64;
 
     // Эмулируем логику из кода для свечей
     let step_size = 2.0 / visible_len as f32;
-    let zoom_factor = zoom_level.clamp(0.1, 10.0) as f32;
-    let candle_width = (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
+    let candle_width = (step_size * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
     // Эмулируем логику из кода для volume bars (после исправления)
-    let bar_width = (step_size * zoom_factor * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
+    let bar_width = (step_size * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
     // Проверяем что ширина одинаковая
     assert_eq!(
