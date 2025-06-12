@@ -13,7 +13,7 @@ jobs:
       - name: Install wasm-pack
         run: cargo install wasm-pack --version 0.10.3
       - name: Install wasm-tools
-        run: cargo install wasm-tools --version 0.2.0
+        run: cargo install wasm-tools
       - name: Update dependencies
         run: cargo update
       - name: Cargo fmt check
