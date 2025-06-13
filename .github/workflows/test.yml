@@ -17,7 +17,9 @@ jobs:
             echo "$CARGO_HOME/bin" >> $GITHUB_PATH
           fi
       - name: Install wasm-pack
-        run: cargo install wasm-pack --version 0.10.3
+        run: cargo install wasm-pack --version 0.13.1
+      - name: Install wasm-tools
+        run: cargo install wasm-tools
       - name: Update dependencies
         run: cargo update
       - name: Cargo check
@@ -26,3 +28,10 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings || echo 'Clippy warnings found'
       - name: Run tests
         run: wasm-pack test --headless --chrome --log-level debug
+      - name: Generate lcov
+        run: wasm-tools coverage target/wasm32-unknown-unknown/debug/deps/*.wasm > lcov.info
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: lcov.info

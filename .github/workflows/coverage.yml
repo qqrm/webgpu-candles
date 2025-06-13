@@ -17,6 +17,14 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+      - name: Install wasm-tools
+        run: cargo install wasm-tools
+      - name: Run tests
+        run: wasm-pack test --headless --chrome
+      - name: Generate lcov
+        run: wasm-tools coverage target/wasm32-unknown-unknown/debug/deps/*.wasm > lcov.info
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov
       - name: Generate coverage
