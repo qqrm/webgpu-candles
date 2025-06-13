@@ -23,6 +23,7 @@ pub struct Globals {
     pub last_mouse_x: RwSignal<f64>,
     pub current_interval: RwSignal<TimeInterval>,
     pub current_symbol: RwSignal<Symbol>,
+    pub stream_abort_handle: RwSignal<Option<futures::future::AbortHandle>>,
 }
 
 // The `OnceCell` ensures this state is created at most once on demand.
@@ -43,5 +44,6 @@ pub fn globals() -> &'static Globals {
         last_mouse_x: create_rw_signal(0.0),
         current_interval: create_rw_signal(TimeInterval::OneMinute),
         current_symbol: create_rw_signal(Symbol::from("BTCUSDT")),
+        stream_abort_handle: create_rw_signal(None),
     })
 }
