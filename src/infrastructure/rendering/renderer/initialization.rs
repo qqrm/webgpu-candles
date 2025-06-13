@@ -58,6 +58,15 @@ impl WebGpuRenderer {
             .await
             .map_err(|e| JsValue::from_str(&format!("Failed to find adapter: {:?}", e)))?;
 
+        let adapter_info = adapter.get_info();
+        get_logger().info(
+            LogComponent::Infrastructure("WebGpuRenderer"),
+            &format!(
+                "\u{1f5a5}\u{fe0f} Adapter: {}, driver: {}, type: {:?}",
+                adapter_info.name, adapter_info.driver_info, adapter_info.device_type
+            ),
+        );
+
         // Get the adapter's supported limits to ensure compatibility
         let supported_limits = adapter.limits();
 
@@ -199,7 +208,7 @@ impl WebGpuRenderer {
             "✅ Full WebGPU renderer initialized successfully.",
         );
 
-        Ok(Self {
+        let renderer = Self {
             _canvas_id: canvas.id(),
             width,
             height,
@@ -223,7 +232,11 @@ impl WebGpuRenderer {
             last_frame_time: 0.0,
             fps_log: VecDeque::new(),
             line_visibility: LineVisibility::default(),
-        })
+        };
+
+        renderer.log_gpu_memory_usage();
+
+        Ok(renderer)
     }
 
     pub fn resize(&mut self, new_width: u32, new_height: u32) {

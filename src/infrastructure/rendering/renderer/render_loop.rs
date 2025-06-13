@@ -160,6 +160,30 @@ impl WebGpuRenderer {
         .to_string()
     }
 
+    /// Log GPU memory usage and return statistics as JSON
+    pub fn log_gpu_memory_usage(&self) -> String {
+        if let Some(report) = self.device.generate_allocator_report() {
+            let reserved = report.total_reserved_bytes / 1024 / 1024;
+            let allocated = report.total_allocated_bytes / 1024 / 1024;
+            let msg = format!(
+                "\u{1f4c8} GPU memory reserved: {} MB, allocated: {} MB",
+                reserved, allocated
+            );
+            get_logger().info(LogComponent::Infrastructure("WebGpuRenderer"), &msg);
+            serde_json::json!({
+                "reserved_mb": reserved,
+                "allocated_mb": allocated
+            })
+            .to_string()
+        } else {
+            get_logger().warn(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                "\u{26a0}\u{fe0f} GPU memory report unavailable",
+            );
+            "{}".to_string()
+        }
+    }
+
     /// Toggle indicator line visibility
     pub fn toggle_line_visibility(&mut self, line_name: &str) {
         match line_name {

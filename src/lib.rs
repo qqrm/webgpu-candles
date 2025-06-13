@@ -73,4 +73,12 @@ pub fn get_renderer_performance() -> String {
         .unwrap_or_else(|| "{\"backend\":\"WebGPU\",\"status\":\"not_ready\"}".to_string())
 }
 
+/// Get GPU memory statistics
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn get_gpu_memory_usage() -> String {
+    crate::infrastructure::rendering::renderer::with_global_renderer(|r| r.log_gpu_memory_usage())
+        .unwrap_or_else(|| "{}".to_string())
+}
+
 // Clean WASM exports only
