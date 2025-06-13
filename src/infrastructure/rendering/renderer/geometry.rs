@@ -141,6 +141,7 @@ impl WebGpuRenderer {
 
         let half_width = candle_width * 0.5;
 
+
         for (i, candle) in visible_candles.iter().enumerate() {
             let x = candle_x_position(i, visible_candles.len());
 
