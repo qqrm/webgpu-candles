@@ -137,10 +137,9 @@ impl WebGpuRenderer {
         // Create instance data for each visible candle
         let step_size = 2.0 / visible_candles.len() as f32;
         let candle_width = (step_size * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
-        let instances = Vec::with_capacity(visible_candles.len());
+        let mut instances = Vec::with_capacity(visible_candles.len());
 
         let half_width = candle_width * 0.5;
-
 
         for (i, candle) in visible_candles.iter().enumerate() {
             let x = candle_x_position(i, visible_candles.len());
@@ -180,6 +179,17 @@ impl WebGpuRenderer {
             };
 
             let is_bullish = close_y >= open_y;
+
+            instances.push(CandleInstance {
+                x,
+                width: candle_width,
+                body_top: actual_body_top,
+                body_bottom,
+                high: high_y,
+                low: low_y,
+                bullish: if is_bullish { 1.0 } else { 0.0 },
+                _padding: 0.0,
+            });
 
             // Candle body
             let body_vertices = vec![
