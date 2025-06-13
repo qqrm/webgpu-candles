@@ -658,7 +658,8 @@ fn ChartContainer() -> impl IntoView {
                     last_mouse_x().with(|last_x| {
                         let delta_x = mouse_x - *last_x;
                         pan_offset().update(|o| {
-                            let pan_sensitivity = zoom_level().with_untracked(|val| *val) * 0.001;
+                            // Increased sensitivity for smoother panning
+                            let pan_sensitivity = zoom_level().with_untracked(|val| *val) * 0.01;
                             *o += delta_x * pan_sensitivity;
                         });
                         chart_signal.update(|ch| {
