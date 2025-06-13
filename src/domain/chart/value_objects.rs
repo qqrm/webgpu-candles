@@ -81,6 +81,12 @@ impl Viewport {
 
         self.min_price = center_price - new_range / 2.0;
         self.max_price = center_price + new_range / 2.0;
+
+        if self.min_price < 0.1 {
+            let shift = 0.1 - self.min_price;
+            self.min_price += shift;
+            self.max_price += shift;
+        }
     }
 
     pub fn pan(&mut self, delta_x: f32, delta_y: f32) {
