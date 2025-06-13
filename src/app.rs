@@ -623,26 +623,6 @@ fn ChartContainer() -> impl IntoView {
         }
     });
 
-    // Effect to render when data changes
-    create_effect(move |_| {
-        renderer.with(|renderer_opt| {
-            if let Some(renderer_rc) = renderer_opt {
-                chart.with(|ch| {
-                    if ch.get_candle_count() > 0 {
-                        if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
-                            if let Err(e) = webgpu_renderer.render(ch) {
-                                set_status.set(format!("❌ Render error: {:?}", e));
-                            } else {
-                                set_status
-                                    .set(format!("✅ Rendered {} candles", ch.get_candle_count()));
-                            }
-                        }
-                    }
-                });
-            }
-        });
-    });
-
     // 🎯 Mouse events for the tooltip
     let handle_mouse_move = {
         let chart_signal = chart;
