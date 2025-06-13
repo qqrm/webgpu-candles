@@ -81,6 +81,12 @@ pub fn visible_range_by_time(
     (start, visible)
 }
 
+/// Calculate price axis levels based on the viewport
+pub fn price_levels(viewport: &crate::domain::chart::value_objects::Viewport) -> Vec<f64> {
+    let step = (viewport.max_price - viewport.min_price) as f64 / 8.0;
+    (0..=8).rev().map(|i| viewport.min_price as f64 + i as f64 * step).collect()
+}
+
 // Helper aliases for global signals
 global_signals! {
     global_current_price => current_price: f64,
@@ -380,26 +386,8 @@ fn header() -> impl IntoView {
 #[component]
 fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
     let labels = move || {
-        let interval = current_interval().get_untracked();
-        let candles = chart.with(|c| c.get_series(interval).unwrap().get_candles().clone());
-        if candles.is_empty() {
-            return vec![];
-        }
-
-        let (start_idx, visible) = visible_range(
-            candles.len(),
-            zoom_level().get_untracked(),
-            pan_offset().get_untracked(),
-        );
-        let (min, max) = candles
-            .iter()
-            .skip(start_idx)
-            .take(visible)
-            .fold((f64::MAX, f64::MIN), |(min, max), c| {
-                (min.min(c.ohlcv.low.value()), max.max(c.ohlcv.high.value()))
-            });
-        let step = (max - min) / 8.0;
-        (0..=8).rev().map(|i| min + i as f64 * step).collect::<Vec<_>>()
+        let vp = chart.with(|c| c.viewport.clone());
+        price_levels(&vp)
     };
 
     let handle_wheel = {
@@ -876,7 +864,7 @@ fn ChartContainer() -> impl IntoView {
                         on:mouseup=handle_mouse_up
                         on:keydown=handle_keydown
                     />
-                    <PriceScale />
+                    <PriceScale chart=chart />
                     <ChartTooltip />
                 </div>
             </div>
@@ -903,33 +891,19 @@ fn ChartContainer() -> impl IntoView {
 
 /// 💰 Price scale on the right side of the chart
 #[component]
-fn PriceScale() -> impl IntoView {
+fn PriceScale(chart: RwSignal<Chart>) -> impl IntoView {
     let current_price = global_current_price();
 
     // Calculate price levels for display (same as in the grid)
     let price_levels = move || {
-        let price = current_price.get();
-        if price <= 0.0 {
-            return vec![];
-        }
-
-        // Approximate price range (±3% of the current price)
-        let min_price = price * 0.97;
-        let max_price = price * 1.03;
-        let price_range = max_price - min_price;
-
-        // 8 price levels (as in the grid)
-        let num_levels = 8;
-        let mut levels = Vec::new();
-
-        for i in 0..=num_levels {
-            let level_price = min_price + (price_range * i as f64 / num_levels as f64);
-            let position_percent = (i as f64 / num_levels as f64) * 100.0;
-            levels.push((level_price, position_percent));
-        }
-
-        levels.reverse(); // Top to bottom
+        let vp = chart.with(|c| c.viewport.clone());
+        let levels = price_levels(&vp);
+        let step = 100.0 / 8.0;
         levels
+            .into_iter()
+            .enumerate()
+            .map(|(i, level_price)| (level_price, i as f64 * step))
+            .collect::<Vec<_>>()
     };
 
     view! {
