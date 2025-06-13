@@ -187,7 +187,8 @@ impl WebGpuRenderer {
             vertices.extend_from_slice(&body_vertices);
 
             // Round corners with small triangles
-            let corner = candle_width * 0.2;
+            // Increase rounding for more pronounced candle corners
+            let corner = candle_width * 0.35;
             let corners = vec![
                 // Top left
                 CandleVertex::body_vertex(x - half_width, actual_body_top - corner, is_bullish),
