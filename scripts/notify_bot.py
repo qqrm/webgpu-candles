@@ -18,8 +18,11 @@ def send_telegram(message: str) -> None:
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
         with urllib.request.urlopen(url, data=data) as resp:
+            body = resp.read().decode()
             if resp.status != 200:
-                print(f"Failed to send Telegram message: HTTP {resp.status}")
+                print(
+                    f"Failed to send Telegram message: HTTP {resp.status} {body}"
+                )
                 sys.exit(1)
     except Exception as err:
         print(f"Failed to send Telegram message: {err}")
