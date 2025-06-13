@@ -135,7 +135,9 @@ impl WebGpuRenderer {
         // Create instance data for each visible candle
         let step_size = 2.0 / visible_candles.len() as f32;
         let candle_width = (step_size * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
-        let mut instances = Vec::with_capacity(visible_candles.len());
+        let half_width = candle_width * 0.5;
+        let instances = Vec::with_capacity(visible_candles.len());
+        let mut vertices = Vec::with_capacity(visible_candles.len() * 30);
 
         for (i, candle) in visible_candles.iter().enumerate() {
             let x = candle_x_position(i, visible_candles.len());
@@ -259,8 +261,6 @@ impl WebGpuRenderer {
             ];
             vertices.extend_from_slice(&price_line);
         }
-
-        let vertices: Vec<CandleVertex> = BASE_TEMPLATE.to_vec();
 
         // Identity matrix - vertices are already in NDC coordinates [-1, 1]
         let view_proj_matrix = [
