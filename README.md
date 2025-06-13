@@ -113,11 +113,10 @@ npm test
 
 See [TESTS.md](TESTS.md) for more details about the test suite.
 
-Coverage can be collected with:
+Coverage can be collected with `cargo-llvm-cov`:
 
 ```bash
-wasm-pack test --headless --chrome --coverage
-wasm-tools coverage target/wasm32-unknown-unknown/debug/deps/*.wasm > lcov.info
+cargo llvm-cov --workspace --lcov --output-path lcov.info
 ```
 
 The generated `lcov.info` file can be uploaded by CI.
