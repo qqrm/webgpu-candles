@@ -119,9 +119,7 @@ impl WebGpuRenderer {
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniform Buffer"),
             contents: bytemuck::cast_slice(&[ChartUniforms::new()]),
-            usage: wgpu::BufferUsages::UNIFORM
-                | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::MAP_WRITE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         let uniform_bind_group_layout =
@@ -201,18 +199,14 @@ impl WebGpuRenderer {
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
             size: (std::mem::size_of::<CandleVertex>() * 100000) as u64,
-            usage: wgpu::BufferUsages::VERTEX
-                | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::MAP_WRITE,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
             size: (std::mem::size_of::<CandleInstance>() * 100000) as u64,
-            usage: wgpu::BufferUsages::VERTEX
-                | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::MAP_WRITE,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
