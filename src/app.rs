@@ -855,7 +855,10 @@ fn ChartContainer() -> impl IntoView {
         <div class="chart-container">
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
                 <AssetSelector chart=chart set_status=set_status />
-                <TimeframeSelector />
+                <div style="display:flex;gap:6px;">
+                    <TimeframeSelector />
+                    <CurrentTimeButton chart=chart />
+                </div>
             </div>
 
             <div style="display: flex; flex-direction: row; align-items: flex-start;">
@@ -1014,6 +1017,29 @@ fn TimeframeSelector() -> impl IntoView {
                 }
             />
         </div>
+    }
+}
+
+#[component]
+fn CurrentTimeButton(chart: RwSignal<Chart>) -> impl IntoView {
+    view! {
+        <button
+            style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
+            on:click=move |_| {
+                pan_offset().set(0.0);
+                chart.update(|c| c.update_viewport_for_data());
+                chart.with_untracked(|c| {
+                    if c.get_candle_count() > 0 {
+                        with_global_renderer(|r| {
+                            r.set_zoom_params(zoom_level().with_untracked(|z| *z), 0.0);
+                            let _ = r.render(c);
+                        });
+                    }
+                });
+            }
+        >
+            "Now"
+        </button>
     }
 }
 
