@@ -1,9 +1,75 @@
 use super::*;
 use crate::log_info;
+#[cfg(all(not(test), target_arch = "wasm32"))]
+use futures::channel::oneshot;
 use leptos::SignalGetUntracked;
 use serde_json;
+use std::hash::{Hash, Hasher};
 
 impl WebGpuRenderer {
+    fn geometry_hash(vertices: &[CandleVertex], uniforms: &ChartUniforms) -> u64 {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        bytemuck::cast_slice::<CandleVertex, u8>(vertices).hash(&mut hasher);
+        bytemuck::bytes_of(uniforms).hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn update_cached_geometry(
+        &mut self,
+        vertices: Vec<CandleVertex>,
+        uniforms: ChartUniforms,
+    ) -> bool {
+        let new_hash = Self::geometry_hash(&vertices, &uniforms);
+        if new_hash == self.cached_hash {
+            return false;
+        }
+
+        self.cached_vertices = vertices;
+        self.cached_uniforms = uniforms;
+        self.cached_hash = new_hash;
+        self.template_vertices = self.cached_vertices.len() as u32;
+        self.instance_count = 1;
+
+        #[cfg(not(test))]
+        self.write_buffers();
+
+        true
+    }
+
+    #[cfg(not(test))]
+    fn write_buffers(&self) {
+        let vertex_bytes = bytemuck::cast_slice(&self.cached_vertices);
+        let uniform_copy = self.cached_uniforms;
+        let uniform_bytes = bytemuck::bytes_of(&uniform_copy);
+        #[cfg(target_arch = "wasm32")]
+        self.write_with_map_async(self.vertex_buffer.clone(), vertex_bytes.to_vec());
+        #[cfg(target_arch = "wasm32")]
+        self.write_with_map_async(self.uniform_buffer.clone(), uniform_bytes.to_vec());
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.queue.write_buffer(&self.vertex_buffer, 0, vertex_bytes);
+            self.queue.write_buffer(&self.uniform_buffer, 0, uniform_bytes);
+        }
+    }
+
+    #[cfg(all(not(test), target_arch = "wasm32"))]
+    fn write_with_map_async(&self, buffer: wgpu::Buffer, data: Vec<u8>) {
+        let device = self.device.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let slice = buffer.slice(..);
+            let (tx, rx) = oneshot::channel();
+            slice.map_async(wgpu::MapMode::Write, move |r| {
+                tx.send(r).ok();
+            });
+            let _ = device.poll(wgpu::MaintainBase::Poll);
+            if matches!(rx.await, Ok(Ok(()))) {
+                slice.get_mapped_range_mut().copy_from_slice(&data);
+            }
+            buffer.unmap();
+        });
+    }
+
     pub fn render(&mut self, chart: &Chart) -> Result<(), JsValue> {
         // ⏱️ Measure frame time
         if let Some(window) = web_sys::window() {
@@ -47,29 +113,13 @@ impl WebGpuRenderer {
             || (self.zoom_level - self.cached_zoom_level).abs() > f64::EPSILON;
 
         if geometry_needs_update {
-            // Fast instanced rendering with volume bars
             let (vertices, uniforms) = self.create_geometry(chart);
             if vertices.is_empty() {
                 return Ok(());
             }
-            self.cached_vertices = vertices;
-            self.cached_instances = vec![]; // Do not use instances for simplicity
-            self.cached_uniforms = uniforms;
             self.cached_candle_count = candle_count;
             self.cached_zoom_level = self.zoom_level;
-
-            self.queue.write_buffer(
-                &self.vertex_buffer,
-                0,
-                bytemuck::cast_slice(&self.cached_vertices),
-            );
-            self.queue.write_buffer(
-                &self.uniform_buffer,
-                0,
-                bytemuck::cast_slice(&[self.cached_uniforms]),
-            );
-            self.template_vertices = self.cached_vertices.len() as u32;
-            self.instance_count = 1;
+            self.update_cached_geometry(vertices, uniforms);
         }
 
         // Skip empty check for simple shader - we don't use instances
@@ -541,10 +591,10 @@ mod tests {
                 template_vertices: 0,
                 instance_count: 0,
                 cached_vertices: Vec::new(),
-                cached_instances: Vec::new(),
                 cached_uniforms: ChartUniforms::new(),
                 cached_candle_count: 0,
                 cached_zoom_level: 1.0,
+                cached_hash: 0,
                 zoom_level: 1.0,
                 pan_offset: 0.0,
                 last_frame_time: 0.0,
@@ -580,5 +630,16 @@ mod tests {
         }
         assert_eq!(r.fps_log.len(), 60);
         assert_eq!(r.fps_log.front().copied(), Some(5.0));
+    }
+
+    #[test]
+    fn no_buffer_reupload_when_unchanged() {
+        let mut r = dummy_renderer();
+        let verts = vec![CandleVertex::body_vertex(0.0, 0.0, true)];
+        let uniforms = ChartUniforms::default();
+        assert!(r.update_cached_geometry(verts.clone(), uniforms));
+        let cached = r.cached_hash;
+        assert!(!r.update_cached_geometry(verts, ChartUniforms::default()));
+        assert_eq!(r.cached_hash, cached);
     }
 }
