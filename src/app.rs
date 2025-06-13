@@ -141,6 +141,17 @@ fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
                         ch.add_candle(candle.clone());
                     }
                 });
+                chart.with_untracked(|c| {
+                    if c.get_candle_count() > 0 {
+                        with_global_renderer(|r| {
+                            r.set_zoom_params(
+                                zoom_level().with_untracked(|z| *z),
+                                pan_offset().with_untracked(|p| *p),
+                            );
+                            let _ = r.render(c);
+                        });
+                    }
+                });
 
                 let new_count = chart.with(|c| c.get_candle_count());
                 let max_volume = chart.with(|c| {
@@ -1107,6 +1118,17 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
             );
 
             chart.update(|ch| ch.set_historical_data(historical_candles.clone()));
+            chart.with_untracked(|c| {
+                if c.get_candle_count() > 0 {
+                    with_global_renderer(|r| {
+                        r.set_zoom_params(
+                            zoom_level().with_untracked(|z| *z),
+                            pan_offset().with_untracked(|p| *p),
+                        );
+                        let _ = r.render(c);
+                    });
+                }
+            });
 
             // Update global signals using the historical data
             let cnt = chart.with(|c| c.get_candle_count());
@@ -1168,6 +1190,18 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
                         .fold(0.0f64, |a, b| a.max(b))
                 });
                 global_max_volume().set(max_vol);
+
+                chart.with_untracked(|ch| {
+                    if ch.get_candle_count() > 0 {
+                        with_global_renderer(|r| {
+                            r.set_zoom_params(
+                                zoom_level().with_untracked(|z| *z),
+                                pan_offset().with_untracked(|p| *p),
+                            );
+                            let _ = r.render(ch);
+                        });
+                    }
+                });
 
                 // Update the status
                 set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
