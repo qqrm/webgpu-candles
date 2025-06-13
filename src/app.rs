@@ -653,94 +653,88 @@ fn ChartContainer() -> impl IntoView {
             let mouse_y = event.offset_y() as f64;
 
             // 🔍 Handle panning
-            is_dragging().with(|dragging| {
-                if *dragging {
-                    last_mouse_x().with(|last_x| {
-                        let delta_x = mouse_x - *last_x;
-                        pan_offset().update(|o| {
-                            // Increased sensitivity for smoother panning
-                            let pan_sensitivity = zoom_level().with_untracked(|val| *val) * 0.01;
-                            *o += delta_x * pan_sensitivity;
-                        });
-                        chart_signal.update(|ch| {
-                            let factor_x = -(delta_x as f32) / ch.viewport.width as f32;
-                            ch.pan(factor_x, 0.0);
-                        });
-                        last_mouse_x().set(mouse_x);
-                    });
+            let dragging = is_dragging().get_untracked();
+            if dragging {
+                let last_x = last_mouse_x().get_untracked();
+                let delta_x = mouse_x - last_x;
+                pan_offset().update(|o| {
+                    let pan_sensitivity = zoom_level().with_untracked(|val| *val) * 0.001;
+                    *o += delta_x * pan_sensitivity;
+                });
+                chart_signal.update(|ch| {
+                    let factor_x = -(delta_x as f32) / ch.viewport.width as f32;
+                    ch.pan(factor_x, 0.0);
+                });
+                last_mouse_x().set(mouse_x);
 
-                    last_mouse_y().with(|last_y| {
-                        let delta_y = mouse_y - *last_y;
-                        chart_signal.update(|ch| {
-                            let factor = delta_y as f32 / ch.viewport.height as f32;
-                            ch.pan(0.0, factor);
-                        });
-                        last_mouse_y().set(mouse_y);
-                    });
+                let last_y = last_mouse_y().get_untracked();
+                let delta_y = mouse_y - last_y;
+                chart_signal.update(|ch| {
+                    let factor = delta_y as f32 / ch.viewport.height as f32;
+                    ch.pan(0.0, factor);
+                });
+                last_mouse_y().set(mouse_y);
 
-                    let need_history =
-                        pan_offset().with_untracked(|val| should_fetch_history(*val));
-                    if need_history {
-                        fetch_more_history(chart_signal, status_clone);
-                    }
+                let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
+                if need_history {
+                    fetch_more_history(chart_signal, status_clone);
+                }
 
-                    chart_signal.with_untracked(|ch| {
-                        if ch.get_candle_count() > 0 {
-                            renderer_clone.with_untracked(|renderer_opt| {
-                                if let Some(renderer_rc) = renderer_opt {
-                                    if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
-                                        webgpu_renderer.set_zoom_params(
-                                            zoom_level().with_untracked(|val| *val),
-                                            pan_offset().with_untracked(|val| *val),
-                                        );
-                                        let _ = webgpu_renderer.render(ch);
-                                    }
+                chart_signal.with_untracked(|ch| {
+                    if ch.get_candle_count() > 0 {
+                        renderer_clone.with_untracked(|renderer_opt| {
+                            if let Some(renderer_rc) = renderer_opt {
+                                if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
+                                    webgpu_renderer.set_zoom_params(
+                                        zoom_level().with_untracked(|val| *val),
+                                        pan_offset().with_untracked(|val| *val),
+                                    );
+                                    let _ = webgpu_renderer.render(ch);
                                 }
-                            });
-                        }
-                    });
-                } else {
-                    // Convert to NDC coordinates (assuming an 800x500 canvas)
-                    let canvas_width = 800.0;
-                    let canvas_height = 500.0;
-                    let ndc_x = (mouse_x / canvas_width) * 2.0 - 1.0;
-                    let _ndc_y = 1.0 - (mouse_y / canvas_height) * 2.0;
-
-                    chart_signal.with(|ch| {
-                        let interval = current_interval().get_untracked();
-                        let candles = ch.get_series(interval).unwrap().get_candles();
-                        if !candles.is_empty() {
-                            let (start_idx, visible_count) = visible_range(
-                                candles.len(),
-                                zoom_level().get_untracked(),
-                                pan_offset().get_untracked(),
-                            );
-                            let visible: Vec<_> =
-                                candles.iter().skip(start_idx).take(visible_count).collect();
-
-                            // Use the same logic as in candle_x_position
-                            let step_size = 2.0 / visible.len() as f64;
-                            // Inverse formula: if x = 1.0 - (visible_len - index - 1) * step_size
-                            // then index = visible_len - (1.0 - x) / step_size - 1
-                            let index_float =
-                                visible.len() as f64 - (1.0 - ndc_x) / step_size - 1.0;
-                            let candle_idx = index_float.round() as i32;
-
-                            if candle_idx >= 0 && (candle_idx as usize) < visible.len() {
-                                let candle = visible[candle_idx as usize];
-                                let data = TooltipData::new(candle.clone(), mouse_x, mouse_y);
-
-                                tooltip_data().set(Some(data));
-                                tooltip_visible().set(true);
-                            } else {
-                                tooltip_visible().set(false);
                             }
+                        });
+                    }
+                });
+            } else {
+                // Convert to NDC coordinates (assuming an 800x500 canvas)
+                let canvas_width = 800.0;
+                let canvas_height = 500.0;
+                let ndc_x = (mouse_x / canvas_width) * 2.0 - 1.0;
+                let _ndc_y = 1.0 - (mouse_y / canvas_height) * 2.0;
+
+                chart_signal.with_untracked(|ch| {
+                    let interval = current_interval().get_untracked();
+                    let candles = ch.get_series(interval).unwrap().get_candles();
+                    if !candles.is_empty() {
+                        let (start_idx, visible_count) = visible_range(
+                            candles.len(),
+                            zoom_level().get_untracked(),
+                            pan_offset().get_untracked(),
+                        );
+                        let visible: Vec<_> =
+                            candles.iter().skip(start_idx).take(visible_count).collect();
+
+                        // Use the same logic as in candle_x_position
+                        let step_size = 2.0 / visible.len() as f64;
+                        // Inverse formula: if x = 1.0 - (visible_len - index - 1) * step_size
+                        // then index = visible_len - (1.0 - x) / step_size - 1
+                        let index_float = visible.len() as f64 - (1.0 - ndc_x) / step_size - 1.0;
+                        let candle_idx = index_float.round() as i32;
+
+                        if candle_idx >= 0 && (candle_idx as usize) < visible.len() {
+                            let candle = visible[candle_idx as usize];
+                            let data = TooltipData::new(candle.clone(), mouse_x, mouse_y);
+
+                            tooltip_data().set(Some(data));
+                            tooltip_visible().set(true);
                         } else {
                             tooltip_visible().set(false);
                         }
-                    });
-                }
-            });
+                    } else {
+                        tooltip_visible().set(false);
+                    }
+                });
+            }
         }
     };
 
