@@ -102,6 +102,7 @@ global_signals! {
     last_mouse_x => last_mouse_x: f64,
     pub current_interval => current_interval: TimeInterval,
     pub current_symbol => current_symbol: Symbol,
+    pub stream_abort_handle => stream_abort_handle: Option<futures::future::AbortHandle>,
 }
 
 /// 📈 Fetch additional history and prepend it to the list
@@ -852,6 +853,11 @@ fn ChartContainer() -> impl IntoView {
 
     view! {
         <div class="chart-container">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <AssetSelector chart=chart set_status=set_status />
+                <TimeframeSelector />
+            </div>
+
             <div style="display: flex; flex-direction: row; align-items: flex-start;">
                 <PriceAxisLeft chart=chart />
                 <div style="position: relative;">
@@ -874,8 +880,6 @@ fn ChartContainer() -> impl IntoView {
                 </div>
             </div>
 
-            <TimeframeSelector />
-            <AssetSelector chart=chart set_status=set_status />
 
             // Time scale below the chart
             <div style="display: flex; justify-content: center; margin-top: 10px;">
@@ -1047,6 +1051,11 @@ fn AssetSelector(chart: RwSignal<Chart>, set_status: WriteSignal<String>) -> imp
 
 /// 🌐 Start WebSocket stream in Leptos and update global signals
 async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
+    if let Some(handle) = stream_abort_handle().get_untracked() {
+        handle.abort();
+        stream_abort_handle().set(None);
+    }
+
     let symbol = current_symbol().get_untracked();
     let interval = TimeInterval::OneMinute;
 
@@ -1103,45 +1112,53 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
     global_is_streaming().set(true);
 
     let stream_client_arc = Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol, interval)));
+    let (abort_handle, abort_reg) = futures::future::AbortHandle::new_pair();
+    stream_abort_handle().set(Some(abort_handle.clone()));
+    let fut = futures::future::Abortable::new(
+        async move {
+            let handler = move |candle: Candle| {
+                // Update the price in the global signal
+                global_current_price().set(candle.ohlcv.close.value());
+
+                chart.update(|ch| {
+                    ch.add_realtime_candle(candle.clone());
+                    if (zoom_level().get_untracked() - 1.0).abs() < f64::EPSILON
+                        && pan_offset().get_untracked().abs() < f64::EPSILON
+                    {
+                        ch.update_viewport_for_data();
+                    }
+                });
+
+                let count = chart.with(|c| c.get_candle_count());
+                global_candle_count().set(count);
+
+                let max_vol = chart.with(|c| {
+                    c.get_series(TimeInterval::OneMinute)
+                        .unwrap()
+                        .get_candles()
+                        .iter()
+                        .map(|c| c.ohlcv.volume.value())
+                        .fold(0.0f64, |a, b| a.max(b))
+                });
+                global_max_volume().set(max_vol);
+
+                // Update the status
+                set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
+            };
+
+            let result = {
+                let mut client = stream_client_arc.lock().await;
+                client.start_stream(handler).await
+            };
+            if let Err(e) = result {
+                set_status.set(format!("❌ WebSocket error: {}", e));
+                global_is_streaming().set(false);
+            }
+        },
+        abort_reg,
+    );
 
     let _ = spawn_local_with_current_owner(async move {
-        let handler = move |candle: Candle| {
-            // Update the price in the global signal
-            global_current_price().set(candle.ohlcv.close.value());
-
-            chart.update(|ch| {
-                ch.add_realtime_candle(candle.clone());
-                if (zoom_level().get_untracked() - 1.0).abs() < f64::EPSILON
-                    && pan_offset().get_untracked().abs() < f64::EPSILON
-                {
-                    ch.update_viewport_for_data();
-                }
-            });
-
-            let count = chart.with(|c| c.get_candle_count());
-            global_candle_count().set(count);
-
-            let max_vol = chart.with(|c| {
-                c.get_series(TimeInterval::OneMinute)
-                    .unwrap()
-                    .get_candles()
-                    .iter()
-                    .map(|c| c.ohlcv.volume.value())
-                    .fold(0.0f64, |a, b| a.max(b))
-            });
-            global_max_volume().set(max_vol);
-
-            // Update the status
-            set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
-        };
-
-        let result = {
-            let mut client = stream_client_arc.lock().await;
-            client.start_stream(handler).await
-        };
-        if let Err(e) = result {
-            set_status.set(format!("❌ WebSocket error: {}", e));
-            global_is_streaming().set(false);
-        }
+        let _ = fut.await;
     });
 }
