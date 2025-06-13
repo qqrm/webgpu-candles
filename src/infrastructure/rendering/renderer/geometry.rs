@@ -176,16 +176,88 @@ impl WebGpuRenderer {
 
             let is_bullish = close_y >= open_y;
 
-            instances.push(CandleInstance {
-                x,
-                width: candle_width,
-                body_top: actual_body_top,
-                body_bottom,
-                high: high_y,
-                low: low_y,
-                bullish: if is_bullish { 1.0 } else { 0.0 },
-                _padding: 0.0,
-            });
+            // Candle body
+            let body_vertices = vec![
+                CandleVertex::body_vertex(x - half_width, body_bottom, is_bullish),
+                CandleVertex::body_vertex(x + half_width, body_bottom, is_bullish),
+                CandleVertex::body_vertex(x - half_width, actual_body_top, is_bullish),
+                CandleVertex::body_vertex(x + half_width, body_bottom, is_bullish),
+                CandleVertex::body_vertex(x + half_width, actual_body_top, is_bullish),
+                CandleVertex::body_vertex(x - half_width, actual_body_top, is_bullish),
+            ];
+            vertices.extend_from_slice(&body_vertices);
+
+            // Round corners with small triangles
+            // Increase rounding for more pronounced candle corners
+            let corner = candle_width * 0.35;
+            let corners = vec![
+                // Top left
+                CandleVertex::body_vertex(x - half_width, actual_body_top - corner, is_bullish),
+                CandleVertex::body_vertex(x - half_width + corner, actual_body_top, is_bullish),
+                CandleVertex::body_vertex(x - half_width, actual_body_top, is_bullish),
+                // Top right
+                CandleVertex::body_vertex(x + half_width - corner, actual_body_top, is_bullish),
+                CandleVertex::body_vertex(x + half_width, actual_body_top - corner, is_bullish),
+                CandleVertex::body_vertex(x + half_width, actual_body_top, is_bullish),
+                // Bottom left
+                CandleVertex::body_vertex(x - half_width, body_bottom, is_bullish),
+                CandleVertex::body_vertex(x - half_width + corner, body_bottom, is_bullish),
+                CandleVertex::body_vertex(x - half_width, body_bottom + corner, is_bullish),
+                // Bottom right
+                CandleVertex::body_vertex(x + half_width, body_bottom, is_bullish),
+                CandleVertex::body_vertex(x + half_width, body_bottom + corner, is_bullish),
+                CandleVertex::body_vertex(x + half_width - corner, body_bottom, is_bullish),
+            ];
+            vertices.extend_from_slice(&corners);
+
+            // Add wicks (upper and lower)
+            let wick_width = candle_width * 0.1; // thin wicks
+            let wick_half = wick_width * 0.5;
+
+            // Upper wick
+            if high_y > actual_body_top {
+                let upper_wick = vec![
+                    CandleVertex::wick_vertex(x - wick_half, actual_body_top),
+                    CandleVertex::wick_vertex(x + wick_half, actual_body_top),
+                    CandleVertex::wick_vertex(x - wick_half, high_y),
+                    CandleVertex::wick_vertex(x + wick_half, actual_body_top),
+                    CandleVertex::wick_vertex(x + wick_half, high_y),
+                    CandleVertex::wick_vertex(x - wick_half, high_y),
+                ];
+                vertices.extend_from_slice(&upper_wick);
+            }
+
+            // Lower wick
+            if low_y < body_bottom {
+                let lower_wick = vec![
+                    CandleVertex::wick_vertex(x - wick_half, low_y),
+                    CandleVertex::wick_vertex(x + wick_half, low_y),
+                    CandleVertex::wick_vertex(x - wick_half, body_bottom),
+                    CandleVertex::wick_vertex(x + wick_half, low_y),
+                    CandleVertex::wick_vertex(x + wick_half, body_bottom),
+                    CandleVertex::wick_vertex(x - wick_half, body_bottom),
+                ];
+                vertices.extend_from_slice(&lower_wick);
+            }
+        }
+
+        // Add a solid line for the current price
+        if let Some(last_candle) = visible_candles.last() {
+            let current_price = last_candle.ohlcv.close.value() as f32;
+            let price_range = max_price - min_price;
+            let price_y = -0.5 + ((current_price - min_price) / price_range) * 1.3; // same area as candles
+
+            // Solid horizontal line across the entire screen
+            let line_thickness = 0.002;
+            let price_line = vec![
+                CandleVertex::current_price_vertex(-1.0, price_y - line_thickness),
+                CandleVertex::current_price_vertex(1.0, price_y - line_thickness),
+                CandleVertex::current_price_vertex(-1.0, price_y + line_thickness),
+                CandleVertex::current_price_vertex(1.0, price_y - line_thickness),
+                CandleVertex::current_price_vertex(1.0, price_y + line_thickness),
+                CandleVertex::current_price_vertex(-1.0, price_y + line_thickness),
+            ];
+            vertices.extend_from_slice(&price_line);
         }
 
         let vertices: Vec<CandleVertex> = BASE_TEMPLATE.to_vec();

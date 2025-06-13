@@ -301,7 +301,8 @@ impl CandleGeometry {
         vertices.extend_from_slice(&body_vertices);
 
         // Slightly round the corners with extra triangles
-        let corner = width * 0.2;
+        // Increase rounding for more pronounced candle corners
+        let corner = width * 0.35;
         let rounded_corners = [
             // Top left corner
             CandleVertex::body_vertex(x_normalized - half_width, body_top - corner, is_bullish),
