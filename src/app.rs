@@ -526,9 +526,14 @@ fn ChartContainer() -> impl IntoView {
 
     // Reference to the canvas element
     let canvas_ref = create_node_ref::<Canvas>();
+    let (initialized, set_initialized) = create_signal(false);
 
-    // Initialize WebGPU once the canvas is mounted
+    // Initialize WebGPU only once when the canvas is mounted
     canvas_ref.on_load(move |_| {
+        if initialized.get() {
+            return;
+        }
+        set_initialized.set(true);
         let _ = spawn_local_with_current_owner(async move {
             web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
             set_status.set("🚀 Initializing WebGPU renderer...".to_string());
