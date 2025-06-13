@@ -18,14 +18,17 @@ use crate::{
     domain::{
         chart::Chart,
         logging::{LogComponent, get_logger},
-        market_data::{Candle, TimeInterval, value_objects::Symbol},
+        market_data::{
+            Candle, TimeInterval,
+            value_objects::{Symbol, default_symbols},
+        },
     },
     infrastructure::{
         rendering::{
             WebGpuRenderer,
             renderer::{set_global_renderer, with_global_renderer},
         },
-        websocket::{BinanceWebSocketClient, get_global_rest_client, get_global_stream_client},
+        websocket::BinanceWebSocketClient,
     },
 };
 
@@ -93,6 +96,7 @@ global_signals! {
     last_mouse_x => last_mouse_x: f64,
     last_mouse_y => last_mouse_y: f64,
     pub current_interval => current_interval: TimeInterval,
+    pub current_symbol => current_symbol: Symbol,
 }
 
 /// 📈 Fetch additional history and prepend it to the list
@@ -113,13 +117,12 @@ fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
 
     loading_more().set(true);
 
+    let symbol = current_symbol().get_untracked();
     let _ = spawn_local_with_current_owner(async move {
-        let client_arc = get_global_rest_client().unwrap_or_else(|| {
-            Arc::new(Mutex::new(BinanceWebSocketClient::new(
-                Symbol::from("BTCUSDT"),
-                TimeInterval::OneMinute,
-            )))
-        });
+        let client_arc = Arc::new(Mutex::new(BinanceWebSocketClient::new(
+            symbol.clone(),
+            TimeInterval::OneMinute,
+        )));
         let result = {
             let client = client_arc.lock().await;
             client.fetch_historical_data_before(end_time, 300).await
@@ -172,9 +175,11 @@ impl TooltipData {
         // Format time from the timestamp
         let time_str = format!("Time: {}", candle.timestamp.value());
 
+        let symbol = current_symbol().get_untracked();
         let formatted_text = format!(
-            "{} BTC/USDT\n📈 Open:   ${:.2}\n📊 High:   ${:.2}\n📉 Low:    ${:.2}\n💰 Close:  ${:.2}\n📈 Change: ${:.2} ({:.2}%)\n📊 Volume: {:.4}\n{}",
+            "{} {}\n📈 Open:   ${:.2}\n📊 High:   ${:.2}\n📉 Low:    ${:.2}\n💰 Close:  ${:.2}\n📈 Change: ${:.2} ({:.2}%)\n📊 Volume: {:.4}\n{}",
             trend,
+            symbol.value(),
             candle.ohlcv.open.value(),
             candle.ohlcv.high.value(),
             candle.ohlcv.low.value(),
@@ -189,16 +194,16 @@ impl TooltipData {
     }
 }
 
-/// 🦀 Main Bitcoin Chart component built with Leptos
+/// 🦀 Main Crypto Chart component built with Leptos
 #[component]
 pub fn app() -> impl IntoView {
     // 🚀 Initialize the global logger on application start
     use crate::domain::logging::get_logger;
 
     // Extra console.log for diagnostics
-    web_sys::console::log_1(&"🚀 Starting Bitcoin Chart App".into());
+    web_sys::console::log_1(&"🚀 Starting Crypto Chart App".into());
 
-    get_logger().info(LogComponent::Presentation("App"), "🚀 Starting Bitcoin Chart App");
+    get_logger().info(LogComponent::Presentation("App"), "🚀 Starting Crypto Chart App");
 
     web_sys::console::log_1(&"📦 Creating view...".into());
 
@@ -334,8 +339,8 @@ fn header() -> impl IntoView {
 
     view! {
         <div class="header">
-            <h1>"🌐 Bitcoin WebSocket Chart"</h1>
-            <p>"BTC/USDT • Real-time Leptos + WebGPU"</p>
+            <h1>{move || format!("🌐 {} WebSocket Chart", current_symbol().get().value())}</h1>
+            <p>{move || format!("{} • Real-time Leptos + WebGPU", current_symbol().get().value())}</p>
 
             <div class="price-info">
                 <div class="price-item">
@@ -914,6 +919,7 @@ fn ChartContainer() -> impl IntoView {
             </div>
 
             <TimeframeSelector />
+            <AssetSelector chart=chart set_status=set_status />
 
             // Time scale below the chart
             <div style="display: flex; justify-content: center; margin-top: 10px;">
@@ -1065,15 +1071,45 @@ fn TimeframeSelector() -> impl IntoView {
     }
 }
 
+#[component]
+fn AssetSelector(chart: RwSignal<Chart>, set_status: WriteSignal<String>) -> impl IntoView {
+    let options = default_symbols();
+
+    view! {
+        <div style="display:flex;gap:6px;margin-top:8px;">
+            <For
+                each=move || options.clone()
+                key=|s: &Symbol| s.value().to_string()
+                children=move |sym: Symbol| {
+                    let label = sym.value().to_string();
+                    let chart_cloned = chart;
+                    let status_cloned = set_status;
+                    view! {
+                        <button
+                            style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
+                            on:click=move |_| {
+                                current_symbol().set(sym.clone());
+                                let _ = spawn_local_with_current_owner(async move {
+                                    start_websocket_stream(chart_cloned, status_cloned).await;
+                                });
+                            }
+                        >
+                            {label}
+                        </button>
+                    }
+                }
+            />
+        </div>
+    }
+}
+
 /// 🌐 Start WebSocket stream in Leptos and update global signals
 async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
-    let symbol = Symbol::from("BTCUSDT");
+    let symbol = current_symbol().get_untracked();
     let interval = TimeInterval::OneMinute;
 
-    // Use the global REST client for history
-    let rest_client_arc = get_global_rest_client().unwrap_or_else(|| {
-        Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)))
-    });
+    let rest_client_arc =
+        Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
 
     // Set the streaming status
     global_is_streaming().set(false);
@@ -1124,12 +1160,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
     set_status.set("🔌 Starting WebSocket stream...".to_string());
     global_is_streaming().set(true);
 
-    let stream_client_arc = get_global_stream_client().unwrap_or_else(|| {
-        Arc::new(Mutex::new(BinanceWebSocketClient::new(
-            Symbol::from("BTCUSDT"),
-            TimeInterval::OneMinute,
-        )))
-    });
+    let stream_client_arc = Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol, interval)));
 
     let _ = spawn_local_with_current_owner(async move {
         let handler = move |candle: Candle| {

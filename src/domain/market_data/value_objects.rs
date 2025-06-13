@@ -131,6 +131,11 @@ impl From<&str> for Symbol {
     }
 }
 
+/// List of supported trading symbols
+pub fn default_symbols() -> Vec<Symbol> {
+    vec![Symbol::from("BTCUSDT"), Symbol::from("ETHUSDT"), Symbol::from("SOLUSDT")]
+}
+
 /// Value Object - Time interval (only required variants)
 #[derive(
     Debug,

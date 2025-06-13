@@ -5,7 +5,7 @@
 //! access.
 
 use crate::app::TooltipData;
-use crate::domain::market_data::TimeInterval;
+use crate::domain::market_data::{Symbol, TimeInterval};
 use leptos::*;
 use once_cell::sync::OnceCell;
 
@@ -23,6 +23,7 @@ pub struct Globals {
     pub last_mouse_x: RwSignal<f64>,
     pub last_mouse_y: RwSignal<f64>,
     pub current_interval: RwSignal<TimeInterval>,
+    pub current_symbol: RwSignal<Symbol>,
 }
 
 // The `OnceCell` ensures this state is created at most once on demand.
@@ -43,5 +44,6 @@ pub fn globals() -> &'static Globals {
         last_mouse_x: create_rw_signal(0.0),
         last_mouse_y: create_rw_signal(0.0),
         current_interval: create_rw_signal(TimeInterval::OneMinute),
+        current_symbol: create_rw_signal(Symbol::from("BTCUSDT")),
     })
 }
