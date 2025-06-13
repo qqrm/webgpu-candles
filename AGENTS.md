@@ -22,3 +22,4 @@
 - Branch names must be strictly in English; do not use Russian words or letters.
 - Always provide branch names and task titles in English, even if the original request is in Russian.
 - If a task description is in Russian, use its English translation when naming branches and in task descriptions.
+- Any reported problem must be investigated and solved.
