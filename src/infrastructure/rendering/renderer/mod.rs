@@ -57,6 +57,7 @@ pub struct WebGpuRenderer {
     // Rendering pipeline
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
+    instance_buffer: wgpu::Buffer,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     template_vertices: u32,

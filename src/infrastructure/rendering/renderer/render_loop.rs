@@ -47,13 +47,12 @@ impl WebGpuRenderer {
             || (self.zoom_level - self.cached_zoom_level).abs() > f64::EPSILON;
 
         if geometry_needs_update {
-            // Fast instanced rendering with volume bars
-            let (vertices, uniforms) = self.create_geometry(chart);
-            if vertices.is_empty() {
+            let (instances, template, uniforms) = self.create_geometry(chart);
+            if instances.is_empty() {
                 return Ok(());
             }
-            self.cached_vertices = vertices;
-            self.cached_instances = vec![]; // Do not use instances for simplicity
+            self.cached_vertices = template;
+            self.cached_instances = instances;
             self.cached_uniforms = uniforms;
             self.cached_candle_count = candle_count;
             self.cached_zoom_level = self.zoom_level;
@@ -64,12 +63,17 @@ impl WebGpuRenderer {
                 bytemuck::cast_slice(&self.cached_vertices),
             );
             self.queue.write_buffer(
+                &self.instance_buffer,
+                0,
+                bytemuck::cast_slice(&self.cached_instances),
+            );
+            self.queue.write_buffer(
                 &self.uniform_buffer,
                 0,
                 bytemuck::cast_slice(&[self.cached_uniforms]),
             );
             self.template_vertices = self.cached_vertices.len() as u32;
-            self.instance_count = 1;
+            self.instance_count = self.cached_instances.len() as u32;
         }
 
         // Skip empty check for simple shader - we don't use instances
@@ -118,7 +122,8 @@ impl WebGpuRenderer {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..num_vertices, 0..1); // Non-instanced draw for simple shader
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            render_pass.draw(0..num_vertices, 0..self.instance_count);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -536,6 +541,7 @@ mod tests {
                 config: std::mem::MaybeUninit::zeroed().assume_init(),
                 render_pipeline: std::mem::MaybeUninit::zeroed().assume_init(),
                 vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
+                instance_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
                 template_vertices: 0,
@@ -580,5 +586,31 @@ mod tests {
         }
         assert_eq!(r.fps_log.len(), 60);
         assert_eq!(r.fps_log.front().copied(), Some(5.0));
+    }
+
+    #[test]
+    fn update_sets_instance_count() {
+        use crate::domain::{
+            chart::{Chart, ChartType},
+            market_data::{Candle, OHLCV, Price, Timestamp, Volume},
+        };
+
+        let mut chart = Chart::new("t".to_string(), ChartType::Candlestick, 10);
+        for i in 0..5 {
+            let ts = Timestamp::from_millis(i as u64);
+            let ohlcv = OHLCV::new(
+                Price::from(1.0),
+                Price::from(2.0),
+                Price::from(0.5),
+                Price::from(1.5),
+                Volume::from(1.0),
+            );
+            chart.add_candle(Candle::new(ts, ohlcv));
+        }
+        chart.update_viewport_for_data();
+
+        let mut r = dummy_renderer();
+        r.update(&chart);
+        assert_eq!(r.instance_count, 5);
     }
 }

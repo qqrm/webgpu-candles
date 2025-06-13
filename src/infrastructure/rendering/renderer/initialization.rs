@@ -138,8 +138,8 @@ impl WebGpuRenderer {
         });
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Simple Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../../simple_shader.wgsl").into()),
+            label: Some("Candle Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../../candle_shader.wgsl").into()),
         });
 
         let render_pipeline_layout =
@@ -155,7 +155,7 @@ impl WebGpuRenderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[CandleVertex::desc()],
+                buffers: &[CandleVertex::desc(), CandleInstance::desc()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -194,6 +194,13 @@ impl WebGpuRenderer {
             mapped_at_creation: false,
         });
 
+        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Instance Buffer"),
+            size: (std::mem::size_of::<CandleInstance>() * 100000) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
             "✅ Full WebGPU renderer initialized successfully.",
@@ -209,6 +216,7 @@ impl WebGpuRenderer {
             config,
             render_pipeline,
             vertex_buffer,
+            instance_buffer,
             uniform_buffer,
             uniform_bind_group,
             template_vertices: 0,
