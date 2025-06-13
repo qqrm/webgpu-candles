@@ -558,6 +558,7 @@ fn ChartContainer() -> impl IntoView {
                         let renderer_rc = Rc::new(RefCell::new(webgpu_renderer));
                         set_renderer.set(Some(renderer_rc.clone()));
                         set_global_renderer(renderer_rc.clone());
+                        let _ = renderer_rc.borrow().log_gpu_memory_usage();
                         set_status.set("✅ WebGPU renderer ready".to_string());
 
                         // Start WebSocket after the renderer is initialized
