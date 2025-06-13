@@ -8,9 +8,7 @@ use crate::domain::{
     chart::Chart,
     logging::{LogComponent, get_logger},
 };
-use crate::infrastructure::rendering::gpu_structures::{
-    CandleInstance, CandleVertex, ChartUniforms,
-};
+use crate::infrastructure::rendering::gpu_structures::{CandleVertex, ChartUniforms};
 use gloo::utils::document;
 use js_sys;
 use std::cell::RefCell;
@@ -64,10 +62,10 @@ pub struct WebGpuRenderer {
 
     // 🗄️ Cached data
     cached_vertices: Vec<CandleVertex>,
-    cached_instances: Vec<CandleInstance>,
     cached_uniforms: ChartUniforms,
     cached_candle_count: usize,
     cached_zoom_level: f64,
+    cached_hash: u64,
 
     // 🔍 Zoom and pan parameters
     zoom_level: f64,
