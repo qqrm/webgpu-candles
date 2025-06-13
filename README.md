@@ -124,15 +124,7 @@ The `coverage` workflow publishes the latest percentage to `docs/coverage.md`.
 
 ## Deployment monitor
 
-The monitor workflow (`deploy-monitor.yml`) waits for the `build` workflow to finish. If the deployed version matches the last commit SHA, it sends a Telegram message. Add `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` as repository secrets for notifications. The build writes the current commit hash to `docs/version`, so the deployed site exposes `/version` with that value.
-
-To send a notification manually run:
-
-```bash
-TELEGRAM_TOKEN=... TELEGRAM_CHAT_ID=... python scripts/notify_bot.py
-```
-
-Set `NOTIFY_MESSAGE` to override the default text. This lets you test the script locally without triggering the workflow.
+The monitor workflow (`deploy-monitor.yml`) waits for the `build` workflow to finish. If the deployed version matches the last commit SHA, the monitor job succeeds. The build writes the current commit hash to `docs/version`, so the deployed site exposes `/version` with that value.
 
 
 ## Docker

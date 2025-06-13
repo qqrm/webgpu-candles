@@ -26,8 +26,6 @@ jobs:
         run: cargo check --all-targets
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features -- -D warnings || echo 'Clippy warnings found'
-      - name: Python notify bot tests
-        run: python -m unittest discover -s tests -p 'test_notify_bot.py'
       - name: Run tests
         run: wasm-pack test --headless --chrome
       - name: Generate lcov
