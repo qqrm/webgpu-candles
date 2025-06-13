@@ -539,12 +539,11 @@ fn ChartContainer() -> impl IntoView {
     // Reference to the canvas element
     let canvas_ref = create_node_ref::<Canvas>();
 
-    // Effect to initialize WebGPU after mounting
-    create_effect(move |_| {
-        if canvas_ref.get().is_some() {
-            let _ = spawn_local_with_current_owner(async move {
-                web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
-                set_status.set("🚀 Initializing WebGPU renderer...".to_string());
+    // Initialize WebGPU once the canvas is mounted
+    canvas_ref.on_load(move |_| {
+        let _ = spawn_local_with_current_owner(async move {
+            web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
+            set_status.set("🚀 Initializing WebGPU renderer...".to_string());
 
                 // Detailed WebGPU diagnostics
                 web_sys::console::log_1(&"🏗️ Creating WebGPU renderer...".into());
@@ -619,7 +618,6 @@ fn ChartContainer() -> impl IntoView {
                     }
                 }
             });
-        }
     });
 
     // 🎯 Mouse events for the tooltip
