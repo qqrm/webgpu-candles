@@ -7,9 +7,14 @@ use serde_json;
 use std::hash::{Hash, Hasher};
 
 impl WebGpuRenderer {
-    fn geometry_hash(vertices: &[CandleVertex], uniforms: &ChartUniforms) -> u64 {
+    fn geometry_hash(
+        vertices: &[CandleVertex],
+        instances: &[CandleInstance],
+        uniforms: &ChartUniforms,
+    ) -> u64 {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         bytemuck::cast_slice::<CandleVertex, u8>(vertices).hash(&mut hasher);
+        bytemuck::cast_slice::<CandleInstance, u8>(instances).hash(&mut hasher);
         bytemuck::bytes_of(uniforms).hash(&mut hasher);
         hasher.finish()
     }
@@ -17,18 +22,20 @@ impl WebGpuRenderer {
     fn update_cached_geometry(
         &mut self,
         vertices: Vec<CandleVertex>,
+        instances: Vec<CandleInstance>,
         uniforms: ChartUniforms,
     ) -> bool {
-        let new_hash = Self::geometry_hash(&vertices, &uniforms);
+        let new_hash = Self::geometry_hash(&vertices, &instances, &uniforms);
         if new_hash == self.cached_hash {
             return false;
         }
 
         self.cached_vertices = vertices;
+        self.cached_instances = instances;
         self.cached_uniforms = uniforms;
         self.cached_hash = new_hash;
         self.template_vertices = self.cached_vertices.len() as u32;
-        self.instance_count = 1;
+        self.instance_count = self.cached_instances.len() as u32;
 
         #[cfg(not(test))]
         self.write_buffers();
@@ -39,16 +46,20 @@ impl WebGpuRenderer {
     #[cfg(not(test))]
     fn write_buffers(&self) {
         let vertex_bytes = bytemuck::cast_slice(&self.cached_vertices);
+        let instance_bytes = bytemuck::cast_slice(&self.cached_instances);
         let uniform_copy = self.cached_uniforms;
         let uniform_bytes = bytemuck::bytes_of(&uniform_copy);
         #[cfg(target_arch = "wasm32")]
         self.write_with_map_async(self.vertex_buffer.clone(), vertex_bytes.to_vec());
+        #[cfg(target_arch = "wasm32")]
+        self.write_with_map_async(self.instance_buffer.clone(), instance_bytes.to_vec());
         #[cfg(target_arch = "wasm32")]
         self.write_with_map_async(self.uniform_buffer.clone(), uniform_bytes.to_vec());
 
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.queue.write_buffer(&self.vertex_buffer, 0, vertex_bytes);
+            self.queue.write_buffer(&self.instance_buffer, 0, instance_bytes);
             self.queue.write_buffer(&self.uniform_buffer, 0, uniform_bytes);
         }
     }
@@ -113,13 +124,13 @@ impl WebGpuRenderer {
             || (self.zoom_level - self.cached_zoom_level).abs() > f64::EPSILON;
 
         if geometry_needs_update {
-            let (vertices, uniforms) = self.create_geometry(chart);
-            if vertices.is_empty() {
+            let (instances, vertices, uniforms) = self.create_geometry(chart);
+            if instances.is_empty() {
                 return Ok(());
             }
             self.cached_candle_count = candle_count;
             self.cached_zoom_level = self.zoom_level;
-            self.update_cached_geometry(vertices, uniforms);
+            self.update_cached_geometry(vertices, instances, uniforms);
         }
 
         // Skip empty check for simple shader - we don't use instances
@@ -168,7 +179,8 @@ impl WebGpuRenderer {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..num_vertices, 0..1); // Non-instanced draw for simple shader
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            render_pass.draw(0..num_vertices, 0..self.instance_count);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -586,11 +598,13 @@ mod tests {
                 config: std::mem::MaybeUninit::zeroed().assume_init(),
                 render_pipeline: std::mem::MaybeUninit::zeroed().assume_init(),
                 vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
+                instance_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
                 template_vertices: 0,
                 instance_count: 0,
                 cached_vertices: Vec::new(),
+                cached_instances: Vec::new(),
                 cached_uniforms: ChartUniforms::new(),
                 cached_candle_count: 0,
                 cached_zoom_level: 1.0,
@@ -636,10 +650,51 @@ mod tests {
     fn no_buffer_reupload_when_unchanged() {
         let mut r = dummy_renderer();
         let verts = vec![CandleVertex::body_vertex(0.0, 0.0, true)];
+        let inst = vec![CandleInstance {
+            x: 0.0,
+            width: 0.1,
+            body_top: 0.5,
+            body_bottom: 0.0,
+            high: 0.6,
+            low: -0.1,
+            bullish: 1.0,
+            _padding: 0.0,
+        }];
         let uniforms = ChartUniforms::default();
-        assert!(r.update_cached_geometry(verts.clone(), uniforms));
+        assert!(r.update_cached_geometry(verts.clone(), inst.clone(), uniforms));
         let cached = r.cached_hash;
-        assert!(!r.update_cached_geometry(verts, ChartUniforms::default()));
+        assert!(!r.update_cached_geometry(verts, inst, ChartUniforms::default()));
+        assert_eq!(r.instance_count, 1);
         assert_eq!(r.cached_hash, cached);
+    }
+
+    #[test]
+    fn instance_count_matches_instances() {
+        let mut r = dummy_renderer();
+        let verts = vec![CandleVertex::body_vertex(0.0, 0.0, true)];
+        let inst = vec![
+            CandleInstance {
+                x: 0.0,
+                width: 0.1,
+                body_top: 0.5,
+                body_bottom: 0.0,
+                high: 0.6,
+                low: -0.1,
+                bullish: 1.0,
+                _padding: 0.0,
+            },
+            CandleInstance {
+                x: 0.2,
+                width: 0.1,
+                body_top: 0.4,
+                body_bottom: -0.1,
+                high: 0.5,
+                low: -0.2,
+                bullish: 0.0,
+                _padding: 0.0,
+            },
+        ];
+        r.update_cached_geometry(verts, inst.clone(), ChartUniforms::default());
+        assert_eq!(r.instance_count, inst.len() as u32);
     }
 }
