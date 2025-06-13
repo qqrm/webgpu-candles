@@ -1,7 +1,5 @@
 use super::*;
 use crate::log_info;
-#[cfg(all(not(test), target_arch = "wasm32"))]
-use futures::channel::oneshot;
 use leptos::SignalGetUntracked;
 use serde_json;
 use std::hash::{Hash, Hasher};
@@ -49,36 +47,9 @@ impl WebGpuRenderer {
         let instance_bytes = bytemuck::cast_slice(&self.cached_instances);
         let uniform_copy = self.cached_uniforms;
         let uniform_bytes = bytemuck::bytes_of(&uniform_copy);
-        #[cfg(target_arch = "wasm32")]
-        self.write_with_map_async(self.vertex_buffer.clone(), vertex_bytes.to_vec());
-        #[cfg(target_arch = "wasm32")]
-        self.write_with_map_async(self.instance_buffer.clone(), instance_bytes.to_vec());
-        #[cfg(target_arch = "wasm32")]
-        self.write_with_map_async(self.uniform_buffer.clone(), uniform_bytes.to_vec());
-
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            self.queue.write_buffer(&self.vertex_buffer, 0, vertex_bytes);
-            self.queue.write_buffer(&self.instance_buffer, 0, instance_bytes);
-            self.queue.write_buffer(&self.uniform_buffer, 0, uniform_bytes);
-        }
-    }
-
-    #[cfg(all(not(test), target_arch = "wasm32"))]
-    fn write_with_map_async(&self, buffer: wgpu::Buffer, data: Vec<u8>) {
-        let device = self.device.clone();
-        wasm_bindgen_futures::spawn_local(async move {
-            let slice = buffer.slice(..);
-            let (tx, rx) = oneshot::channel();
-            slice.map_async(wgpu::MapMode::Write, move |r| {
-                tx.send(r).ok();
-            });
-            let _ = device.poll(wgpu::MaintainBase::Poll);
-            if matches!(rx.await, Ok(Ok(()))) {
-                slice.get_mapped_range_mut().copy_from_slice(&data);
-            }
-            buffer.unmap();
-        });
+        self.queue.write_buffer(&self.vertex_buffer, 0, vertex_bytes);
+        self.queue.write_buffer(&self.instance_buffer, 0, instance_bytes);
+        self.queue.write_buffer(&self.uniform_buffer, 0, uniform_bytes);
     }
 
     pub fn render(&mut self, chart: &Chart) -> Result<(), JsValue> {
