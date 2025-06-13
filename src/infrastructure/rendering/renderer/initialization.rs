@@ -110,7 +110,9 @@ impl WebGpuRenderer {
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniform Buffer"),
             contents: bytemuck::cast_slice(&[ChartUniforms::new()]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::MAP_WRITE,
         });
 
         let uniform_bind_group_layout =
@@ -189,8 +191,10 @@ impl WebGpuRenderer {
 
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
-            size: (std::mem::size_of::<CandleVertex>() * 100000) as u64, // 100k vertices ~= 1.6MB buffer
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            size: (std::mem::size_of::<CandleVertex>() * 100000) as u64,
+            usage: wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::MAP_WRITE,
             mapped_at_creation: false,
         });
 
@@ -214,10 +218,10 @@ impl WebGpuRenderer {
             template_vertices: 0,
             instance_count: 0,
             cached_vertices: Vec::new(),
-            cached_instances: Vec::new(),
             cached_uniforms: ChartUniforms::new(),
             cached_candle_count: 0,
             cached_zoom_level: 1.0,
+            cached_hash: 0,
             zoom_level: 1.0,
             pan_offset: 0.0,
             last_frame_time: 0.0,
