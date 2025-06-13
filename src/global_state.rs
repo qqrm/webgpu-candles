@@ -21,7 +21,6 @@ pub struct Globals {
     pub pan_offset: RwSignal<f64>,
     pub is_dragging: RwSignal<bool>,
     pub last_mouse_x: RwSignal<f64>,
-    pub last_mouse_y: RwSignal<f64>,
     pub current_interval: RwSignal<TimeInterval>,
     pub current_symbol: RwSignal<Symbol>,
 }
@@ -42,7 +41,6 @@ pub fn globals() -> &'static Globals {
         pan_offset: create_rw_signal(0.0),
         is_dragging: create_rw_signal(false),
         last_mouse_x: create_rw_signal(0.0),
-        last_mouse_y: create_rw_signal(0.0),
         current_interval: create_rw_signal(TimeInterval::OneMinute),
         current_symbol: create_rw_signal(Symbol::from("BTCUSDT")),
     })

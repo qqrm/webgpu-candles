@@ -94,7 +94,6 @@ global_signals! {
     pan_offset => pan_offset: f64,
     is_dragging => is_dragging: bool,
     last_mouse_x => last_mouse_x: f64,
-    last_mouse_y => last_mouse_y: f64,
     pub current_interval => current_interval: TimeInterval,
     pub current_symbol => current_symbol: Symbol,
 }
@@ -647,14 +646,6 @@ fn ChartContainer() -> impl IntoView {
                 });
                 last_mouse_x().set(mouse_x);
 
-                let last_y = last_mouse_y().get_untracked();
-                let delta_y = mouse_y - last_y;
-                chart_signal.update(|ch| {
-                    let factor = delta_y as f32 / ch.viewport.height as f32;
-                    ch.pan(0.0, factor);
-                });
-                last_mouse_y().set(mouse_y);
-
                 let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
                 if need_history {
                     fetch_more_history(chart_signal, status_clone);
@@ -774,7 +765,6 @@ fn ChartContainer() -> impl IntoView {
             // Left mouse button
             is_dragging().set(true);
             last_mouse_x().set(event.offset_x() as f64);
-            last_mouse_y().set(event.offset_y() as f64);
 
             // Give the canvas focus for keyboard events
             if let Some(target) = event.target() {
