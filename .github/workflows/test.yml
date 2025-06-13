@@ -27,7 +27,7 @@ jobs:
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features -- -D warnings || echo 'Clippy warnings found'
       - name: Run tests
-        run: wasm-pack test --headless --chrome --log-level debug
+        run: wasm-pack test --headless --chrome
       - name: Generate lcov
         run: wasm-tools coverage target/wasm32-unknown-unknown/debug/deps/*.wasm > lcov.info
       - name: Upload coverage
