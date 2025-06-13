@@ -2,14 +2,18 @@
 """Deployment notification helper."""
 
 import os
+import sys
 import urllib.parse
 import urllib.request
 
 
 def send_telegram(message: str) -> None:
     """Send a Telegram message using Bot API."""
-    token = os.environ["TELEGRAM_TOKEN"]
-    chat_id = os.environ["TELEGRAM_CHAT_ID"]
+    token = os.getenv("TELEGRAM_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        print("Missing TELEGRAM_TOKEN or TELEGRAM_CHAT_ID environment variables.")
+        sys.exit(1)
     data = urllib.parse.urlencode({"chat_id": chat_id, "text": message}).encode()
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
