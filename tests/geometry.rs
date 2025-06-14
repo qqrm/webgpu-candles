@@ -91,6 +91,16 @@ fn corner_segment_vertex_count() {
 }
 
 #[wasm_bindgen_test]
+fn corner_radius_ratio() {
+    let width = 0.1f32;
+    let x = 0.0f32;
+    let verts = CandleGeometry::create_candle_vertices(
+        0.0, 1.0, 1.1, 0.9, 1.05, x, 0.0, 0.1, -0.1, 0.05, width,
+    );
+
+    let corner = width * 0.15;
+    let expected_x = x - width * 0.5 + corner;
+    assert!((verts[0].position_x - expected_x).abs() < f32::EPSILON);
 fn very_low_candle_no_rounding() {
     let low = CandleGeometry::create_candle_vertices(
         0.0, 1.0, 1.05, 0.95, 1.0, 0.0, 0.0, 0.05, -0.05, 0.0, 0.05,
