@@ -249,6 +249,7 @@ impl WebGpuRenderer {
             cached_candle_count: 0,
             cached_zoom_level: 1.0,
             cached_hash: 0,
+            cached_data_hash: 0,
             zoom_level: 1.0,
             pan_offset: 0.0,
             last_frame_time: 0.0,
