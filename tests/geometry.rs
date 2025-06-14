@@ -62,3 +62,16 @@ fn candle_geometry_snapshot() {
         assert_json_snapshot!("candle_vertices", result);
     });
 }
+
+#[wasm_bindgen_test]
+fn candle_color_logic() {
+    let bullish = CandleGeometry::create_candle_vertices(
+        0.0, 1.0, 1.2, 0.8, 1.1, 0.0, 0.0, 0.2, -0.2, 0.1, 0.2,
+    );
+    assert!((bullish[0].color_type - 1.0).abs() < f32::EPSILON);
+
+    let bearish = CandleGeometry::create_candle_vertices(
+        0.0, 1.1, 1.2, 0.9, 1.0, 0.0, 0.1, 0.2, -0.2, 0.0, 0.2,
+    );
+    assert!((bearish[0].color_type - 0.0).abs() < f32::EPSILON);
+}
