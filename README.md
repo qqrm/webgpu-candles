@@ -68,7 +68,7 @@ Key folders are under `src/`:
 src/
 ├── app.rs                  # Leptos UI components and reactivity
 ├── lib.rs                  # WASM exports (entry points)
-├── candle_shader.wgsl      # WebGPU shaders
+├── simple_shader.wgsl      # WebGPU shaders
 ├── domain/                 # Core domain logic (chart, market data, logging)
 ├── infrastructure/         # WebSocket and WebGPU renderer implementations
 ```

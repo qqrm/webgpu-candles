@@ -3,7 +3,6 @@
 ## Improvement Checklist
 - [ ] Profile GPU memory usage
 - [x] Reduce vertex buffer updates
-- [ ] Use instanced drawing for candles
 - [x] Cache computations on the GPU side
 - [ ] Minimize CPU/GPU synchronization
 
