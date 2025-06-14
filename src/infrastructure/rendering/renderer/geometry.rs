@@ -338,6 +338,24 @@ impl WebGpuRenderer {
             vertices.extend_from_slice(&price_line);
         }
 
+        // Ichimoku cloud
+        let ichimoku = &chart.ichimoku;
+        if !ichimoku.senkou_span_a.is_empty() && !ichimoku.senkou_span_b.is_empty() {
+            let span_len = ichimoku.senkou_span_a.len().min(ichimoku.senkou_span_b.len());
+            let mut span_a_pts = Vec::new();
+            let mut span_b_pts = Vec::new();
+            for i in 0..span_len {
+                let x = candle_x_position(i, visible_count);
+                let y_a = -0.5
+                    + ((ichimoku.senkou_span_a[i].value() as f32 - min_price) / price_range) * 1.3;
+                let y_b = -0.5
+                    + ((ichimoku.senkou_span_b[i].value() as f32 - min_price) / price_range) * 1.3;
+                span_a_pts.push((x, y_a));
+                span_b_pts.push((x, y_b));
+            }
+            vertices.extend(CandleGeometry::create_ichimoku_cloud(&span_a_pts, &span_b_pts, 0.002));
+        }
+
         // Identity matrix - vertices are already in NDC coordinates [-1, 1]
         let view_proj_matrix = [
             [1.0, 0.0, 0.0, 0.0],

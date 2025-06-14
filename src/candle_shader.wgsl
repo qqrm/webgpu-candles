@@ -74,15 +74,25 @@ fn vs_main(vertex: VertexInput, inst: InstanceInput) -> VertexOutput {
     } else if (vertex.element_type < 2.5) {
         // Indicator lines
         if (vertex.color_type < 2.5) {
-            out.color = uniforms.sma20_color; // SMA 20 - red
+            out.color = uniforms.sma20_color;
         } else if (vertex.color_type < 3.5) {
-            out.color = uniforms.sma50_color; // SMA 50 - yellow
+            out.color = uniforms.sma50_color;
         } else if (vertex.color_type < 4.5) {
-            out.color = uniforms.sma200_color; // SMA 200 - blue
+            out.color = uniforms.sma200_color;
         } else if (vertex.color_type < 5.5) {
-            out.color = uniforms.ema12_color; // EMA 12 - purple
+            out.color = uniforms.ema12_color;
+        } else if (vertex.color_type < 6.5) {
+            out.color = uniforms.ema26_color;
+        } else if (vertex.color_type < 10.5) {
+            out.color = vec4<f32>(1.0, 0.5, 0.0, 0.9); // Tenkan-sen
+        } else if (vertex.color_type < 11.5) {
+            out.color = vec4<f32>(0.0, 0.5, 1.0, 0.9); // Kijun-sen
+        } else if (vertex.color_type < 12.5) {
+            out.color = vec4<f32>(0.6, 0.9, 0.6, 0.9); // Senkou Span A
+        } else if (vertex.color_type < 13.5) {
+            out.color = vec4<f32>(0.9, 0.6, 0.6, 0.9); // Senkou Span B
         } else {
-            out.color = uniforms.ema26_color; // EMA 26 - cyan
+            out.color = vec4<f32>(0.8, 0.8, 0.2, 0.9); // Chikou Span
         }
     } else if (vertex.element_type < 3.5) {
         // Chart grid
@@ -98,6 +108,13 @@ fn vs_main(vertex: VertexInput, inst: InstanceInput) -> VertexOutput {
         } else {
             // Bearish volume - red, slightly darker
             out.color = vec4<f32>(uniforms.bearish_color.rgb * 0.6, 0.8);
+        }
+    } else if (vertex.element_type < 6.5) {
+        // Ichimoku cloud area
+        if (vertex.color_type < 8.5) {
+            out.color = vec4<f32>(0.6, 0.9, 0.6, 0.4);
+        } else {
+            out.color = vec4<f32>(0.9, 0.6, 0.6, 0.4);
         }
     } else if (vertex.element_type > 98.0) {
         // ULTRA-SIMPLE TEST - bright red

@@ -8,6 +8,11 @@ pub enum IndicatorType {
     SMA200,
     EMA12,
     EMA26,
+    Tenkan,
+    Kijun,
+    SenkouA,
+    SenkouB,
+    Chikou,
 }
 
 /// GPU representation of a candle for the vertex buffer
@@ -53,6 +58,11 @@ impl CandleVertex {
             IndicatorType::SMA200 => 4.0,
             IndicatorType::EMA12 => 5.0,
             IndicatorType::EMA26 => 6.0,
+            IndicatorType::Tenkan => 10.0,
+            IndicatorType::Kijun => 11.0,
+            IndicatorType::SenkouA => 12.0,
+            IndicatorType::SenkouB => 13.0,
+            IndicatorType::Chikou => 14.0,
         };
 
         Self {
@@ -90,6 +100,16 @@ impl CandleVertex {
             position_y: y,
             element_type: 5.0,                              // volume bar
             color_type: if is_bullish { 1.0 } else { 0.0 }, // same color as candles
+        }
+    }
+
+    /// Create vertex for the Ichimoku cloud area
+    pub fn ichimoku_vertex(x: f32, y: f32, bullish: bool) -> Self {
+        Self {
+            position_x: x,
+            position_y: y,
+            element_type: 6.0,
+            color_type: if bullish { 8.0 } else { 9.0 },
         }
     }
 
@@ -416,6 +436,51 @@ impl CandleGeometry {
 
             vertices.extend_from_slice(&segment_vertices);
         }
+
+        vertices
+    }
+
+    /// Create vertices for the Ichimoku cloud (Span A/B area and lines)
+    pub fn create_ichimoku_cloud(
+        span_a: &[(f32, f32)],
+        span_b: &[(f32, f32)],
+        line_width: f32,
+    ) -> Vec<CandleVertex> {
+        let len = span_a.len().min(span_b.len());
+        if len < 2 {
+            return Vec::new();
+        }
+
+        let mut vertices = Vec::new();
+
+        // Cloud area
+        for i in 0..(len - 1) {
+            let (x1a, y1a) = span_a[i];
+            let (x2a, y2a) = span_a[i + 1];
+            let (x1b, y1b) = span_b[i];
+            let (x2b, y2b) = span_b[i + 1];
+            let bullish = (y1a + y2a) / 2.0 >= (y1b + y2b) / 2.0;
+            let tri = [
+                CandleVertex::ichimoku_vertex(x1a, y1a, bullish),
+                CandleVertex::ichimoku_vertex(x1b, y1b, bullish),
+                CandleVertex::ichimoku_vertex(x2a, y2a, bullish),
+                CandleVertex::ichimoku_vertex(x2a, y2a, bullish),
+                CandleVertex::ichimoku_vertex(x1b, y1b, bullish),
+                CandleVertex::ichimoku_vertex(x2b, y2b, bullish),
+            ];
+            vertices.extend_from_slice(&tri);
+        }
+
+        vertices.extend(Self::create_indicator_line_vertices(
+            span_a,
+            IndicatorType::SenkouA,
+            line_width,
+        ));
+        vertices.extend(Self::create_indicator_line_vertices(
+            span_b,
+            IndicatorType::SenkouB,
+            line_width,
+        ));
 
         vertices
     }

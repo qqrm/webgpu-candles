@@ -10,6 +10,16 @@ pub struct MovingAveragesData {
     pub ema_26: Vec<Price>,
 }
 
+/// Ichimoku indicator components
+#[derive(Debug, Clone, Default)]
+pub struct IchimokuData {
+    pub tenkan_sen: Vec<Price>,
+    pub kijun_sen: Vec<Price>,
+    pub senkou_span_a: Vec<Price>,
+    pub senkou_span_b: Vec<Price>,
+    pub chikou_span: Vec<Price>,
+}
+
 /// Domain service for market analysis
 pub struct MarketAnalysisService;
 
@@ -176,6 +186,72 @@ impl MarketAnalysisService {
             recent_returns.iter().map(|r| (r - mean_return).powi(2)).sum::<f64>() / period as f64;
 
         Some(variance.sqrt())
+    }
+
+    /// Calculate the Ichimoku Tenkan-sen
+    pub fn calculate_tenkan_sen(&self, candles: &[Candle], period: usize) -> Vec<Price> {
+        if candles.len() < period {
+            return Vec::new();
+        }
+
+        let mut result = Vec::new();
+        for i in (period - 1)..candles.len() {
+            let slice = &candles[i + 1 - period..=i];
+            let high = slice.iter().map(|c| c.ohlcv.high.value()).fold(f64::NEG_INFINITY, f64::max);
+            let low = slice.iter().map(|c| c.ohlcv.low.value()).fold(f64::INFINITY, f64::min);
+            result.push(Price::from((high + low) / 2.0));
+        }
+
+        result
+    }
+
+    /// Calculate the Ichimoku Kijun-sen
+    pub fn calculate_kijun_sen(&self, candles: &[Candle], period: usize) -> Vec<Price> {
+        self.calculate_tenkan_sen(candles, period)
+    }
+
+    /// Calculate Senkou Span A (average of Tenkan and Kijun)
+    pub fn calculate_senkou_span_a(
+        &self,
+        candles: &[Candle],
+        tenkan_period: usize,
+        kijun_period: usize,
+        _shift: usize,
+    ) -> Vec<Price> {
+        let tenkan = self.calculate_tenkan_sen(candles, tenkan_period);
+        let kijun = self.calculate_kijun_sen(candles, kijun_period);
+        let len = tenkan.len().min(kijun.len());
+        (0..len).map(|i| Price::from((tenkan[i].value() + kijun[i].value()) / 2.0)).collect()
+    }
+
+    /// Calculate Senkou Span B
+    pub fn calculate_senkou_span_b(
+        &self,
+        candles: &[Candle],
+        period: usize,
+        _shift: usize,
+    ) -> Vec<Price> {
+        self.calculate_tenkan_sen(candles, period)
+    }
+
+    /// Calculate the Chikou Span (closing prices shifted back)
+    pub fn calculate_chikou_span(&self, candles: &[Candle], shift: usize) -> Vec<Price> {
+        if candles.len() <= shift {
+            return Vec::new();
+        }
+
+        candles[..candles.len() - shift].iter().map(|c| c.ohlcv.close).collect()
+    }
+
+    /// Calculate all Ichimoku components with default periods
+    pub fn calculate_ichimoku(&self, candles: &[Candle]) -> IchimokuData {
+        IchimokuData {
+            tenkan_sen: self.calculate_tenkan_sen(candles, 9),
+            kijun_sen: self.calculate_kijun_sen(candles, 26),
+            senkou_span_a: self.calculate_senkou_span_a(candles, 9, 26, 26),
+            senkou_span_b: self.calculate_senkou_span_b(candles, 52, 26),
+            chikou_span: self.calculate_chikou_span(candles, 26),
+        }
     }
 }
 
