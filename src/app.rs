@@ -39,7 +39,7 @@ const MAX_VISIBLE_CANDLES: f64 = 32.0;
 const MIN_VISIBLE_CANDLES: f64 = 1.0;
 
 /// Minimum allowed zoom level
-const MIN_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / 150.0;
+const MIN_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / 300.0;
 /// Maximum allowed zoom level
 const MAX_ZOOM_LEVEL: f64 = 32.0;
 
@@ -1129,7 +1129,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 
     let hist_res = {
         let client = rest_client_arc.lock().await;
-        client.fetch_historical_data(300).await
+        client.fetch_historical_data(500).await
     };
     match hist_res {
         Ok(historical_candles) => {
@@ -1249,7 +1249,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 mod tests {
     use super::*;
     use crate::domain::chart::value_objects::ChartType;
-    use crate::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
+
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -1359,7 +1359,7 @@ mod tests {
     #[test]
     fn zoom_limits_respected_by_visible_range() {
         let (_, visible_min_zoom) = visible_range(1000, MIN_ZOOM_LEVEL, 0.0);
-        assert!(visible_min_zoom <= 150);
+        assert!(visible_min_zoom <= 300);
 
         let (_, visible_max_zoom) = visible_range(1000, MAX_ZOOM_LEVEL, 0.0);
         assert!(visible_max_zoom as f64 >= MIN_VISIBLE_CANDLES);
