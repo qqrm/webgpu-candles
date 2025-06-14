@@ -831,7 +831,6 @@ fn ChartContainer() -> impl IntoView {
                 <AssetSelector chart=chart set_status=set_status />
                 <div style="display:flex;gap:6px;">
                     <TimeframeSelector chart=chart />
-                    <CurrentTimeButton chart=chart />
                 </div>
             </div>
 
@@ -1002,29 +1001,6 @@ fn TimeframeSelector(chart: RwSignal<Chart>) -> impl IntoView {
                 }
             />
         </div>
-    }
-}
-
-#[component]
-fn CurrentTimeButton(chart: RwSignal<Chart>) -> impl IntoView {
-    view! {
-        <button
-            style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
-            on:click=move |_| {
-                pan_offset().set(0.0);
-                chart.update(|c| c.update_viewport_for_data());
-                chart.with_untracked(|c| {
-                    if c.get_candle_count() > 0 {
-                        with_global_renderer(|r| {
-                            r.set_zoom_params(zoom_level().with_untracked(|z| *z), 0.0);
-                            let _ = r.render(c);
-                        });
-                    }
-                });
-            }
-        >
-            "now"
-        </button>
     }
 }
 
@@ -1249,7 +1225,6 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 mod tests {
     use super::*;
     use crate::domain::chart::value_objects::ChartType;
-    
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -1341,19 +1316,6 @@ mod tests {
         renderer.borrow_mut().toggle_line_visibility("sma20");
 
         assert!(!cb.checked());
-    }
-    #[wasm_bindgen_test]
-    fn now_button_resets_pan() {
-        let container = setup_container();
-        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 100));
-        leptos::mount_to(container.clone(), move || view! { <CurrentTimeButton chart=chart /> });
-
-        pan_offset().set(5.0);
-
-        let now = find_button(&container, "now");
-        now.click();
-
-        assert_eq!(pan_offset().get(), 0.0);
     }
 
     #[test]

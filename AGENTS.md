@@ -12,7 +12,7 @@
 - Do not suppress warnings about unused code via `#[allow(dead_code)]`. Remove dead code instead.
 - When adding new functionality you must write tests.
 - Before tackling any task consult [ARCHITECTURE.md](DOCS/ARCHITECTURE.md) and ensure proposed changes match the current architecture.
-- When working with colors consult [colors.md](DOCS/colors.md).
+- When working with colors consult [COLORS.md](DOCS/COLORS.md).
 - Decisions on acceleration and optimization are made after studying [PERFORMANCE.md](DOCS/PERFORMANCE.md).
 - Keep pull requests concise and clear: list changes, provide references like `F:path#L1-L2`, and attach test results.
 - Markdown in the project must be consistent: use `#` for headers, specify languages for code blocks, and maintain clear structure.
