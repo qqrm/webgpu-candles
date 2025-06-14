@@ -62,7 +62,7 @@ After the fixes:
 | **Right edge**  | ✅ x=1.0            | ✅ x=1.0               |
 
 ## 📊 Covered Scenarios
-- Various zoom levels (0.1x - 10.0x)
+- Various zoom levels (0.2x - 32x)
 - Different numbers of visible candles (1-300)
 - Positioning edge cases
 - Synchronization of all chart elements (candles, volume, grid, indicators)
