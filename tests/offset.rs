@@ -19,7 +19,7 @@ fn candle_offset_calculation() {
 
 #[wasm_bindgen_test]
 fn candle_positioning_edge_cases() {
-    // Test with a single candle - should be centered (x=1.0)
+    // Test with a single candle - it should be on the right edge (x=1.0)
     let x_single = candle_x_position(0, 1);
     assert!((x_single - 1.0).abs() < f32::EPSILON);
 
