@@ -755,4 +755,48 @@ mod tests {
         r.cached_data_hash = new_hash;
         assert_ne!(r.cached_hash, old);
     }
+
+    #[test]
+    fn line_visibility_toggle_does_not_update_geometry() {
+        use crate::domain::chart::{Chart, value_objects::ChartType};
+        use crate::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
+
+        let mut chart = Chart::new("t".to_string(), ChartType::Candlestick, 10);
+        chart.add_candle(Candle::new(
+            Timestamp::from_millis(0),
+            OHLCV::new(
+                Price::from(1.0),
+                Price::from(1.5),
+                Price::from(0.5),
+                Price::from(1.2),
+                Volume::from(1.0),
+            ),
+        ));
+        chart.add_candle(Candle::new(
+            Timestamp::from_millis(60_000),
+            OHLCV::new(
+                Price::from(1.2),
+                Price::from(1.7),
+                Price::from(0.8),
+                Price::from(1.4),
+                Volume::from(1.0),
+            ),
+        ));
+
+        let mut r = dummy_renderer();
+        let (inst, verts, uni) = r.create_geometry(&chart);
+        r.update_cached_geometry(verts.clone(), inst.clone(), uni);
+        r.cached_candle_count = chart.get_candle_count();
+        r.cached_zoom_level = r.zoom_level;
+        r.cached_data_hash = WebGpuRenderer::data_hash(&chart, r.zoom_level);
+        let cached = r.cached_hash;
+
+        r.toggle_line_visibility("sma20");
+        let _ = r.render(&chart);
+        assert_eq!(r.cached_hash, cached);
+
+        let (inst2, verts2, uni2) = r.create_geometry(&chart);
+        let new_hash = WebGpuRenderer::geometry_hash(&verts2, &inst2, &uni2);
+        assert_ne!(new_hash, cached);
+    }
 }
