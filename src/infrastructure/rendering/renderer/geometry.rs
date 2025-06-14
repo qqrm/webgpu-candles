@@ -95,26 +95,16 @@ impl WebGpuRenderer {
         let mut vertices = Vec::with_capacity(visible_candles.len() * 24);
 
         // Scale candles based on currently visible data
-        let mut min_price = f64::MAX;
-        let mut max_price = f64::MIN;
-
+        let mut min_price = f32::INFINITY;
+        let mut max_price = f32::NEG_INFINITY;
         for candle in &visible_candles {
-            let o = candle.ohlcv.open.value();
-            let h = candle.ohlcv.high.value();
-            let l = candle.ohlcv.low.value();
-            let c = candle.ohlcv.close.value();
-
-            min_price = min_price.min(o).min(h).min(l).min(c);
-            max_price = max_price.max(o).max(h).max(l).max(c);
+            min_price = min_price.min(candle.ohlcv.low.value() as f32);
+            max_price = max_price.max(candle.ohlcv.high.value() as f32);
         }
 
         let price_range = (max_price - min_price).abs().max(1e-6);
-        let padding = price_range * 0.05;
-        min_price -= padding;
-        max_price += padding;
-
-        let min_price_f32 = min_price as f32;
-        let max_price_f32 = max_price as f32;
+        min_price -= price_range * 0.05;
+        max_price += price_range * 0.05;
 
         // Log estimated candle width using the number of visible candles
         let step_size = chart_width / visible_candles.len() as f64;
@@ -158,8 +148,10 @@ impl WebGpuRenderer {
         let mut instances = Vec::with_capacity(visible_candles.len());
 
         let price_range = max_price - min_price;
-        let price_norm =
-            |price: f64| -> f32 { (((price - min_price) / price_range) * 2.0 - 1.0) as f32 };
+        let price_norm = |price: f64| -> f32 {
+            let normalized = (price as f32 - min_price) / price_range;
+            normalized * 2.0 - 1.0
+        };
 
         for (i, candle) in visible_candles.iter().enumerate() {
             let x = candle_x_position(i, visible_candles.len());
@@ -343,10 +335,9 @@ impl WebGpuRenderer {
 
         // Add a solid line for the current price
         if let Some(last_candle) = visible_candles.last() {
-            let current_price = last_candle.ohlcv.close.value();
+            let current_price = last_candle.ohlcv.close.value() as f32;
             let price_range = max_price - min_price;
-            let price_y = ((current_price - min_price) / price_range) * 2.0 - 1.0;
-            let price_y = price_y as f32; // same area as candles
+            let price_y = ((current_price - min_price) / price_range) * 2.0 - 1.0; // same area as candles
 
             // Solid horizontal line across the entire screen
             let line_thickness = 0.002;
@@ -369,12 +360,12 @@ impl WebGpuRenderer {
             let mut span_b_pts = Vec::new();
             for i in 0..span_len {
                 let x = candle_x_position(i, visible_count);
-                let y_a =
-                    ((ichimoku.senkou_span_a[i].value() - min_price) / price_range) * 2.0 - 1.0;
-                let y_b =
-                    ((ichimoku.senkou_span_b[i].value() - min_price) / price_range) * 2.0 - 1.0;
-                let y_a = y_a as f32;
-                let y_b = y_b as f32;
+                let y_a = ((ichimoku.senkou_span_a[i].value() as f32 - min_price) / price_range)
+                    * 2.0
+                    - 1.0;
+                let y_b = ((ichimoku.senkou_span_b[i].value() as f32 - min_price) / price_range)
+                    * 2.0
+                    - 1.0;
                 span_a_pts.push((x, y_a));
                 span_b_pts.push((x, y_b));
             }
@@ -392,7 +383,7 @@ impl WebGpuRenderer {
         // Create uniforms with corrected parameters
         let uniforms = ChartUniforms {
             view_proj_matrix,
-            viewport: [self.width as f32, self.height as f32, min_price_f32, max_price_f32],
+            viewport: [self.width as f32, self.height as f32, min_price, max_price],
             time_range: [0.0, visible_candles.len() as f32, visible_candles.len() as f32, 0.0],
             bullish_color: [0.455, 0.780, 0.529, 1.0], // #74c787 - green
             bearish_color: [0.882, 0.424, 0.282, 1.0], // #e16c48 - red
@@ -432,13 +423,10 @@ mod tests {
                 config: std::mem::MaybeUninit::zeroed().assume_init(),
                 render_pipeline: std::mem::MaybeUninit::zeroed().assume_init(),
                 vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
-                instance_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
                 template_vertices: 0,
-                template_instances: 0,
                 cached_vertices: Vec::new(),
-                cached_instances: Vec::new(),
                 cached_uniforms: ChartUniforms::new(),
                 cached_candle_count: 0,
                 cached_zoom_level: 1.0,
@@ -544,22 +532,17 @@ mod tests {
         let visible: Vec<Candle> =
             candles.iter().skip(start_index).take(visible_count).cloned().collect();
 
-        let mut min_price = f64::MAX;
-        let mut max_price = f64::MIN;
+        let mut min_price = f32::INFINITY;
+        let mut max_price = f32::NEG_INFINITY;
         for c in &visible {
-            let o = c.ohlcv.open.value();
-            let h = c.ohlcv.high.value();
-            let l = c.ohlcv.low.value();
-            let cl = c.ohlcv.close.value();
-            min_price = min_price.min(o).min(h).min(l).min(cl);
-            max_price = max_price.max(o).max(h).max(l).max(cl);
+            min_price = min_price.min(c.ohlcv.low.value() as f32);
+            max_price = max_price.max(c.ohlcv.high.value() as f32);
         }
-        let mut pr = (max_price - min_price).abs().max(1e-6);
-        let pad = pr * 0.05;
-        min_price -= pad;
-        max_price += pad;
-        pr = max_price - min_price;
-        let price_norm = |p: f64| -> f32 { (((p - min_price) / pr) * 2.0 - 1.0) as f32 };
+        let pr = max_price - min_price;
+        min_price -= pr * 0.05;
+        max_price += pr * 0.05;
+        let price_norm =
+            |p: f64| -> f32 { ((p as f32 - min_price) / (max_price - min_price)) * 2.0 - 1.0 };
 
         let analysis = MarketAnalysisService::new();
         let mas = analysis.calculate_multiple_mas(&candles);
