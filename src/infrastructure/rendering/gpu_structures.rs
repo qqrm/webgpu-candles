@@ -366,9 +366,9 @@ impl CandleGeometry {
             CandleVertex::current_price_vertex(-1.0, current_price_y - half_width),
             CandleVertex::current_price_vertex(1.0, current_price_y - half_width),
             CandleVertex::current_price_vertex(-1.0, current_price_y + half_width),
+            CandleVertex::current_price_vertex(-1.0, current_price_y + half_width),
             CandleVertex::current_price_vertex(1.0, current_price_y - half_width),
             CandleVertex::current_price_vertex(1.0, current_price_y + half_width),
-            CandleVertex::current_price_vertex(-1.0, current_price_y + half_width),
         ]
     }
 
