@@ -105,11 +105,15 @@ impl Chart {
         if let Some(base) = self.series.get(&TimeInterval::OneMinute) {
             if let Some((min_price, max_price)) = base.price_range() {
                 // Add padding for better visualization (5% top and bottom)
-                let price_range = max_price.value() - min_price.value();
-                let padding = (price_range * 0.05) as f32;
+                let mut min_v = min_price.value() as f32;
+                let mut max_v = max_price.value() as f32;
+                let price_range = (max_v - min_v).abs().max(1e-6);
+                let padding = price_range * 0.05;
+                min_v -= padding;
+                max_v += padding;
 
-                self.viewport.min_price = (min_price.value() as f32 - padding).max(0.1); // Minimum $0.1
-                self.viewport.max_price = max_price.value() as f32 + padding;
+                self.viewport.min_price = min_v.max(0.1); // Minimum $0.1
+                self.viewport.max_price = max_v;
 
                 // Update the time range
                 let candles = base.get_candles();

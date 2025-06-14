@@ -102,7 +102,7 @@ impl WebGpuRenderer {
             max_price = max_price.max(candle.ohlcv.high.value() as f32);
         }
 
-        let price_range = max_price - min_price;
+        let price_range = (max_price - min_price).abs().max(1e-6);
         min_price -= price_range * 0.05;
         max_price += price_range * 0.05;
 
