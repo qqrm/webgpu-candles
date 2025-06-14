@@ -966,9 +966,6 @@ fn TimeframeSelector(chart: RwSignal<Chart>) -> impl IntoView {
         TimeInterval::FifteenMinutes,
         TimeInterval::ThirtyMinutes,
         TimeInterval::OneHour,
-        TimeInterval::OneDay,
-        TimeInterval::OneWeek,
-        TimeInterval::OneMonth,
     ];
 
     view! {
