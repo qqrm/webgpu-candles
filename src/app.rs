@@ -856,6 +856,7 @@ fn ChartContainer() -> impl IntoView {
                 </div>
             </div>
 
+            <Legend chart=chart />
 
             // Time scale below the chart
             <div style="display: flex; justify-content: center; margin-top: 10px;">
@@ -1063,6 +1064,44 @@ fn IndicatorToggles(chart: RwSignal<Chart>) -> impl IntoView {
 }
 
 #[component]
+fn LegendIndicatorToggle(name: &'static str, chart: RwSignal<Chart>) -> impl IntoView {
+    let id = name;
+    let label = name.to_uppercase();
+    view! {
+        <label style="display:flex;align-items:center;gap:4px;">
+            <input
+                type="checkbox"
+                id=id
+                checked=true
+                on:change=move |_| {
+                    chart.with_untracked(|c| {
+                        with_global_renderer(|r| {
+                            r.toggle_line_visibility(name);
+                            let _ = r.render(c);
+                        });
+                    });
+                }
+            />
+            {label}
+        </label>
+    }
+}
+
+#[component]
+fn Legend(chart: RwSignal<Chart>) -> impl IntoView {
+    let names = vec!["sma20", "sma50", "sma200", "ema12", "ema26"];
+    view! {
+        <div style="display:flex;gap:6px;margin-top:8px;">
+            <For
+                each=move || names.clone()
+                key=|name| name.to_string()
+                children=move |name| view! { <LegendIndicatorToggle name=name chart=chart /> }
+            />
+        </div>
+    }
+}
+
+#[component]
 fn AssetSelector(chart: RwSignal<Chart>, set_status: WriteSignal<String>) -> impl IntoView {
     let options = default_symbols();
 
@@ -1260,6 +1299,15 @@ mod tests {
         panic!("button with label {label} not found", label = label);
     }
 
+    fn find_checkbox(container: &web_sys::HtmlElement, id: &str) -> web_sys::HtmlInputElement {
+        container
+            .query_selector(&format!("#{}", id))
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+    }
+
     #[wasm_bindgen_test]
     fn timeframe_buttons_update_interval() {
         let container = setup_container();
@@ -1299,6 +1347,27 @@ mod tests {
 
         let changed = renderer.borrow().cached_hash_for_test();
         assert_ne!(changed, initial);
+    }
+
+    #[wasm_bindgen_test]
+    fn legend_checkbox_toggles_visibility() {
+        use crate::infrastructure::rendering::renderer::{dummy_renderer, set_global_renderer};
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        let container = setup_container();
+        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 10));
+        let renderer = Rc::new(RefCell::new(dummy_renderer()));
+
+        set_global_renderer(renderer.clone());
+        leptos::mount_to(container.clone(), move || view! { <Legend chart=chart /> });
+
+        let cb = find_checkbox(&container, "sma20");
+        cb.click();
+
+        assert!(!renderer.borrow().line_visibility().sma_20);
+    }
+    #[wasm_bindgen_test]
     fn now_button_resets_pan() {
         let container = setup_container();
         let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 100));

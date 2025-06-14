@@ -260,6 +260,10 @@ impl WebGpuRenderer {
         }
     }
 
+    pub fn line_visibility(&self) -> LineVisibility {
+        self.line_visibility.clone()
+    }
+
     /// Check if the legend checkbox was clicked
     pub fn check_legend_checkbox_click(&self, mouse_x: f32, mouse_y: f32) -> Option<String> {
         const LEGEND_LEFT: f32 = 10.0;
