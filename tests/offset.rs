@@ -31,6 +31,13 @@ fn candle_positioning_edge_cases() {
 }
 
 #[wasm_bindgen_test]
+fn single_candle_centered() {
+    // When only one candle is visible it should be centered at x=0.0
+    let pos = candle_x_position(0, 1);
+    assert!((pos - 0.0).abs() < f32::EPSILON);
+}
+
+#[wasm_bindgen_test]
 fn candle_positioning_monotonic() {
     // Test that positions are monotonically increasing
     let visible = 5;
