@@ -33,7 +33,7 @@ use crate::{
 };
 
 /// Maximum number of candles visible at 1x zoom
-const MAX_VISIBLE_CANDLES: f64 = 50.0;
+const MAX_VISIBLE_CANDLES: f64 = 32.0;
 /// Minimum number of candles that must remain visible
 const MIN_VISIBLE_CANDLES: f64 = 20.0;
 
