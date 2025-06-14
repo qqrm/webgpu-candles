@@ -84,20 +84,17 @@ impl WebGpuRenderer {
 
         let mut vertices = Vec::with_capacity(visible_candles.len() * 24);
 
-        // Use viewport values for vertical panning
-        let mut min_price = chart.viewport.min_price;
-        let mut max_price = chart.viewport.max_price;
-        if (max_price - min_price).abs() < f32::EPSILON {
-            // If the range is zero, calculate it from data
-            for candle in &visible_candles {
-                min_price = min_price.min(candle.ohlcv.low.value() as f32);
-                max_price = max_price.max(candle.ohlcv.high.value() as f32);
-            }
-
-            let price_range = max_price - min_price;
-            min_price -= price_range * 0.05;
-            max_price += price_range * 0.05;
+        // Scale candles based on currently visible data
+        let mut min_price = f32::INFINITY;
+        let mut max_price = f32::NEG_INFINITY;
+        for candle in &visible_candles {
+            min_price = min_price.min(candle.ohlcv.low.value() as f32);
+            max_price = max_price.max(candle.ohlcv.high.value() as f32);
         }
+
+        let price_range = max_price - min_price;
+        min_price -= price_range * 0.05;
+        max_price += price_range * 0.05;
 
         // Calculate visible candle width and spacing
         let spacing_ratio = 0.2; // 20% spacing between candles
