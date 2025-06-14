@@ -35,6 +35,8 @@ pub const BASE_TEMPLATE: [CandleVertex; 18] = [
 pub const MIN_ELEMENT_WIDTH: f32 = 0.002;
 /// Maximum element width (candle or volume bar)
 pub const MAX_ELEMENT_WIDTH: f32 = 0.1;
+/// Ratio of space left empty between elements
+pub const SPACING_RATIO: f32 = 0.2;
 
 /// Candle/bar position taking right edge into account
 pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
@@ -97,16 +99,14 @@ impl WebGpuRenderer {
         max_price += price_range * 0.05;
 
         // Calculate visible candle width and spacing
-        let spacing_ratio = 0.2; // 20% spacing between candles
         let step_size = chart_width / candle_count as f64;
-        let max_candle_width = step_size * (1.0 - spacing_ratio);
-        let _candle_width = max_candle_width.clamp(0.01, 0.06); // Reasonable width limits
+        let candle_width_estimate = step_size * (1.0 - SPACING_RATIO as f64);
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
             &format!(
                 "📏 Price range: {:.2} - {:.2}, Candle width: {:.4}, step:{:.4}",
-                min_price, max_price, _candle_width, step_size
+                min_price, max_price, candle_width_estimate, step_size
             ),
         );
 
@@ -133,7 +133,7 @@ impl WebGpuRenderer {
 
         // Create instance data for each visible candle
         let step_size = 2.0 / visible_candles.len() as f32;
-        let candle_width = (step_size * 0.8).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
+        let candle_width = (step_size * (1.0 - SPACING_RATIO)).max(MIN_ELEMENT_WIDTH);
         let mut instances = Vec::with_capacity(visible_candles.len());
 
         let half_width = candle_width * 0.5;
@@ -294,7 +294,7 @@ impl WebGpuRenderer {
             ema12_color: [0.8, 0.2, 0.8, 0.9],         // purple
             ema26_color: [0.0, 0.8, 0.8, 0.9],         // cyan
             current_price_color: [1.0, 1.0, 0.0, 0.8], // 💰 bright yellow
-            render_params: [candle_width, spacing_ratio as f32, 0.004, 0.0],
+            render_params: [candle_width, SPACING_RATIO, 0.004, 0.0],
         };
 
         (instances, vertices, uniforms)
