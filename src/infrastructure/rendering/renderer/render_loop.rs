@@ -17,6 +17,21 @@ impl WebGpuRenderer {
         hasher.finish()
     }
 
+    pub fn data_hash(chart: &Chart, zoom: f64) -> u64 {
+        let candles = chart.get_series_for_zoom(zoom).get_candles();
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        candles.len().hash(&mut hasher);
+        for c in candles {
+            c.timestamp.value().hash(&mut hasher);
+            c.ohlcv.open.value().to_bits().hash(&mut hasher);
+            c.ohlcv.high.value().to_bits().hash(&mut hasher);
+            c.ohlcv.low.value().to_bits().hash(&mut hasher);
+            c.ohlcv.close.value().to_bits().hash(&mut hasher);
+            c.ohlcv.volume.value().to_bits().hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
     fn update_cached_geometry(
         &mut self,
         vertices: Vec<CandleVertex>,
@@ -91,16 +106,20 @@ impl WebGpuRenderer {
             return Ok(());
         }
 
+        let data_hash = Self::data_hash(chart, self.zoom_level);
+        let data_changed = data_hash != self.cached_data_hash;
+
         let geometry_needs_update = candle_count != self.cached_candle_count
             || (self.zoom_level - self.cached_zoom_level).abs() > f64::EPSILON;
 
-        if geometry_needs_update {
+        if geometry_needs_update || data_changed {
             let (instances, vertices, uniforms) = self.create_geometry(chart);
             if instances.is_empty() {
                 return Ok(());
             }
             self.cached_candle_count = candle_count;
             self.cached_zoom_level = self.zoom_level;
+            self.cached_data_hash = data_hash;
             self.update_cached_geometry(vertices, instances, uniforms);
         }
 
@@ -604,6 +623,7 @@ mod tests {
                 cached_candle_count: 0,
                 cached_zoom_level: 1.0,
                 cached_hash: 0,
+                cached_data_hash: 0,
                 zoom_level: 1.0,
                 pan_offset: 0.0,
                 last_frame_time: 0.0,
@@ -691,5 +711,58 @@ mod tests {
         ];
         r.update_cached_geometry(verts, inst.clone(), ChartUniforms::default());
         assert_eq!(r.instance_count, inst.len() as u32);
+    }
+
+    #[test]
+    fn geometry_updates_on_data_change() {
+        use crate::domain::chart::{Chart, value_objects::ChartType};
+        use crate::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
+
+        let mut chart = Chart::new("t".to_string(), ChartType::Candlestick, 10);
+        chart.add_candle(Candle::new(
+            Timestamp::from_millis(0),
+            OHLCV::new(
+                Price::from(1.0),
+                Price::from(1.5),
+                Price::from(0.5),
+                Price::from(1.2),
+                Volume::from(1.0),
+            ),
+        ));
+        chart.add_candle(Candle::new(
+            Timestamp::from_millis(60_000),
+            OHLCV::new(
+                Price::from(1.2),
+                Price::from(1.7),
+                Price::from(0.8),
+                Price::from(1.4),
+                Volume::from(1.0),
+            ),
+        ));
+
+        let mut r = dummy_renderer();
+        let (inst, verts, uni) = r.create_geometry(&chart);
+        r.update_cached_geometry(verts, inst, uni);
+        r.cached_data_hash = WebGpuRenderer::data_hash(&chart, r.zoom_level);
+        let old = r.cached_hash;
+
+        chart.add_candle(Candle::new(
+            Timestamp::from_millis(60_000),
+            OHLCV::new(
+                Price::from(1.2),
+                Price::from(1.9),
+                Price::from(0.8),
+                Price::from(1.6),
+                Volume::from(1.0),
+            ),
+        ));
+
+        assert_eq!(chart.get_candle_count(), 2);
+        let new_hash = WebGpuRenderer::data_hash(&chart, r.zoom_level);
+        assert_ne!(new_hash, r.cached_data_hash);
+        let (inst2, verts2, uni2) = r.create_geometry(&chart);
+        assert!(r.update_cached_geometry(verts2, inst2, uni2));
+        r.cached_data_hash = new_hash;
+        assert_ne!(r.cached_hash, old);
     }
 }

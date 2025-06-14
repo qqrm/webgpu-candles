@@ -1,6 +1,10 @@
 use super::*;
 use crate::domain::logging::{LogComponent, get_logger};
-use crate::infrastructure::rendering::gpu_structures::{CandleGeometry, CandleInstance};
+use crate::domain::market_data::Price;
+use crate::domain::market_data::services::MarketAnalysisService;
+use crate::infrastructure::rendering::gpu_structures::{
+    CandleGeometry, CandleInstance, IndicatorType,
+};
 use leptos::SignalGetUntracked;
 
 /// Base number of grid cells
@@ -137,16 +141,14 @@ impl WebGpuRenderer {
         let mut instances = Vec::with_capacity(visible_candles.len());
 
         let half_width = candle_width * 0.5;
+        let price_range = max_price - min_price;
+        let price_norm = |price: f64| -> f32 {
+            let normalized = (price as f32 - min_price) / price_range;
+            -0.5 + normalized * 1.3
+        };
 
         for (i, candle) in visible_candles.iter().enumerate() {
             let x = candle_x_position(i, visible_candles.len());
-
-            // Normalize Y - use the upper part of the screen [-0.5, 0.8] for candles
-            let price_range = max_price - min_price;
-            let price_norm = |price: f64| -> f32 {
-                let normalized = (price as f32 - min_price) / price_range;
-                -0.5 + normalized * 1.3 // Map to [-0.5, 0.8] - leave room for volume
-            };
 
             let open_y = price_norm(candle.ohlcv.open.value());
             let high_y = price_norm(candle.ohlcv.high.value());
@@ -253,6 +255,70 @@ impl WebGpuRenderer {
             }
         }
 
+        // Calculate moving averages for indicator lines
+        let analysis = MarketAnalysisService::new();
+        let mas = analysis.calculate_multiple_mas(&visible_candles);
+
+        let to_points = |values: &[Price], period: usize| -> Vec<(f32, f32)> {
+            values
+                .iter()
+                .enumerate()
+                .map(|(idx, val)| {
+                    let candle_idx = idx + period - 1;
+                    let x = candle_x_position(candle_idx, visible_candles.len());
+                    let y = price_norm(val.value());
+                    (x, y)
+                })
+                .collect()
+        };
+
+        let line_width = 0.004;
+
+        if self.line_visibility.sma_20 {
+            let points = to_points(&mas.sma_20, 20);
+            vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
+                &points,
+                IndicatorType::SMA20,
+                line_width,
+            ));
+        }
+
+        if self.line_visibility.sma_50 {
+            let points = to_points(&mas.sma_50, 50);
+            vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
+                &points,
+                IndicatorType::SMA50,
+                line_width,
+            ));
+        }
+
+        if self.line_visibility.sma_200 {
+            let points = to_points(&mas.sma_200, 200);
+            vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
+                &points,
+                IndicatorType::SMA200,
+                line_width,
+            ));
+        }
+
+        if self.line_visibility.ema_12 {
+            let points = to_points(&mas.ema_12, 12);
+            vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
+                &points,
+                IndicatorType::EMA12,
+                line_width,
+            ));
+        }
+
+        if self.line_visibility.ema_26 {
+            let points = to_points(&mas.ema_26, 26);
+            vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
+                &points,
+                IndicatorType::EMA26,
+                line_width,
+            ));
+        }
+
         // Add a solid line for the current price
         if let Some(last_candle) = visible_candles.last() {
             let current_price = last_candle.ohlcv.close.value() as f32;
@@ -316,5 +382,78 @@ impl WebGpuRenderer {
         };
 
         (instances, vertices, uniforms)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::{
+        chart::{Chart, value_objects::ChartType},
+        market_data::{Candle, OHLCV, Price, Timestamp, Volume},
+    };
+    use std::collections::VecDeque;
+
+    #[allow(invalid_value)]
+    fn dummy_renderer() -> WebGpuRenderer {
+        unsafe {
+            WebGpuRenderer {
+                _canvas_id: String::new(),
+                width: 800,
+                height: 600,
+                surface: std::mem::MaybeUninit::zeroed().assume_init(),
+                device: std::mem::MaybeUninit::zeroed().assume_init(),
+                queue: std::mem::MaybeUninit::zeroed().assume_init(),
+                config: std::mem::MaybeUninit::zeroed().assume_init(),
+                render_pipeline: std::mem::MaybeUninit::zeroed().assume_init(),
+                vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
+                instance_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
+                uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
+                uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
+                template_vertices: 0,
+                instance_count: 0,
+                cached_vertices: Vec::new(),
+                cached_instances: Vec::new(),
+                cached_uniforms: ChartUniforms::new(),
+                cached_candle_count: 0,
+                cached_zoom_level: 1.0,
+                cached_hash: 0,
+                zoom_level: 1.0,
+                pan_offset: 0.0,
+                last_frame_time: 0.0,
+                fps_log: VecDeque::new(),
+                line_visibility: LineVisibility::default(),
+            }
+        }
+    }
+
+    fn make_candle(i: u64) -> Candle {
+        let base = 100.0 + i as f64;
+        Candle::new(
+            Timestamp::from_millis(i * 60_000),
+            OHLCV::new(
+                Price::from(base),
+                Price::from(base + 1.0),
+                Price::from(base - 1.0),
+                Price::from(base),
+                Volume::from(1.0),
+            ),
+        )
+    }
+
+    #[test]
+    fn indicator_vertices_present() {
+        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 300);
+        let candles: Vec<Candle> = (0..210).map(make_candle).collect();
+        chart.set_historical_data(candles);
+
+        let renderer = dummy_renderer();
+        let (_, verts, _) = renderer.create_geometry(&chart);
+
+        assert!(verts.iter().any(|v| (v.color_type - 2.0).abs() < f32::EPSILON));
+        assert!(verts.iter().any(|v| (v.color_type - 3.0).abs() < f32::EPSILON));
+        assert!(verts.iter().any(|v| (v.color_type - 4.0).abs() < f32::EPSILON));
+        assert!(verts.iter().any(|v| (v.color_type - 5.0).abs() < f32::EPSILON));
+        assert!(verts.iter().any(|v| (v.color_type - 6.0).abs() < f32::EPSILON));
     }
 }
