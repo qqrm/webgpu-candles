@@ -256,9 +256,8 @@ impl WebGpuRenderer {
         }
 
         // Add a solid line for the current price
-        if let Some(last_candle) = visible_candles.last() {
-            let current_price = last_candle.ohlcv.close.value() as f32;
-            let price_range = max_price - min_price;
+        if !visible_candles.is_empty() {
+            let current_price = crate::app::global_current_price().get_untracked() as f32;
             let price_y = ((current_price - min_price) / price_range) * 2.0 - 1.0; // same area as candles
 
             // Solid horizontal line across the entire screen
@@ -330,6 +329,7 @@ mod tests {
         chart::{Chart, value_objects::ChartType},
         market_data::{Candle, OHLCV, Price, Timestamp, Volume},
     };
+    use leptos::SignalSet;
     use std::collections::VecDeque;
 
     #[allow(invalid_value)]
@@ -568,5 +568,45 @@ mod tests {
 
         assert!((min_v + 1.0).abs() < 0.1);
         assert!((max_v - 1.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn current_price_line_uses_signal() {
+        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 50);
+        let candles: Vec<Candle> = (0..10).map(make_candle).collect();
+        chart.set_historical_data(candles.clone());
+
+        let new_price = candles.last().unwrap().ohlcv.close.value() + 5.0;
+        crate::app::global_current_price().set(new_price);
+
+        let renderer = dummy_renderer();
+        let (_, verts, _) = renderer.create_geometry(&chart);
+
+        let (start_index, visible_count) =
+            crate::app::visible_range_by_time(&candles, &chart.viewport, renderer.zoom_level);
+        let visible: Vec<Candle> =
+            candles.iter().skip(start_index).take(visible_count).cloned().collect();
+
+        let mut min_price = f32::INFINITY;
+        let mut max_price = f32::NEG_INFINITY;
+        for c in &visible {
+            min_price = min_price.min(c.ohlcv.low.value() as f32);
+            max_price = max_price.max(c.ohlcv.high.value() as f32);
+        }
+        let pr = (max_price - min_price).abs().max(1e-6);
+        min_price -= pr * 0.05;
+        max_price += pr * 0.05;
+        let price_range = max_price - min_price;
+        let expected_y = ((new_price as f32 - min_price) / price_range) * 2.0 - 1.0;
+
+        let mut min_y = f32::INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        for v in verts.iter().filter(|v| (v.color_type - 7.0).abs() < f32::EPSILON) {
+            min_y = min_y.min(v.position_y);
+            max_y = max_y.max(v.position_y);
+        }
+        let mid_y = (min_y + max_y) * 0.5;
+
+        assert!((mid_y - expected_y).abs() < 1e-6);
     }
 }
