@@ -105,3 +105,35 @@ pub use geometry::{
 mod initialization;
 mod performance;
 mod render_loop;
+
+#[allow(invalid_value)]
+pub fn dummy_renderer() -> WebGpuRenderer {
+    use std::collections::VecDeque;
+    unsafe {
+        WebGpuRenderer {
+            _canvas_id: String::new(),
+            width: 800,
+            height: 600,
+            surface: std::mem::MaybeUninit::zeroed().assume_init(),
+            device: std::mem::MaybeUninit::zeroed().assume_init(),
+            queue: std::mem::MaybeUninit::zeroed().assume_init(),
+            config: std::mem::MaybeUninit::zeroed().assume_init(),
+            render_pipeline: std::mem::MaybeUninit::zeroed().assume_init(),
+            vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
+            uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
+            uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
+            template_vertices: 0,
+            cached_vertices: Vec::new(),
+            cached_uniforms: ChartUniforms::new(),
+            cached_candle_count: 0,
+            cached_zoom_level: 1.0,
+            cached_hash: 0,
+            cached_data_hash: 0,
+            zoom_level: 1.0,
+            pan_offset: 0.0,
+            last_frame_time: 0.0,
+            fps_log: VecDeque::new(),
+            line_visibility: LineVisibility::default(),
+        }
+    }
+}
