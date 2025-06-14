@@ -402,30 +402,8 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
         price_levels(&vp)
     };
 
-    let handle_wheel = {
-        let chart_signal = chart;
-        move |e: web_sys::WheelEvent| {
-            e.prevent_default();
-            let factor = if e.delta_y() < 0.0 { 1.1 } else { 0.9 };
-            let center = e.offset_y() as f32 / 500.0;
-            chart_signal.update(|c| c.zoom_price(factor as f32, center));
-
-            chart_signal.with_untracked(|ch| {
-                if ch.get_candle_count() > 0 {
-                    with_global_renderer(|r| {
-                        r.set_zoom_params(
-                            zoom_level().with_untracked(|val| *val),
-                            pan_offset().with_untracked(|val| *val),
-                        );
-                        let _ = r.render(ch);
-                    });
-                }
-            });
-        }
-    };
-
     view! {
-        <div style="width: 60px; height: 500px; background: #222; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; margin-right: 8px;" on:wheel=handle_wheel>
+        <div style="width: 60px; height: 500px; background: #222; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; margin-right: 8px;">
             <For
                 each=labels
                 key=|v| (*v * 100.0) as i64
@@ -477,40 +455,8 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
         labels
     };
 
-    let handle_wheel = {
-        let chart_signal = chart;
-        move |event: web_sys::WheelEvent| {
-            event.prevent_default();
-            let delta = event.delta_y();
-            let zoom_factor = if delta < 0.0 { 1.1 } else { 0.9 };
-
-            let old_zoom = zoom_level().with_untracked(|z| *z);
-            zoom_level().update(|z| {
-                *z *= zoom_factor;
-                *z = z.clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL); // keep zoom within 0.5-5x
-            });
-            let new_zoom = zoom_level().with_untracked(|z| *z);
-            web_sys::console::log_1(
-                &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
-            );
-
-            chart_signal.with_untracked(|ch| {
-                if ch.get_candle_count() > 0 {
-                    with_global_renderer(|r| {
-                        r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
-                        let _ = r.render(ch);
-                        get_logger().info(
-                            LogComponent::Infrastructure("ZoomWheel"),
-                            &format!("✅ Applied zoom {:.2}x to WebGPU renderer", new_zoom),
-                        );
-                    });
-                }
-            });
-        }
-    };
-
     view! {
-        <div style="width: 800px; height: 30px; background: #222; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; margin-top: 5px; border-radius: 5px;" on:wheel=handle_wheel>
+        <div style="width: 800px; height: 30px; background: #222; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; margin-top: 5px; border-radius: 5px;">
             <For
                 each=time_labels
                 key=|(time, _pos)| time.clone()
