@@ -868,7 +868,7 @@ fn ChartContainer() -> impl IntoView {
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
                 <AssetSelector chart=chart set_status=set_status />
                 <div style="display:flex;gap:6px;">
-                    <TimeframeSelector />
+                    <TimeframeSelector chart=chart />
                     <CurrentTimeButton chart=chart />
                 </div>
             </div>
@@ -997,7 +997,7 @@ fn ChartTooltip() -> impl IntoView {
 }
 
 #[component]
-fn TimeframeSelector() -> impl IntoView {
+fn TimeframeSelector(chart: RwSignal<Chart>) -> impl IntoView {
     let options = vec![
         TimeInterval::OneMinute,
         TimeInterval::FiveMinutes,
@@ -1014,13 +1014,26 @@ fn TimeframeSelector() -> impl IntoView {
             <For
                 each=move || options.clone()
                 key=|i| i.as_ref().to_string()
-                children=|interval| {
+                children=move |interval| {
                     let label = interval.as_ref().to_string();
+                    let chart_signal = chart;
                     view! {
                         <button
                             style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
                             on:click=move |_| {
                                 current_interval().set(interval);
+                                chart_signal.update(|c| c.update_viewport_for_data());
+                                chart_signal.with_untracked(|c| {
+                                    if c.get_candle_count() > 0 {
+                                        with_global_renderer(|r| {
+                                            r.set_zoom_params(
+                                                zoom_level().with_untracked(|z| *z),
+                                                pan_offset().with_untracked(|p| *p),
+                                            );
+                                            let _ = r.render(c);
+                                        });
+                                    }
+                                });
                             }
                         >
                             {label}
