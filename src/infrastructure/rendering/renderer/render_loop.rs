@@ -73,6 +73,13 @@ impl WebGpuRenderer {
         self.cached_hash
     }
 
+    pub fn create_geometry_for_test(
+        &self,
+        chart: &Chart,
+    ) -> (Vec<CandleInstance>, Vec<CandleVertex>, ChartUniforms) {
+        self.create_geometry(chart)
+    }
+
     pub fn render(&mut self, chart: &Chart) -> Result<(), JsValue> {
         // ⏱️ Measure frame time
         if let Some(window) = web_sys::window() {
