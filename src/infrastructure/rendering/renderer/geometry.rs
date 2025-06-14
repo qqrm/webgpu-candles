@@ -7,9 +7,6 @@ use crate::infrastructure::rendering::gpu_structures::{
 };
 use leptos::SignalGetUntracked;
 
-/// Base number of grid cells
-pub const BASE_CANDLES: f32 = 100.0;
-
 /// Template of 18 vertices for one candle (body + upper and lower wick)
 pub const BASE_TEMPLATE: [CandleVertex; 18] = [
     // Body
@@ -44,7 +41,7 @@ pub const SPACING_RATIO: f32 = 0.2;
 
 /// Dynamic spacing based on number of visible candles
 pub fn spacing_ratio_for(visible_len: usize) -> f32 {
-    let factor = (visible_len as f32 / BASE_CANDLES).min(1.0);
+    let factor = (visible_len as f32 / 100.0).min(1.0);
     SPACING_RATIO * factor
 }
 
