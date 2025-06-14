@@ -18,7 +18,7 @@ See [PERFORMANCE.md](./PERFORMANCE.md) for optimization details.
 src/
 ├── app.rs                  # Leptos UI components and reactivity
 ├── lib.rs                  # WASM exports (hydrate, main)
-├── candle_shader.wgsl      # WebGPU shaders for candles
+├── simple_shader.wgsl      # WebGPU shaders for candles
 ├── domain/
 │   ├── chart/
 │   │   ├── entities.rs     # Chart, ChartData
@@ -87,7 +87,7 @@ TOOLTIP_DATA: TooltipData    // Tooltip info
 
 **WebGPU Pipeline:**
 - Vertex buffer: 100k vertices
-- Shaders: `candle_shader.wgsl`
+- Shaders: `simple_shader.wgsl`
 - Coordinates: NDC [-1, 1]
 - Colors: via uniform buffer
 
