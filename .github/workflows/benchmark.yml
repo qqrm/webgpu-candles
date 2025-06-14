@@ -18,7 +18,8 @@ jobs:
           python-version: '3.x'
       - name: Run benchmarks
         run: |
-          echo '{"fps": 60}' > benchmark_result.json
+          wasm-pack test --headless --chrome -- --nocapture | tee perf.log
+          python scripts/parse_perf_log.py perf.log benchmark_result.json
       - name: Analyze FPS
         run: |
           python scripts/compare_fps.py benchmark_result.json docs/perf_baseline.json docs/perf_result.json 5
