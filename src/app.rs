@@ -1225,7 +1225,6 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 mod tests {
     use super::*;
     use crate::domain::chart::value_objects::ChartType;
-
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
