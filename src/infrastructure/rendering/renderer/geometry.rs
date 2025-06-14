@@ -582,4 +582,65 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn price_normalization_range() {
+        let candles = vec![
+            Candle::new(
+                Timestamp::from_millis(0),
+                OHLCV::new(
+                    Price::from(100.0),
+                    Price::from(110.0),
+                    Price::from(90.0),
+                    Price::from(105.0),
+                    Volume::from(1.0),
+                ),
+            ),
+            Candle::new(
+                Timestamp::from_millis(60_000),
+                OHLCV::new(
+                    Price::from(105.0),
+                    Price::from(108.0),
+                    Price::from(100.0),
+                    Price::from(107.0),
+                    Volume::from(1.0),
+                ),
+            ),
+            Candle::new(
+                Timestamp::from_millis(120_000),
+                OHLCV::new(
+                    Price::from(107.0),
+                    Price::from(109.0),
+                    Price::from(106.0),
+                    Price::from(108.0),
+                    Volume::from(1.0),
+                ),
+            ),
+        ];
+
+        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 50);
+        chart.set_historical_data(candles);
+
+        let renderer = dummy_renderer();
+        let (instances, _verts, _uni) = renderer.create_geometry(&chart);
+
+        assert_eq!(instances.len(), 3);
+
+        let mut min_v = f32::INFINITY;
+        let mut max_v = f32::NEG_INFINITY;
+        for inst in &instances {
+            for v in [inst.high, inst.low, inst.body_top, inst.body_bottom] {
+                assert!((-1.0..=1.0).contains(&v));
+                if v < min_v {
+                    min_v = v;
+                }
+                if v > max_v {
+                    max_v = v;
+                }
+            }
+        }
+
+        assert!((min_v + 0.5).abs() < 0.1);
+        assert!((max_v - 0.8).abs() < 0.1);
+    }
 }
