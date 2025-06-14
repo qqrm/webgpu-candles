@@ -39,7 +39,7 @@ const MAX_VISIBLE_CANDLES: f64 = 32.0;
 const MIN_VISIBLE_CANDLES: f64 = 1.0;
 
 /// Minimum allowed zoom level
-const MIN_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / 150.0;
+const MIN_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / 300.0;
 /// Maximum allowed zoom level
 const MAX_ZOOM_LEVEL: f64 = 32.0;
 
@@ -831,7 +831,6 @@ fn ChartContainer() -> impl IntoView {
                 <AssetSelector chart=chart set_status=set_status />
                 <div style="display:flex;gap:6px;">
                     <TimeframeSelector chart=chart />
-                    <CurrentTimeButton chart=chart />
                 </div>
             </div>
 
@@ -1006,29 +1005,6 @@ fn TimeframeSelector(chart: RwSignal<Chart>) -> impl IntoView {
 }
 
 #[component]
-fn CurrentTimeButton(chart: RwSignal<Chart>) -> impl IntoView {
-    view! {
-        <button
-            style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
-            on:click=move |_| {
-                pan_offset().set(0.0);
-                chart.update(|c| c.update_viewport_for_data());
-                chart.with_untracked(|c| {
-                    if c.get_candle_count() > 0 {
-                        with_global_renderer(|r| {
-                            r.set_zoom_params(zoom_level().with_untracked(|z| *z), 0.0);
-                            let _ = r.render(c);
-                        });
-                    }
-                });
-            }
-        >
-            "now"
-        </button>
-    }
-}
-
-#[component]
 fn LegendIndicatorToggle(name: &'static str, chart: RwSignal<Chart>) -> impl IntoView {
     let id = name;
     let label = name.to_uppercase();
@@ -1129,7 +1105,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 
     let hist_res = {
         let client = rest_client_arc.lock().await;
-        client.fetch_historical_data(300).await
+        client.fetch_historical_data(500).await
     };
     match hist_res {
         Ok(historical_candles) => {
@@ -1249,7 +1225,6 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 mod tests {
     use super::*;
     use crate::domain::chart::value_objects::ChartType;
-
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -1342,24 +1317,11 @@ mod tests {
 
         assert!(!cb.checked());
     }
-    #[wasm_bindgen_test]
-    fn now_button_resets_pan() {
-        let container = setup_container();
-        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 100));
-        leptos::mount_to(container.clone(), move || view! { <CurrentTimeButton chart=chart /> });
-
-        pan_offset().set(5.0);
-
-        let now = find_button(&container, "now");
-        now.click();
-
-        assert_eq!(pan_offset().get(), 0.0);
-    }
 
     #[test]
     fn zoom_limits_respected_by_visible_range() {
         let (_, visible_min_zoom) = visible_range(1000, MIN_ZOOM_LEVEL, 0.0);
-        assert!(visible_min_zoom <= 150);
+        assert!(visible_min_zoom <= 300);
 
         let (_, visible_max_zoom) = visible_range(1000, MAX_ZOOM_LEVEL, 0.0);
         assert!(visible_max_zoom as f64 >= MIN_VISIBLE_CANDLES);
