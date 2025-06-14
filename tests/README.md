@@ -47,6 +47,10 @@ Regression tests:
 - `viewport_bounds_regression()` - viewport bounds
 - `spacing_uniformity_regression()` - spacing uniformity
 
+### `tests/axis_zoom.rs` - New
+Axis zoom test:
+- `price_levels_change_after_zoom()` - price levels follow zoomed range
+
 ## Running Tests
 
 Before running the suite ensure the WebAssembly target is installed:
