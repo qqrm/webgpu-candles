@@ -20,7 +20,7 @@
 The benchmark is run with:
 
 ```bash
-wasm-pack test --headless --chrome -- --nocapture
+wasm-pack test --headless --chrome
 ```
 
 Workflow `perf.yml` stores the `perf-log` file.
