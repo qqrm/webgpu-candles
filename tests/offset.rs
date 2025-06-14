@@ -55,3 +55,9 @@ fn candle_positioning_monotonic() {
     // Ensure the last position is exactly 1.0
     assert!((positions.last().unwrap() - 1.0).abs() < f32::EPSILON);
 }
+
+#[wasm_bindgen_test]
+fn single_candle_centered() {
+    let x = candle_x_position(0, 1);
+    assert!((x - 0.0).abs() < f32::EPSILON);
+}
