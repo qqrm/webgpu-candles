@@ -72,3 +72,14 @@ fn positioning_boundary_test() {
         );
     }
 }
+
+#[wasm_bindgen_test]
+fn single_candle_width() {
+    let visible_len = 1;
+    let step_size = 2.0 / visible_len as f32;
+    let spacing = spacing_ratio_for(visible_len);
+    let candle_width = (step_size * (1.0 - spacing)).max(MIN_ELEMENT_WIDTH);
+
+    let pixel_width = candle_width * 400.0;
+    assert!(pixel_width > 2.0, "Width in pixels should exceed 2.0, got {:.6}", pixel_width);
+}
