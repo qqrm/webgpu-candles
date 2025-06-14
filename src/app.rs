@@ -1236,6 +1236,20 @@ mod tests {
         assert_eq!(current_interval().get(), TimeInterval::ThirtyMinutes);
     }
 
+    #[wasm_bindgen_test]
+    fn now_button_resets_pan() {
+        let container = setup_container();
+        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 100));
+        leptos::mount_to(container.clone(), move || view! { <CurrentTimeButton chart=chart /> });
+
+        pan_offset().set(5.0);
+
+        let now = find_button(&container, "Now");
+        now.click();
+
+        assert_eq!(pan_offset().get(), 0.0);
+    }
+
     #[test]
     fn zoom_limits_respected_by_visible_range() {
         let (_, visible_min_zoom) = visible_range(1000, MIN_ZOOM_LEVEL, 0.0);
