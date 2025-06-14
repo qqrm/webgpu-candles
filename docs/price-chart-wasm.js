@@ -277,7 +277,7 @@ export function get_gpu_memory_usage() {
 }
 
 function __wbg_adapter_34(arg0, arg1, arg2) {
-    wasm.closure178_externref_shim(arg0, arg1, arg2);
+    wasm.closure194_externref_shim(arg0, arg1, arg2);
 }
 
 function __wbg_adapter_41(arg0, arg1) {
@@ -1887,16 +1887,16 @@ function __wbg_get_imports() {
         const ret = makeMutClosure(arg0, arg1, 342, __wbg_adapter_57);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper692 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 179, __wbg_adapter_34);
+    imports.wbg.__wbindgen_closure_wrapper804 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 195, __wbg_adapter_34);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper694 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 179, __wbg_adapter_34);
+    imports.wbg.__wbindgen_closure_wrapper806 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 195, __wbg_adapter_34);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper696 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 179, __wbg_adapter_34);
+    imports.wbg.__wbindgen_closure_wrapper808 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 195, __wbg_adapter_34);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {
