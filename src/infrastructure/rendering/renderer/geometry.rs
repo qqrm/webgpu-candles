@@ -347,6 +347,8 @@ mod tests {
                 vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
+                msaa_texture: std::mem::MaybeUninit::zeroed().assume_init(),
+                msaa_view: std::mem::MaybeUninit::zeroed().assume_init(),
                 template_vertices: 0,
                 cached_vertices: Vec::new(),
                 cached_uniforms: ChartUniforms::new(),
