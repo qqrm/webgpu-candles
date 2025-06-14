@@ -1,5 +1,5 @@
 use super::value_objects::{ChartType, Viewport};
-use crate::domain::market_data::services::Aggregator;
+use crate::domain::market_data::services::{Aggregator, IchimokuData};
 use crate::domain::market_data::{Candle, CandleSeries, TimeInterval, Volume};
 use std::collections::HashMap;
 
@@ -11,6 +11,7 @@ pub struct Chart {
     pub series: HashMap<TimeInterval, CandleSeries>,
     pub viewport: Viewport,
     pub indicators: Vec<Indicator>,
+    pub ichimoku: IchimokuData,
 }
 
 impl Chart {
@@ -25,7 +26,14 @@ impl Chart {
         series.insert(TimeInterval::OneWeek, CandleSeries::new(max_candles));
         series.insert(TimeInterval::OneMonth, CandleSeries::new(max_candles));
 
-        Self { id, chart_type, series, viewport: Viewport::default(), indicators: Vec::new() }
+        Self {
+            id,
+            chart_type,
+            series,
+            viewport: Viewport::default(),
+            indicators: Vec::new(),
+            ichimoku: IchimokuData::default(),
+        }
     }
 
     pub fn add_candle(&mut self, candle: Candle) {

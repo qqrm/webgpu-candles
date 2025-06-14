@@ -18,6 +18,7 @@ fn horizontal_pan_moves_viewport() {
             height: 600,
         },
         indicators: Vec::new(),
+        ichimoku: Default::default(),
     };
     chart.pan(0.1, 0.0);
     assert!((chart.viewport.start_time - 10.0).abs() < 1e-6);
