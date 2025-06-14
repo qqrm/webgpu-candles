@@ -418,6 +418,7 @@ mod tests {
                 cached_candle_count: 0,
                 cached_zoom_level: 1.0,
                 cached_hash: 0,
+                cached_data_hash: 0,
                 zoom_level: 1.0,
                 pan_offset: 0.0,
                 last_frame_time: 0.0,
@@ -455,5 +456,52 @@ mod tests {
         assert!(verts.iter().any(|v| (v.color_type - 4.0).abs() < f32::EPSILON));
         assert!(verts.iter().any(|v| (v.color_type - 5.0).abs() < f32::EPSILON));
         assert!(verts.iter().any(|v| (v.color_type - 6.0).abs() < f32::EPSILON));
+    }
+
+    #[test]
+    fn candle_height_and_color() {
+        let candles = vec![
+            Candle::new(
+                Timestamp::from_millis(0),
+                OHLCV::new(
+                    Price::from(100.0),
+                    Price::from(101.0),
+                    Price::from(99.0),
+                    Price::from(101.0),
+                    Volume::from(1.0),
+                ),
+            ),
+            Candle::new(
+                Timestamp::from_millis(60_000),
+                OHLCV::new(
+                    Price::from(101.0),
+                    Price::from(102.0),
+                    Price::from(100.0),
+                    Price::from(100.5),
+                    Volume::from(1.0),
+                ),
+            ),
+            Candle::new(
+                Timestamp::from_millis(120_000),
+                OHLCV::new(
+                    Price::from(100.5),
+                    Price::from(100.6),
+                    Price::from(100.4),
+                    Price::from(100.5),
+                    Volume::from(1.0),
+                ),
+            ),
+        ];
+
+        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 50);
+        chart.set_historical_data(candles);
+
+        let renderer = dummy_renderer();
+        let (instances, _verts, _uni) = renderer.create_geometry(&chart);
+
+        assert_eq!(instances.len(), 3);
+        assert!(instances[0].bullish > 0.5);
+        assert!(instances[1].bullish < 0.5);
+        assert!(instances[2].body_top - instances[2].body_bottom >= 0.005 - f32::EPSILON);
     }
 }
