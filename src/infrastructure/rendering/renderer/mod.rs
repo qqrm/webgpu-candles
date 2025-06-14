@@ -70,6 +70,7 @@ pub struct WebGpuRenderer {
     cached_candle_count: usize,
     cached_zoom_level: f64,
     cached_hash: u64,
+    cached_data_hash: u64,
 
     // 🔍 Zoom and pan parameters
     zoom_level: f64,
