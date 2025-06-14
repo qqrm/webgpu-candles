@@ -36,12 +36,12 @@ fn vertex_shader_formula() {
     assert!((x - 0.4).abs() < 1e-6);
     assert!((y - inst.body_top).abs() < 1e-6);
 
-    let v = CandleVertex::upper_wick_vertex(0.0, 1.0);
+    let v = CandleVertex::wick_vertex(0.0, 1.0);
     let (x, y) = apply_vs(&v, &inst);
     assert!((x - inst.x).abs() < 1e-6);
     assert!((y - inst.high).abs() < 1e-6);
 
-    let v = CandleVertex::lower_wick_vertex(0.0, 0.0);
+    let v = CandleVertex { position_x: 0.0, position_y: 0.0, element_type: 2.0, color_type: 0.5 };
     let (x, y) = apply_vs(&v, &inst);
     assert!((x - inst.x).abs() < 1e-6);
     assert!((y - inst.low).abs() < 1e-6);
