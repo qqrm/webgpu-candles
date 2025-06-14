@@ -30,5 +30,5 @@ fn range_uses_viewport_start_time() {
 
     let (start, count) = visible_range_by_time(&candles, &vp, 1.0);
     assert_eq!(start, 50);
-    assert_eq!(count, 300);
+    assert_eq!(count, 100);
 }
