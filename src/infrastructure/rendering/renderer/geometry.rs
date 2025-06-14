@@ -128,6 +128,14 @@ impl WebGpuRenderer {
             normalized * 2.0 - 1.0
         };
 
+        let mut max_volume = 0.0f32;
+        for c in &visible_candles {
+            max_volume = max_volume.max(c.ohlcv.volume.value() as f32);
+        }
+        if max_volume <= 0.0 {
+            max_volume = 1.0;
+        }
+
         for (i, candle) in visible_candles.iter().enumerate() {
             let x = candle_x_position(i, visible_candles.len());
 
@@ -185,6 +193,11 @@ impl WebGpuRenderer {
                 candle_width,
             );
             vertices.extend_from_slice(&candle_vertices);
+
+            let vol_ratio = (candle.ohlcv.volume.value() as f32) / max_volume;
+            let volume_vertices =
+                CandleGeometry::create_volume_vertices(x, candle_width, vol_ratio, is_bullish);
+            vertices.extend_from_slice(&volume_vertices);
         }
 
         // Calculate moving averages for indicator lines using the full data set

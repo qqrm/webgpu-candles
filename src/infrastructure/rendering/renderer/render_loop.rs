@@ -658,6 +658,18 @@ mod tests {
     }
 
     #[test]
+    fn visibility_signal_updates() {
+        use crate::app::global_line_visibility;
+
+        global_line_visibility().set(LineVisibility::default());
+        let mut r = dummy_renderer();
+        r.toggle_line_visibility("sma20");
+        assert!(!global_line_visibility().get_untracked().sma_20);
+        r.toggle_line_visibility("sma20");
+        assert!(global_line_visibility().get_untracked().sma_20);
+    }
+
+    #[test]
     fn legend_click_detection() {
         let r = dummy_renderer();
         assert_eq!(r.check_legend_checkbox_click(15.0, 15.0), Some("sma20".to_string()));
