@@ -96,7 +96,7 @@ pub fn price_levels(viewport: &crate::domain::chart::value_objects::Viewport) ->
 
 // Helper aliases for global signals
 global_signals! {
-    global_current_price => current_price: f64,
+    pub global_current_price => current_price: f64,
     global_candle_count => candle_count: usize,
     global_is_streaming => is_streaming: bool,
     global_max_volume => max_volume: f64,
