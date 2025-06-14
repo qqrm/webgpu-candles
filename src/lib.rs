@@ -1,7 +1,7 @@
 //! Entry point for the WebGPU candles application.
 //!
 //! This crate follows the Clean Architecture approach as described in
-//! `ARCHITECTURE.md`. The `app` module contains the Leptos UI, `domain`
+//! `DOCS/ARCHITECTURE.md`. The `app` module contains the Leptos UI, `domain`
 //! holds business logic, `global_state` exposes shared reactive signals, and
 //! `infrastructure` implements rendering and networking services.
 

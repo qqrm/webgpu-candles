@@ -11,13 +11,13 @@
 - One of the readiness criteria is the absence of formatting issues and linter warnings.
 - Do not suppress warnings about unused code via `#[allow(dead_code)]`. Remove dead code instead.
 - When adding new functionality you must write tests.
-- Before tackling any task consult [ARCHITECTURE.md](ARCHITECTURE.md) and ensure proposed changes match the current architecture.
-- When working with colors consult [colors.md](colors.md).
-- Decisions on acceleration and optimization are made after studying [PERFORMANCE.md](PERFORMANCE.md).
+- Before tackling any task consult [ARCHITECTURE.md](DOCS/ARCHITECTURE.md) and ensure proposed changes match the current architecture.
+- When working with colors consult [colors.md](DOCS/colors.md).
+- Decisions on acceleration and optimization are made after studying [PERFORMANCE.md](DOCS/PERFORMANCE.md).
 - Keep pull requests concise and clear: list changes, provide references like `F:path#L1-L2`, and attach test results.
 - Markdown in the project must be consistent: use `#` for headers, specify languages for code blocks, and maintain clear structure.
 - Comments in the code and all documentation are written only in English.
-- A summary of available tests and snapshot locations is found in [TESTS.md](TESTS.md).
+- A summary of available tests and snapshot locations is found in [TESTS.md](DOCS/TESTS.md).
 - Translate branch and task names into English even if they were originally given in Russian.
 - Branch names must be strictly in English; do not use Russian words or letters.
 - Always provide branch names and task titles in English, even if the original request is in Russian.
