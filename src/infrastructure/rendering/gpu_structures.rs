@@ -280,6 +280,8 @@ pub struct CandleGeometry;
 impl CandleGeometry {
     /// Base number of segments for rounded corners
     const BASE_CORNER_SEGMENTS: usize = 6;
+    /// Ratio of the candle width used for rounded corners
+    const CORNER_RADIUS_RATIO: f32 = 0.15;
 
     /// Determine corner segment count based on candle width
     fn corner_segments(width: f32) -> usize {
@@ -308,7 +310,7 @@ impl CandleGeometry {
         let body_top = if is_bullish { close_y } else { open_y };
         let body_bottom = if is_bullish { open_y } else { close_y };
 
-        let corner = width * 0.35;
+        let corner = width * Self::CORNER_RADIUS_RATIO;
 
         let left = x_normalized - half_width;
         let right = x_normalized + half_width;
