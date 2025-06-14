@@ -8,6 +8,8 @@ fn current_price_line_vertices() {
     assert!((verts[0].position_x + 1.0).abs() < f32::EPSILON);
     assert!((verts[0].position_y - 0.4).abs() < f32::EPSILON);
     assert!((verts[0].color_type - 7.0).abs() < f32::EPSILON);
+    let last = verts.last().unwrap();
+    assert!((last.position_x - 1.0).abs() < f32::EPSILON);
 }
 
 #[wasm_bindgen_test]
