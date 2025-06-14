@@ -280,6 +280,11 @@ pub struct CandleGeometry;
 impl CandleGeometry {
     /// Base number of segments for rounded corners
     const BASE_CORNER_SEGMENTS: usize = 6;
+    /// Ratio of the candle width used for rounded corners
+    const CORNER_RADIUS_RATIO: f32 = 0.15;
+    /// Maximum height of volume bars in NDC coordinates
+    pub const VOLUME_HEIGHT: f32 = 0.4;
+
     /// Determine corner segment count based on candle width
     fn corner_segments(width: f32) -> usize {
         if width >= 0.04 { 12 } else { Self::BASE_CORNER_SEGMENTS }
@@ -307,7 +312,8 @@ impl CandleGeometry {
         let body_top = if is_bullish { close_y } else { open_y };
         let body_bottom = if is_bullish { open_y } else { close_y };
 
-        let corner = f32::min(width * 0.35, (body_top - body_bottom).abs() * 0.5);
+        let corner =
+            f32::min(width * Self::CORNER_RADIUS_RATIO, (body_top - body_bottom).abs() * 0.5);
 
         let left = x_normalized - half_width;
         let right = x_normalized + half_width;
@@ -447,6 +453,28 @@ impl CandleGeometry {
             CandleVertex::current_price_vertex(-1.0, current_price_y + half_width),
             CandleVertex::current_price_vertex(1.0, current_price_y - half_width),
             CandleVertex::current_price_vertex(1.0, current_price_y + half_width),
+        ]
+    }
+
+    /// Create vertices for a volume bar
+    pub fn create_volume_vertices(
+        x_normalized: f32,
+        width: f32,
+        volume_ratio: f32,
+        is_bullish: bool,
+    ) -> Vec<CandleVertex> {
+        let half_width = width * 0.5;
+        let left = x_normalized - half_width;
+        let right = x_normalized + half_width;
+        let bottom = -1.0;
+        let top = bottom + volume_ratio.clamp(0.0, 1.0) * Self::VOLUME_HEIGHT;
+        vec![
+            CandleVertex::volume_vertex(left, bottom, is_bullish),
+            CandleVertex::volume_vertex(right, bottom, is_bullish),
+            CandleVertex::volume_vertex(left, top, is_bullish),
+            CandleVertex::volume_vertex(right, bottom, is_bullish),
+            CandleVertex::volume_vertex(right, top, is_bullish),
+            CandleVertex::volume_vertex(left, top, is_bullish),
         ]
     }
 
