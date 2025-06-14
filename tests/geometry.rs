@@ -89,3 +89,11 @@ fn corner_segment_vertex_count() {
     assert_eq!(narrow.len(), 114);
     assert_eq!(wide.len(), 186);
 }
+
+#[wasm_bindgen_test]
+fn very_low_candle_no_rounding() {
+    let low = CandleGeometry::create_candle_vertices(
+        0.0, 1.0, 1.05, 0.95, 1.0, 0.0, 0.0, 0.05, -0.05, 0.0, 0.05,
+    );
+    assert_eq!(low.len(), 18);
+}
