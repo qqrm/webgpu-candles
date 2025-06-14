@@ -1299,6 +1299,9 @@ mod tests {
 
         let changed = renderer.borrow().cached_hash_for_test();
         assert_ne!(changed, initial);
+    }
+
+    #[wasm_bindgen_test]
     fn now_button_resets_pan() {
         let container = setup_container();
         let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 100));
