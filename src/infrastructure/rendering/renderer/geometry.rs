@@ -4,7 +4,7 @@ use crate::infrastructure::rendering::gpu_structures::CandleInstance;
 use leptos::SignalGetUntracked;
 
 /// Base number of grid cells
-pub const BASE_CANDLES: f32 = 300.0;
+pub const BASE_CANDLES: f32 = 100.0;
 
 /// Template of 18 vertices for one candle (body + upper and lower wick)
 pub const BASE_TEMPLATE: [CandleVertex; 18] = [
