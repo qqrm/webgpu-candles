@@ -20,6 +20,10 @@ fn setup_canvas(id: &str) {
 
 #[wasm_bindgen_test(async)]
 async fn memory_usage_returns_string() {
+    if !WebGpuRenderer::is_webgpu_supported().await {
+        web_sys::console::log_1(&"Skipping test: WebGPU not supported".into());
+        return;
+    }
     setup_canvas("mem-canvas");
     let renderer = WebGpuRenderer::new("mem-canvas", 10, 10).await.unwrap();
     let stats = renderer.log_gpu_memory_usage();
