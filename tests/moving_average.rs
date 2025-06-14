@@ -11,6 +11,8 @@ fn create_candle(close: f64, index: u64) -> Candle {
             Price::from(close),
             Price::from(close),
             Price::from(close),
+=======
+
             Volume::from(1.0),
         ),
     )
@@ -51,4 +53,10 @@ fn moving_averages_match_manual_calculation() {
     for (calc, exp) in ema5.iter().zip(expected_ema5.iter()) {
         assert!((calc.value() - exp).abs() < f64::EPSILON);
     }
+fn moving_average_short_input() {
+    let svc = MarketAnalysisService::new();
+    let candles: Vec<Candle> = (0..3).map(make_candle).collect();
+
+    assert!(svc.calculate_sma(&candles, 5).is_empty());
+    assert!(svc.calculate_ema(&candles, 5).is_empty());
 }
