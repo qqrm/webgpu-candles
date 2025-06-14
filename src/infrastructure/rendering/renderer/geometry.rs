@@ -81,7 +81,6 @@ impl WebGpuRenderer {
             );
         }
 
-        let candle_count = candles.len();
         let chart_width = 2.0; // NDC width (-1 to 1)
 
         // 🔍 Apply zoom - show fewer candles when zooming in
@@ -105,9 +104,10 @@ impl WebGpuRenderer {
         min_price -= price_range * 0.05;
         max_price += price_range * 0.05;
 
-        // Calculate visible candle width and spacing
-        let step_size = chart_width / candle_count as f64;
-        let candle_width_estimate = step_size * (1.0 - spacing_ratio_for(candle_count) as f64);
+        // Log estimated candle width using the number of visible candles
+        let step_size = chart_width / visible_candles.len() as f64;
+        let candle_width_estimate =
+            step_size * (1.0 - spacing_ratio_for(visible_candles.len()) as f64);
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
