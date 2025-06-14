@@ -3,7 +3,7 @@ use price_chart_wasm::domain::chart::{Chart, value_objects::ChartType};
 use price_chart_wasm::domain::market_data::{
     Candle, OHLCV, Price, TimeInterval, Timestamp, Volume,
 };
-use wasm_bindgen::JsValue;
+use price_chart_wasm::time_utils::format_time_label;
 use wasm_bindgen_test::*;
 
 fn make_candle(i: u64) -> Candle {
@@ -40,14 +40,7 @@ fn time_labels(chart: &Chart, zoom: f64) -> Vec<String> {
             candle_vec.iter().skip(start_idx).nth(index.min(visible.saturating_sub(1)))
         {
             let ts = candle.timestamp.value();
-            let date = js_sys::Date::new(&JsValue::from_f64(ts as f64));
-            let label = if zoom >= 2.0 {
-                format!("{:02}:{:02}", date.get_hours(), date.get_minutes())
-            } else if zoom >= 1.0 {
-                format!("{:02}.{:02}", date.get_date(), date.get_month() + 1)
-            } else {
-                format!("{:02}.{}", date.get_month() + 1, date.get_full_year())
-            };
+            let label = format_time_label(ts, zoom);
             labels.push(label);
         }
     }
