@@ -1,5 +1,7 @@
 # WebGPU Candles
 
+![screenshot](res/screen.png)
+
 A demonstration Bitcoin candlestick chart built with **WebGPU** for rendering and **Leptos** for the reactive UI. Real-time price data is streamed from Binance via WebSocket and drawn directly to a `<canvas>` using Rust compiled to WebAssembly.
 The chart supports zoom levels from roughly `0.2x` up to `32x` with a minimum of one visible candle.
 The project requires the `wasm32-unknown-unknown` target, which the build script verifies is installed. Install it with:
