@@ -72,9 +72,22 @@ src/
 ├── infrastructure/         # WebSocket and WebGPU renderer implementations
 ```
 
-For more architectural details see [ARCHITECTURE.md](ARCHITECTURE.md).
-Planned features are listed in [FEATURES.md](FEATURES.md).
-Details on the WebSocket feed are in [WEBSOCKETS.md](WEBSOCKETS.md).
+For more architectural details see [ARCHITECTURE.md](DOCS/ARCHITECTURE.md).
+Planned features are listed in [FEATURES.md](DOCS/FEATURES.md).
+Details on the WebSocket feed are in [WEBSOCKETS.md](DOCS/WEBSOCKETS.md).
+
+## Documentation
+
+All additional documentation lives in the [`DOCS/`](DOCS/) directory:
+
+- [ARCHITECTURE.md](DOCS/ARCHITECTURE.md)
+- [FEATURES.md](DOCS/FEATURES.md)
+- [WEBSOCKETS.md](DOCS/WEBSOCKETS.md)
+- [CONTRIBUTING.md](DOCS/CONTRIBUTING.md)
+- [PERFORMANCE.md](DOCS/PERFORMANCE.md)
+- [TESTS.md](DOCS/TESTS.md)
+- [VOLUME_SYNC_FIXES.md](DOCS/VOLUME_SYNC_FIXES.md)
+- [colors.md](DOCS/colors.md)
 
 ## Demo
 
@@ -111,7 +124,7 @@ npm install
 npm test
 ```
 
-See [TESTS.md](TESTS.md) for more details about the test suite.
+See [TESTS.md](DOCS/TESTS.md) for more details about the test suite.
 
 Coverage can be collected with `cargo-llvm-cov`:
 

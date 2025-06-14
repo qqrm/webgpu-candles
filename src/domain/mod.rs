@@ -1,11 +1,11 @@
 //! Domain layer exposing business entities and services.
 //!
 //! This module is free of infrastructure details so the core logic can be
-//! reused across environments. See `ARCHITECTURE.md` for design guidelines.
+//! reused across environments. See `DOCS/ARCHITECTURE.md` for design guidelines.
 
 pub mod chart;
 /// **CLEAN DOMAIN LAYER** - 100% pure business abstractions
-/// Follows the principles of ARCHITECTURE.md v3.0
+/// Follows the principles of DOCS/ARCHITECTURE.md v3.0
 // === CORE AGGREGATES ===
 pub mod market_data; // Aggregate: market data and charts
 
