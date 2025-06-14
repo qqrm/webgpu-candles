@@ -6,7 +6,20 @@ impl WebGpuRenderer {
     pub async fn is_webgpu_supported() -> bool {
         if let Some(window) = web_sys::window() {
             let navigator = window.navigator();
-            js_sys::Reflect::has(&navigator, &"gpu".into()).unwrap_or(false)
+            let has_gpu = js_sys::Reflect::has(&navigator, &"gpu".into()).unwrap_or(false);
+            if !has_gpu {
+                return false;
+            }
+
+            let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+            instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::LowPower,
+                    compatible_surface: None,
+                    force_fallback_adapter: false,
+                })
+                .await
+                .is_ok()
         } else {
             false
         }

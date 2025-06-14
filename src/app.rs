@@ -402,30 +402,8 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
         price_levels(&vp)
     };
 
-    let handle_wheel = {
-        let chart_signal = chart;
-        move |e: web_sys::WheelEvent| {
-            e.prevent_default();
-            let factor = if e.delta_y() < 0.0 { 1.1 } else { 0.9 };
-            let center = e.offset_y() as f32 / 500.0;
-            chart_signal.update(|c| c.zoom_price(factor as f32, center));
-
-            chart_signal.with_untracked(|ch| {
-                if ch.get_candle_count() > 0 {
-                    with_global_renderer(|r| {
-                        r.set_zoom_params(
-                            zoom_level().with_untracked(|val| *val),
-                            pan_offset().with_untracked(|val| *val),
-                        );
-                        let _ = r.render(ch);
-                    });
-                }
-            });
-        }
-    };
-
     view! {
-        <div style="width: 60px; height: 500px; background: #222; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; margin-right: 8px;" on:wheel=handle_wheel>
+        <div style="width: 60px; height: 500px; background: #222; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; margin-right: 8px;">
             <For
                 each=labels
                 key=|v| (*v * 100.0) as i64
@@ -477,40 +455,8 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
         labels
     };
 
-    let handle_wheel = {
-        let chart_signal = chart;
-        move |event: web_sys::WheelEvent| {
-            event.prevent_default();
-            let delta = event.delta_y();
-            let zoom_factor = if delta < 0.0 { 1.1 } else { 0.9 };
-
-            let old_zoom = zoom_level().with_untracked(|z| *z);
-            zoom_level().update(|z| {
-                *z *= zoom_factor;
-                *z = z.clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL); // keep zoom within 0.5-5x
-            });
-            let new_zoom = zoom_level().with_untracked(|z| *z);
-            web_sys::console::log_1(
-                &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
-            );
-
-            chart_signal.with_untracked(|ch| {
-                if ch.get_candle_count() > 0 {
-                    with_global_renderer(|r| {
-                        r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
-                        let _ = r.render(ch);
-                        get_logger().info(
-                            LogComponent::Infrastructure("ZoomWheel"),
-                            &format!("✅ Applied zoom {:.2}x to WebGPU renderer", new_zoom),
-                        );
-                    });
-                }
-            });
-        }
-    };
-
     view! {
-        <div style="width: 800px; height: 30px; background: #222; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; margin-top: 5px; border-radius: 5px;" on:wheel=handle_wheel>
+        <div style="width: 800px; height: 30px; background: #222; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; margin-top: 5px; border-radius: 5px;">
             <For
                 each=time_labels
                 key=|(time, _pos)| time.clone()
@@ -870,7 +816,7 @@ fn ChartContainer() -> impl IntoView {
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
                 <AssetSelector chart=chart set_status=set_status />
                 <div style="display:flex;gap:6px;">
-                    <TimeframeSelector />
+                    <TimeframeSelector chart=chart />
                     <CurrentTimeButton chart=chart />
                 </div>
             </div>
@@ -999,7 +945,7 @@ fn ChartTooltip() -> impl IntoView {
 }
 
 #[component]
-fn TimeframeSelector() -> impl IntoView {
+fn TimeframeSelector(chart: RwSignal<Chart>) -> impl IntoView {
     let options = vec![
         TimeInterval::OneMinute,
         TimeInterval::FiveMinutes,
@@ -1016,13 +962,26 @@ fn TimeframeSelector() -> impl IntoView {
             <For
                 each=move || options.clone()
                 key=|i| i.as_ref().to_string()
-                children=|interval| {
+                children=move |interval| {
                     let label = interval.as_ref().to_string();
+                    let chart_signal = chart;
                     view! {
                         <button
                             style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
                             on:click=move |_| {
                                 current_interval().set(interval);
+                                chart_signal.update(|c| c.update_viewport_for_data());
+                                chart_signal.with_untracked(|c| {
+                                    if c.get_candle_count() > 0 {
+                                        with_global_renderer(|r| {
+                                            r.set_zoom_params(
+                                                zoom_level().with_untracked(|z| *z),
+                                                pan_offset().with_untracked(|p| *p),
+                                            );
+                                            let _ = r.render(c);
+                                        });
+                                    }
+                                });
                             }
                         >
                             {label}
@@ -1224,4 +1183,51 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
     let _ = spawn_local_with_current_owner(async move {
         let _ = fut.await;
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    fn setup_container() -> web_sys::HtmlElement {
+        let window = web_sys::window().unwrap();
+        let document = window.document().unwrap();
+        let div =
+            document.create_element("div").unwrap().dyn_into::<web_sys::HtmlElement>().unwrap();
+        document.body().unwrap().append_child(&div).unwrap();
+        div
+    }
+
+    fn find_button(container: &web_sys::HtmlElement, label: &str) -> web_sys::HtmlElement {
+        let buttons = container.get_elements_by_tag_name("button");
+        for i in 0..buttons.length() {
+            let btn = buttons.item(i).unwrap().dyn_into::<web_sys::HtmlElement>().unwrap();
+            if btn.text_content().unwrap_or_default() == label {
+                return btn;
+            }
+        }
+        panic!("button with label {label} not found", label = label);
+    }
+
+    #[wasm_bindgen_test]
+    fn timeframe_buttons_update_interval() {
+        let container = setup_container();
+        leptos::mount_to(container.clone(), || view! { <TimeframeSelector/> });
+
+        let five = find_button(&container, "5m");
+        five.click();
+        assert_eq!(current_interval().get(), TimeInterval::FiveMinutes);
+
+        let fifteen = find_button(&container, "15m");
+        fifteen.click();
+        assert_eq!(current_interval().get(), TimeInterval::FifteenMinutes);
+
+        let thirty = find_button(&container, "30m");
+        thirty.click();
+        assert_eq!(current_interval().get(), TimeInterval::ThirtyMinutes);
+    }
 }
