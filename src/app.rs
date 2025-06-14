@@ -34,11 +34,13 @@ use crate::{
 
 /// Maximum number of candles visible at 1x zoom
 const MAX_VISIBLE_CANDLES: f64 = 50.0;
+/// Minimum number of candles that must remain visible
+const MIN_VISIBLE_CANDLES: f64 = 20.0;
 
 /// Minimum allowed zoom level
-const MIN_ZOOM_LEVEL: f64 = 0.5;
+const MIN_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / 150.0;
 /// Maximum allowed zoom level
-const MAX_ZOOM_LEVEL: f64 = 5.0;
+const MAX_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / MIN_VISIBLE_CANDLES;
 
 /// Pan offset required to trigger history loading
 pub const HISTORY_FETCH_THRESHOLD: f64 = -50.0;
@@ -50,7 +52,7 @@ pub fn should_fetch_history(pan: f64) -> bool {
 
 /// Calculate visible range based on zoom level and pan offset
 pub fn visible_range(len: usize, zoom: f64, pan: f64) -> (usize, usize) {
-    let visible = ((MAX_VISIBLE_CANDLES / zoom).max(10.0).min(len as f64)) as isize;
+    let visible = ((MAX_VISIBLE_CANDLES / zoom).max(MIN_VISIBLE_CANDLES).min(len as f64)) as isize;
     let base_start = len as isize - visible;
     let offset = pan.round() as isize;
     let max_start = len as isize - visible;
@@ -68,7 +70,8 @@ pub fn visible_range_by_time(
         return (0, 0);
     }
 
-    let visible = ((MAX_VISIBLE_CANDLES / zoom).max(10.0).min(candles.len() as f64)) as usize;
+    let visible =
+        ((MAX_VISIBLE_CANDLES / zoom).max(MIN_VISIBLE_CANDLES).min(candles.len() as f64)) as usize;
 
     let start_ts = viewport.start_time as u64;
     // Use `partition_point` to find the first candle after `start_ts`.
@@ -1231,5 +1234,14 @@ mod tests {
         let thirty = find_button(&container, "30m");
         thirty.click();
         assert_eq!(current_interval().get(), TimeInterval::ThirtyMinutes);
+    }
+
+    #[test]
+    fn zoom_limits_respected_by_visible_range() {
+        let (_, visible_min_zoom) = visible_range(1000, MIN_ZOOM_LEVEL, 0.0);
+        assert!(visible_min_zoom <= 150);
+
+        let (_, visible_max_zoom) = visible_range(1000, MAX_ZOOM_LEVEL, 0.0);
+        assert!(visible_max_zoom >= 20);
     }
 }
