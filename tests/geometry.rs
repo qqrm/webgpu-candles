@@ -75,3 +75,11 @@ fn candle_color_logic() {
     );
     assert!((bearish[0].color_type - 0.0).abs() < f32::EPSILON);
 }
+
+#[wasm_bindgen_test]
+fn tiny_candle_no_rounding() {
+    let verts = CandleGeometry::create_candle_vertices(
+        0.0, 1.0, 1.5, 0.5, 1.0002, 0.0, 0.0, 0.1, -0.1, 0.0002, 0.1,
+    );
+    assert_eq!(verts.len(), 18);
+}

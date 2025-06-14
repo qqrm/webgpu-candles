@@ -280,6 +280,7 @@ pub struct CandleGeometry;
 impl CandleGeometry {
     /// Number of segments used to approximate rounded candle corners
     const CORNER_SEGMENTS: usize = 6;
+    const CORNER_THRESHOLD: f32 = 0.001;
     /// Create vertices for a single candle
     #[allow(clippy::too_many_arguments)]
     pub fn create_candle_vertices(
@@ -303,7 +304,11 @@ impl CandleGeometry {
         let body_top = if is_bullish { close_y } else { open_y };
         let body_bottom = if is_bullish { open_y } else { close_y };
 
-        let corner = width * 0.35;
+        let mut corner = (width * 0.35).min((body_top - body_bottom).abs() * 0.5);
+        let draw_rounding = corner >= Self::CORNER_THRESHOLD;
+        if !draw_rounding {
+            corner = 0.0;
+        }
 
         let left = x_normalized - half_width;
         let right = x_normalized + half_width;
@@ -322,70 +327,72 @@ impl CandleGeometry {
             CandleVertex::body_vertex(inner_left, inner_top, is_bullish),
         ]);
 
-        // Top rectangle
-        vertices.extend_from_slice(&[
-            CandleVertex::body_vertex(inner_left, inner_top, is_bullish),
-            CandleVertex::body_vertex(inner_right, inner_top, is_bullish),
-            CandleVertex::body_vertex(inner_left, body_top, is_bullish),
-            CandleVertex::body_vertex(inner_right, inner_top, is_bullish),
-            CandleVertex::body_vertex(inner_right, body_top, is_bullish),
-            CandleVertex::body_vertex(inner_left, body_top, is_bullish),
-        ]);
+        if draw_rounding {
+            // Top rectangle
+            vertices.extend_from_slice(&[
+                CandleVertex::body_vertex(inner_left, inner_top, is_bullish),
+                CandleVertex::body_vertex(inner_right, inner_top, is_bullish),
+                CandleVertex::body_vertex(inner_left, body_top, is_bullish),
+                CandleVertex::body_vertex(inner_right, inner_top, is_bullish),
+                CandleVertex::body_vertex(inner_right, body_top, is_bullish),
+                CandleVertex::body_vertex(inner_left, body_top, is_bullish),
+            ]);
 
-        // Bottom rectangle
-        vertices.extend_from_slice(&[
-            CandleVertex::body_vertex(inner_left, body_bottom, is_bullish),
-            CandleVertex::body_vertex(inner_right, body_bottom, is_bullish),
-            CandleVertex::body_vertex(inner_left, inner_bottom, is_bullish),
-            CandleVertex::body_vertex(inner_right, body_bottom, is_bullish),
-            CandleVertex::body_vertex(inner_right, inner_bottom, is_bullish),
-            CandleVertex::body_vertex(inner_left, inner_bottom, is_bullish),
-        ]);
+            // Bottom rectangle
+            vertices.extend_from_slice(&[
+                CandleVertex::body_vertex(inner_left, body_bottom, is_bullish),
+                CandleVertex::body_vertex(inner_right, body_bottom, is_bullish),
+                CandleVertex::body_vertex(inner_left, inner_bottom, is_bullish),
+                CandleVertex::body_vertex(inner_right, body_bottom, is_bullish),
+                CandleVertex::body_vertex(inner_right, inner_bottom, is_bullish),
+                CandleVertex::body_vertex(inner_left, inner_bottom, is_bullish),
+            ]);
 
-        // Left rectangle
-        vertices.extend_from_slice(&[
-            CandleVertex::body_vertex(left, inner_bottom, is_bullish),
-            CandleVertex::body_vertex(inner_left, inner_bottom, is_bullish),
-            CandleVertex::body_vertex(left, inner_top, is_bullish),
-            CandleVertex::body_vertex(inner_left, inner_bottom, is_bullish),
-            CandleVertex::body_vertex(inner_left, inner_top, is_bullish),
-            CandleVertex::body_vertex(left, inner_top, is_bullish),
-        ]);
+            // Left rectangle
+            vertices.extend_from_slice(&[
+                CandleVertex::body_vertex(left, inner_bottom, is_bullish),
+                CandleVertex::body_vertex(inner_left, inner_bottom, is_bullish),
+                CandleVertex::body_vertex(left, inner_top, is_bullish),
+                CandleVertex::body_vertex(inner_left, inner_bottom, is_bullish),
+                CandleVertex::body_vertex(inner_left, inner_top, is_bullish),
+                CandleVertex::body_vertex(left, inner_top, is_bullish),
+            ]);
 
-        // Right rectangle
-        vertices.extend_from_slice(&[
-            CandleVertex::body_vertex(inner_right, inner_bottom, is_bullish),
-            CandleVertex::body_vertex(right, inner_bottom, is_bullish),
-            CandleVertex::body_vertex(inner_right, inner_top, is_bullish),
-            CandleVertex::body_vertex(right, inner_bottom, is_bullish),
-            CandleVertex::body_vertex(right, inner_top, is_bullish),
-            CandleVertex::body_vertex(inner_right, inner_top, is_bullish),
-        ]);
+            // Right rectangle
+            vertices.extend_from_slice(&[
+                CandleVertex::body_vertex(inner_right, inner_bottom, is_bullish),
+                CandleVertex::body_vertex(right, inner_bottom, is_bullish),
+                CandleVertex::body_vertex(inner_right, inner_top, is_bullish),
+                CandleVertex::body_vertex(right, inner_bottom, is_bullish),
+                CandleVertex::body_vertex(right, inner_top, is_bullish),
+                CandleVertex::body_vertex(inner_right, inner_top, is_bullish),
+            ]);
 
-        // Helper to build corner arcs
-        let mut add_arc = |cx: f32, cy: f32, start: f32, end: f32| {
-            let step = (end - start) / Self::CORNER_SEGMENTS as f32;
-            let mut angle = start;
-            for _ in 0..Self::CORNER_SEGMENTS {
-                let x1 = cx + corner * angle.cos();
-                let y1 = cy + corner * angle.sin();
-                angle += step;
-                let x2 = cx + corner * angle.cos();
-                let y2 = cy + corner * angle.sin();
-                vertices.push(CandleVertex::body_vertex(cx, cy, is_bullish));
-                vertices.push(CandleVertex::body_vertex(x1, y1, is_bullish));
-                vertices.push(CandleVertex::body_vertex(x2, y2, is_bullish));
-            }
-        };
+            // Helper to build corner arcs
+            let mut add_arc = |cx: f32, cy: f32, start: f32, end: f32| {
+                let step = (end - start) / Self::CORNER_SEGMENTS as f32;
+                let mut angle = start;
+                for _ in 0..Self::CORNER_SEGMENTS {
+                    let x1 = cx + corner * angle.cos();
+                    let y1 = cy + corner * angle.sin();
+                    angle += step;
+                    let x2 = cx + corner * angle.cos();
+                    let y2 = cy + corner * angle.sin();
+                    vertices.push(CandleVertex::body_vertex(cx, cy, is_bullish));
+                    vertices.push(CandleVertex::body_vertex(x1, y1, is_bullish));
+                    vertices.push(CandleVertex::body_vertex(x2, y2, is_bullish));
+                }
+            };
 
-        // Top left arc
-        add_arc(inner_left, inner_top, std::f32::consts::FRAC_PI_2, std::f32::consts::PI);
-        // Top right arc
-        add_arc(inner_right, inner_top, 0.0, std::f32::consts::FRAC_PI_2);
-        // Bottom right arc
-        add_arc(inner_right, inner_bottom, -std::f32::consts::FRAC_PI_2, 0.0);
-        // Bottom left arc
-        add_arc(inner_left, inner_bottom, std::f32::consts::PI, std::f32::consts::PI * 1.5);
+            // Top left arc
+            add_arc(inner_left, inner_top, std::f32::consts::FRAC_PI_2, std::f32::consts::PI);
+            // Top right arc
+            add_arc(inner_right, inner_top, 0.0, std::f32::consts::FRAC_PI_2);
+            // Bottom right arc
+            add_arc(inner_right, inner_bottom, -std::f32::consts::FRAC_PI_2, 0.0);
+            // Bottom left arc
+            add_arc(inner_left, inner_bottom, std::f32::consts::PI, std::f32::consts::PI * 1.5);
+        }
 
         // Create lines for the upper and lower wicks
         let wick_width = width * 0.1; // wick is thinner than the body
