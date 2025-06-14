@@ -505,6 +505,13 @@ fn ChartContainer() -> impl IntoView {
         if initialized.get() {
             return;
         }
+
+        if canvas_ref.get().is_none() {
+            web_sys::console::error_1(&"❌ Canvas element not found".into());
+            set_status.set("❌ Canvas element not found".to_string());
+            return;
+        }
+
         set_initialized.set(true);
         let _ = spawn_local_with_current_owner(async move {
             web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());

@@ -16,23 +16,6 @@ fn create_candle(close: f64, index: u64) -> Candle {
     )
 }
 
-fn make_candle(i: u64) -> Candle {
-    Candle::new(
-        Timestamp::from_millis(i * 60_000),
-        OHLCV::new(
-            Price::from(1.0),
-            Price::from(1.0),
-            Price::from(1.0),
-            Price::from(1.0),
-            Volume::from(1.0),
-        ),
-    )
-}
-
-fn make_candle(i: u64) -> Candle {
-    create_candle(1.0 + i as f64, i)
-}
-
 #[wasm_bindgen_test]
 fn moving_averages_match_manual_calculation() {
     let prices = [10.0, 12.0, 11.0, 13.0, 15.0, 14.0, 16.0];
