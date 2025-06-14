@@ -5,6 +5,9 @@ on:
     branches: [main]
 
 permissions: write-all
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   perf:
