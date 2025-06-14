@@ -821,6 +821,7 @@ fn ChartContainer() -> impl IntoView {
                 <div style="display:flex;gap:6px;">
                     <TimeframeSelector chart=chart />
                     <CurrentTimeButton chart=chart />
+                    <IndicatorToggles chart=chart />
                 </div>
             </div>
 
@@ -1016,6 +1017,39 @@ fn CurrentTimeButton(chart: RwSignal<Chart>) -> impl IntoView {
         >
             "Now"
         </button>
+    }
+}
+
+#[component]
+fn IndicatorToggles(chart: RwSignal<Chart>) -> impl IntoView {
+    let options = vec!["sma20", "sma50", "sma200", "ema12", "ema26"];
+
+    view! {
+        <div style="display:flex;gap:6px;margin-top:8px;">
+            <For
+                each=move || options.clone()
+                key=|name| name.to_string()
+                children=move |name| {
+                    let label = name.to_uppercase();
+                    let chart_signal = chart;
+                    view! {
+                        <button
+                            style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
+                            on:click=move |_| {
+                                chart_signal.with_untracked(|c| {
+                                    with_global_renderer(|r| {
+                                        r.toggle_line_visibility(name);
+                                        let _ = r.render(c);
+                                    });
+                                });
+                            }
+                        >
+                            {label}
+                        </button>
+                    }
+                }
+            />
+        </div>
     }
 }
 
@@ -1234,6 +1268,28 @@ mod tests {
         let thirty = find_button(&container, "30m");
         thirty.click();
         assert_eq!(current_interval().get(), TimeInterval::ThirtyMinutes);
+    }
+
+    #[wasm_bindgen_test]
+    fn indicator_toggle_changes_visibility() {
+        use crate::infrastructure::rendering::renderer::{dummy_renderer, set_global_renderer};
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        let container = setup_container();
+        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 10));
+        let renderer = Rc::new(RefCell::new(dummy_renderer()));
+        chart.with_untracked(|c| renderer.borrow_mut().cache_geometry_for_test(c));
+        let initial = renderer.borrow().cached_hash_for_test();
+
+        set_global_renderer(renderer.clone());
+        leptos::mount_to(container.clone(), move || view! { <IndicatorToggles chart=chart /> });
+
+        let btn = find_button(&container, "SMA20");
+        btn.click();
+
+        let changed = renderer.borrow().cached_hash_for_test();
+        assert_ne!(changed, initial);
     }
 
     #[test]
