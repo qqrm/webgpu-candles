@@ -260,19 +260,23 @@ impl WebGpuRenderer {
             }
         }
 
-        // Calculate moving averages for indicator lines
+        // Calculate moving averages for indicator lines using the full data set
         let analysis = MarketAnalysisService::new();
-        let mas = analysis.calculate_multiple_mas(&visible_candles);
+        let mas = analysis.calculate_multiple_mas(&candle_vec);
 
         let to_points = |values: &[Price], period: usize| -> Vec<(f32, f32)> {
             values
                 .iter()
                 .enumerate()
-                .map(|(idx, val)| {
+                .filter_map(|(idx, val)| {
                     let candle_idx = idx + period - 1;
-                    let x = candle_x_position(candle_idx, visible_candles.len());
+                    if candle_idx < start_index || candle_idx >= start_index + visible_candles.len()
+                    {
+                        return None;
+                    }
+                    let x = candle_x_position(candle_idx - start_index, visible_candles.len());
                     let y = price_norm(val.value());
-                    (x, y)
+                    Some((x, y))
                 })
                 .collect()
         };
@@ -508,5 +512,74 @@ mod tests {
         assert!(instances[0].bullish > 0.5);
         assert!(instances[1].bullish < 0.5);
         assert!(instances[2].body_top - instances[2].body_bottom >= 0.005 - f32::EPSILON);
+    }
+
+    #[test]
+    fn moving_averages_from_full_data() {
+        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 300);
+        let candles: Vec<Candle> = (0..250).map(make_candle).collect();
+        chart.set_historical_data(candles.clone());
+
+        let renderer = dummy_renderer();
+        let (_, verts, _) = renderer.create_geometry(&chart);
+
+        let (start_index, visible_count) =
+            crate::app::visible_range_by_time(&candles, &chart.viewport, renderer.zoom_level);
+        let visible: Vec<Candle> =
+            candles.iter().skip(start_index).take(visible_count).cloned().collect();
+
+        let mut min_price = f32::INFINITY;
+        let mut max_price = f32::NEG_INFINITY;
+        for c in &visible {
+            min_price = min_price.min(c.ohlcv.low.value() as f32);
+            max_price = max_price.max(c.ohlcv.high.value() as f32);
+        }
+        let pr = max_price - min_price;
+        min_price -= pr * 0.05;
+        max_price += pr * 0.05;
+        let price_norm =
+            |p: f64| -> f32 { -0.5 + ((p as f32 - min_price) / (max_price - min_price)) * 1.3 };
+
+        let analysis = MarketAnalysisService::new();
+        let mas = analysis.calculate_multiple_mas(&candles);
+
+        let to_points = |vals: &[Price], period: usize| -> Vec<(f32, f32)> {
+            vals.iter()
+                .enumerate()
+                .filter_map(|(idx, v)| {
+                    let ci = idx + period - 1;
+                    if ci < start_index || ci >= start_index + visible_count {
+                        return None;
+                    }
+                    let x = candle_x_position(ci - start_index, visible_count);
+                    let y = price_norm(v.value());
+                    Some((x, y))
+                })
+                .collect()
+        };
+
+        let line_width = 0.004;
+        let checks = [
+            (&mas.sma_20, IndicatorType::SMA20, 2.0, 20usize),
+            (&mas.sma_50, IndicatorType::SMA50, 3.0, 50usize),
+            (&mas.sma_200, IndicatorType::SMA200, 4.0, 200usize),
+            (&mas.ema_12, IndicatorType::EMA12, 5.0, 12usize),
+            (&mas.ema_26, IndicatorType::EMA26, 6.0, 26usize),
+        ];
+
+        for (values, t, color, period) in checks {
+            let pts = to_points(values, period);
+            let expected = CandleGeometry::create_indicator_line_vertices(&pts, t, line_width);
+            let actual: Vec<CandleVertex> = verts
+                .iter()
+                .filter(|v| (v.color_type - color).abs() < f32::EPSILON)
+                .cloned()
+                .collect();
+            assert_eq!(actual.len(), expected.len());
+            for (a, e) in actual.iter().zip(expected.iter()) {
+                assert!((a.position_x - e.position_x).abs() < 1e-6);
+                assert!((a.position_y - e.position_y).abs() < 1e-6);
+            }
+        }
     }
 }
