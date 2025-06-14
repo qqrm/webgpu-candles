@@ -90,7 +90,7 @@ All additional documentation lives in the [`DOCS/`](DOCS/) directory:
 - [PERFORMANCE.md](DOCS/PERFORMANCE.md)
 - [TESTS.md](DOCS/TESTS.md)
 - [VOLUME_SYNC_FIXES.md](DOCS/VOLUME_SYNC_FIXES.md)
-- [colors-caps-lock.md](DOCS/colors-caps-lock.md)
+- [COLORS.md](DOCS/COLORS.md)
 
 ## Chart Elements
 
