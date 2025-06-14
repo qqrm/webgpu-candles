@@ -53,3 +53,14 @@ fn ichimoku_calculation() {
     assert_eq!(tenkan.len(), 3);
     assert!((tenkan[0].value() - 10.5).abs() < f64::EPSILON);
 }
+
+#[wasm_bindgen_test]
+fn indicator_line_preserves_out_of_range_y() {
+    let points = [(-0.5, -1.2), (0.0, 0.0), (0.5, 1.3)];
+    let verts = CandleGeometry::create_indicator_line_vertices(&points, IndicatorType::SMA20, 0.1);
+    assert_eq!(verts.len(), (points.len() - 1) * 6);
+    let min_y = verts.iter().map(|v| v.position_y).fold(f32::INFINITY, f32::min);
+    let max_y = verts.iter().map(|v| v.position_y).fold(f32::NEG_INFINITY, f32::max);
+    assert!(min_y < -1.1);
+    assert!(max_y > 1.25);
+}
