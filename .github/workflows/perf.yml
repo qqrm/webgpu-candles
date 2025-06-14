@@ -17,6 +17,16 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
+      - name: Cache cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
       - name: Install rustup if needed
         run: |
           if ! command -v rustup &>/dev/null; then
