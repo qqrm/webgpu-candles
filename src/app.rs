@@ -31,6 +31,7 @@ use crate::{
         },
         websocket::BinanceWebSocketClient,
     },
+    time_utils::format_time_label,
 };
 
 /// Maximum number of candles visible at 1x zoom
@@ -453,14 +454,7 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
                 candles.iter().skip(start_idx).nth(index.min(visible.saturating_sub(1)))
             {
                 let timestamp = candle.timestamp.value();
-                let date = js_sys::Date::new(&(timestamp as f64).into());
-                let time_str = if zoom >= 2.0 {
-                    format!("{:02}:{:02}", date.get_hours(), date.get_minutes())
-                } else if zoom >= 1.0 {
-                    format!("{:02}.{:02}", date.get_date(), date.get_month() + 1)
-                } else {
-                    format!("{:02}.{}", date.get_month() + 1, date.get_full_year())
-                };
+                let time_str = format_time_label(timestamp, zoom);
                 let position_percent = (i as f64 / (num_labels as f64 - 1.0)) * 100.0;
                 labels.push((time_str, position_percent));
             }
