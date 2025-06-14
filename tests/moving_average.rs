@@ -29,6 +29,10 @@ fn make_candle(i: u64) -> Candle {
     )
 }
 
+fn make_candle(i: u64) -> Candle {
+    create_candle(1.0 + i as f64, i)
+}
+
 #[wasm_bindgen_test]
 fn moving_averages_match_manual_calculation() {
     let prices = [10.0, 12.0, 11.0, 13.0, 15.0, 14.0, 16.0];
@@ -69,7 +73,7 @@ fn moving_averages_match_manual_calculation() {
 #[wasm_bindgen_test]
 fn moving_average_short_input() {
     let svc = MarketAnalysisService::new();
-    let candles: Vec<Candle> = (0..3).map(make_candle).collect();
+    let candles: Vec<Candle> = (0..3).map(|i| create_candle(1.0, i)).collect();
 
     assert!(svc.calculate_sma(&candles, 5).is_empty());
     assert!(svc.calculate_ema(&candles, 5).is_empty());

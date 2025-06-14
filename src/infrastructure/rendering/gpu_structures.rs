@@ -263,11 +263,11 @@ impl ChartUniforms {
             bullish_color: [0.455, 0.780, 0.529, 1.0], // #74c787 - buy
             bearish_color: [0.882, 0.424, 0.282, 1.0], // #e16c48 - sell
             wick_color: [0.6, 0.6, 0.6, 1.0],          // gray
-            sma20_color: [1.0, 0.0, 0.0, 1.0],         // bright red
-            sma50_color: [1.0, 0.8, 0.0, 1.0],         // yellow
-            sma200_color: [0.2, 0.4, 0.8, 1.0],        // blue
-            ema12_color: [0.8, 0.2, 0.8, 1.0],         // violet
-            ema26_color: [0.0, 0.8, 0.8, 1.0],         // cyan
+            sma20_color: [1.0, 1.0, 0.0, 1.0],         // yellow
+            sma50_color: [1.0, 1.0, 0.0, 1.0],         // yellow
+            sma200_color: [1.0, 1.0, 0.0, 1.0],        // yellow
+            ema12_color: [1.0, 1.0, 0.0, 1.0],         // yellow
+            ema26_color: [1.0, 1.0, 0.0, 1.0],         // yellow
             current_price_color: [1.0, 1.0, 0.0, 0.8], // 💰 bright yellow with transparency
             render_params: [8.0, 2.0, 1.0, 0.0],       // width, spacing, line_width, padding
         }

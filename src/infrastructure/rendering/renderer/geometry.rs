@@ -277,8 +277,9 @@ impl WebGpuRenderer {
             let current_price = crate::app::global_current_price().get_untracked() as f32;
             let price_y = ((current_price - min_price) / price_range) * 2.0 - 1.0; // same area as candles
 
-            // Solid horizontal line across the entire screen
-            let line_thickness = self.px_to_ndc(2.0);
+            // Keep the line width constant regardless of zoom level
+            let line_thickness = 2.0 / self.height as f32;
+          
             let price_line = vec![
                 CandleVertex::current_price_vertex(-1.0, price_y - line_thickness),
                 CandleVertex::current_price_vertex(1.0, price_y - line_thickness),
@@ -331,11 +332,11 @@ impl WebGpuRenderer {
             bullish_color: [0.455, 0.780, 0.529, 1.0], // #74c787 - green
             bearish_color: [0.882, 0.424, 0.282, 1.0], // #e16c48 - red
             wick_color: [0.6, 0.6, 0.6, 0.9],          // light gray
-            sma20_color: [1.0, 0.2, 0.2, 0.9],         // bright red
-            sma50_color: [1.0, 0.8, 0.0, 0.9],         // yellow
-            sma200_color: [0.2, 0.4, 0.8, 0.9],        // blue
-            ema12_color: [0.8, 0.2, 0.8, 0.9],         // purple
-            ema26_color: [0.0, 0.8, 0.8, 0.9],         // cyan
+            sma20_color: [1.0, 1.0, 0.0, 0.9],         // yellow
+            sma50_color: [1.0, 1.0, 0.0, 0.9],         // yellow
+            sma200_color: [1.0, 1.0, 0.0, 0.9],        // yellow
+            ema12_color: [1.0, 1.0, 0.0, 0.9],         // yellow
+            ema26_color: [1.0, 1.0, 0.0, 0.9],         // yellow
             current_price_color: [1.0, 1.0, 0.0, 0.8], // 💰 bright yellow
             render_params: [candle_width, spacing, line_width, 0.0],
         };
