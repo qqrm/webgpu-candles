@@ -129,7 +129,7 @@ See [TESTS.md](DOCS/TESTS.md) for more details about the test suite.
 Coverage can be collected with `cargo-llvm-cov`:
 
 ```bash
-cargo llvm-cov --workspace --lcov --output-path lcov.info
+cargo llvm-cov --workspace --lcov --output-path lcov.info --target wasm32-unknown-unknown -Z build-std=std,panic_abort,profiler_builtins
 ```
 
 The generated `lcov.info` file can be uploaded by CI.
