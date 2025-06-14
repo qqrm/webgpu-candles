@@ -1216,7 +1216,14 @@ mod tests {
     #[wasm_bindgen_test]
     fn timeframe_buttons_update_interval() {
         let container = setup_container();
-        leptos::mount_to(container.clone(), || view! { <TimeframeSelector/> });
+        leptos::mount_to(container.clone(), || {
+            let chart = create_rw_signal(Chart::new(
+                "test".to_string(),
+                crate::domain::chart::value_objects::ChartType::Candlestick,
+                100,
+            ));
+            view! { <TimeframeSelector chart=chart /> }
+        });
 
         let five = find_button(&container, "5m");
         five.click();

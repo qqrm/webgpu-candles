@@ -47,6 +47,10 @@ Regression tests:
 - `viewport_bounds_regression()` - viewport bounds
 - `spacing_uniformity_regression()` - spacing uniformity
 
+### `tests/time_scale_sync.rs` - New
+Time scale label tests:
+- `time_scale_updates_with_zoom_and_pan()` - labels follow zoom and pan
+
 ## Running Tests
 
 Before running the suite ensure the WebAssembly target is installed:
