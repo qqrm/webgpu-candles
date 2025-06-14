@@ -134,12 +134,6 @@ cargo llvm-cov --workspace --lcov --output-path lcov.info
 
 The generated `lcov.info` file can be uploaded by CI.
 The `coverage` workflow publishes the latest percentage to `docs/coverage.md`.
-
-## Deployment monitor
-
-The monitor workflow (`deploy-monitor.yml`) waits for the `build` workflow to finish. If the deployed version matches the last commit SHA, the monitor job succeeds. The build writes the current commit hash to `docs/version`, so the deployed site exposes `/version` with that value.
-
-
 ## Docker
 
 Build and run the container with:
