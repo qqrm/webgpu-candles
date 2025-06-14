@@ -35,12 +35,12 @@ use crate::{
 /// Maximum number of candles visible at 1x zoom
 const MAX_VISIBLE_CANDLES: f64 = 32.0;
 /// Minimum number of candles that must remain visible
-const MIN_VISIBLE_CANDLES: f64 = 20.0;
+const MIN_VISIBLE_CANDLES: f64 = 1.0;
 
 /// Minimum allowed zoom level
 const MIN_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / 150.0;
 /// Maximum allowed zoom level
-const MAX_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / MIN_VISIBLE_CANDLES;
+const MAX_ZOOM_LEVEL: f64 = 32.0;
 
 /// Pan offset required to trigger history loading
 pub const HISTORY_FETCH_THRESHOLD: f64 = -50.0;
@@ -1242,6 +1242,6 @@ mod tests {
         assert!(visible_min_zoom <= 150);
 
         let (_, visible_max_zoom) = visible_range(1000, MAX_ZOOM_LEVEL, 0.0);
-        assert!(visible_max_zoom >= 20);
+        assert!(visible_max_zoom as f64 >= MIN_VISIBLE_CANDLES);
     }
 }

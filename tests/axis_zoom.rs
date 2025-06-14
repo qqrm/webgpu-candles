@@ -55,12 +55,12 @@ fn time_axis_respects_zoom() {
     vp.zoom(2.0, 0.5);
     let (start_after, count_after) = visible_range_by_time(&candles, &vp, 2.0);
     assert_eq!(start_after, 25);
-    assert_eq!(count_after, 20);
+    assert_eq!(count_after, 16);
 }
 
 #[test]
 fn visible_range_updates_with_new_candles() {
     assert_eq!(visible_range(60, 1.0, 0.0), (28, 32));
     assert_eq!(visible_range(70, 1.0, 0.0), (38, 32));
-    assert_eq!(visible_range(70, 2.0, 0.0), (50, 20));
+    assert_eq!(visible_range(70, 2.0, 0.0), (54, 16));
 }
