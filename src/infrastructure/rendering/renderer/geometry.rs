@@ -145,7 +145,6 @@ impl WebGpuRenderer {
             (step_size * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
         let mut instances = Vec::with_capacity(visible_candles.len());
 
-        let half_width = candle_width * 0.5;
         let price_range = max_price - min_price;
         let price_norm = |price: f64| -> f32 {
             let normalized = (price as f32 - min_price) / price_range;
@@ -195,53 +194,57 @@ impl WebGpuRenderer {
                 _padding: 0.0,
             });
 
-            // Candle body
+            // Candle body vertices in local space
             let body_vertices = vec![
-                CandleVertex::body_vertex(x - half_width, body_bottom, is_bullish),
-                CandleVertex::body_vertex(x + half_width, body_bottom, is_bullish),
-                CandleVertex::body_vertex(x - half_width, actual_body_top, is_bullish),
-                CandleVertex::body_vertex(x + half_width, body_bottom, is_bullish),
-                CandleVertex::body_vertex(x + half_width, actual_body_top, is_bullish),
-                CandleVertex::body_vertex(x - half_width, actual_body_top, is_bullish),
+                CandleVertex::body_vertex(-0.5, 0.0, is_bullish),
+                CandleVertex::body_vertex(0.5, 0.0, is_bullish),
+                CandleVertex::body_vertex(-0.5, 1.0, is_bullish),
+                CandleVertex::body_vertex(0.5, 0.0, is_bullish),
+                CandleVertex::body_vertex(0.5, 1.0, is_bullish),
+                CandleVertex::body_vertex(-0.5, 1.0, is_bullish),
             ];
             vertices.extend_from_slice(&body_vertices);
 
             // Round corners with small triangles
             // Increase rounding for more pronounced candle corners
             let corner = candle_width * 0.35;
+            let body_height = actual_body_top - body_bottom;
+            let corner_x = corner / candle_width;
+            let corner_y = corner / body_height;
             let corners = vec![
                 // Top left
-                CandleVertex::body_vertex(x - half_width, actual_body_top - corner, is_bullish),
-                CandleVertex::body_vertex(x - half_width + corner, actual_body_top, is_bullish),
-                CandleVertex::body_vertex(x - half_width, actual_body_top, is_bullish),
+                CandleVertex::body_vertex(-0.5, 1.0 - corner_y, is_bullish),
+                CandleVertex::body_vertex(-0.5 + corner_x, 1.0, is_bullish),
+                CandleVertex::body_vertex(-0.5, 1.0, is_bullish),
                 // Top right
-                CandleVertex::body_vertex(x + half_width - corner, actual_body_top, is_bullish),
-                CandleVertex::body_vertex(x + half_width, actual_body_top - corner, is_bullish),
-                CandleVertex::body_vertex(x + half_width, actual_body_top, is_bullish),
+                CandleVertex::body_vertex(0.5 - corner_x, 1.0, is_bullish),
+                CandleVertex::body_vertex(0.5, 1.0 - corner_y, is_bullish),
+                CandleVertex::body_vertex(0.5, 1.0, is_bullish),
                 // Bottom left
-                CandleVertex::body_vertex(x - half_width, body_bottom, is_bullish),
-                CandleVertex::body_vertex(x - half_width + corner, body_bottom, is_bullish),
-                CandleVertex::body_vertex(x - half_width, body_bottom + corner, is_bullish),
+                CandleVertex::body_vertex(-0.5, 0.0, is_bullish),
+                CandleVertex::body_vertex(-0.5 + corner_x, 0.0, is_bullish),
+                CandleVertex::body_vertex(-0.5, corner_y, is_bullish),
                 // Bottom right
-                CandleVertex::body_vertex(x + half_width, body_bottom, is_bullish),
-                CandleVertex::body_vertex(x + half_width, body_bottom + corner, is_bullish),
-                CandleVertex::body_vertex(x + half_width - corner, body_bottom, is_bullish),
+                CandleVertex::body_vertex(0.5, 0.0, is_bullish),
+                CandleVertex::body_vertex(0.5, corner_y, is_bullish),
+                CandleVertex::body_vertex(0.5 - corner_x, 0.0, is_bullish),
             ];
             vertices.extend_from_slice(&corners);
 
             // Add wicks (upper and lower)
             let wick_width = (candle_width * 0.15).max(MIN_ELEMENT_WIDTH * 0.5);
             let wick_half = wick_width * 0.5;
+            let wick_offset = wick_half / candle_width;
 
             // Upper wick
             if high_y > actual_body_top {
                 let upper_wick = vec![
-                    CandleVertex::wick_vertex(x - wick_half, actual_body_top),
-                    CandleVertex::wick_vertex(x + wick_half, actual_body_top),
-                    CandleVertex::wick_vertex(x - wick_half, high_y),
-                    CandleVertex::wick_vertex(x + wick_half, actual_body_top),
-                    CandleVertex::wick_vertex(x + wick_half, high_y),
-                    CandleVertex::wick_vertex(x - wick_half, high_y),
+                    CandleVertex::upper_wick_vertex(-wick_offset, 0.0),
+                    CandleVertex::upper_wick_vertex(wick_offset, 0.0),
+                    CandleVertex::upper_wick_vertex(-wick_offset, 1.0),
+                    CandleVertex::upper_wick_vertex(wick_offset, 0.0),
+                    CandleVertex::upper_wick_vertex(wick_offset, 1.0),
+                    CandleVertex::upper_wick_vertex(-wick_offset, 1.0),
                 ];
                 vertices.extend_from_slice(&upper_wick);
             }
@@ -249,12 +252,12 @@ impl WebGpuRenderer {
             // Lower wick
             if low_y < body_bottom {
                 let lower_wick = vec![
-                    CandleVertex::wick_vertex(x - wick_half, low_y),
-                    CandleVertex::wick_vertex(x + wick_half, low_y),
-                    CandleVertex::wick_vertex(x - wick_half, body_bottom),
-                    CandleVertex::wick_vertex(x + wick_half, low_y),
-                    CandleVertex::wick_vertex(x + wick_half, body_bottom),
-                    CandleVertex::wick_vertex(x - wick_half, body_bottom),
+                    CandleVertex::lower_wick_vertex(-wick_offset, 0.0),
+                    CandleVertex::lower_wick_vertex(wick_offset, 0.0),
+                    CandleVertex::lower_wick_vertex(-wick_offset, 1.0),
+                    CandleVertex::lower_wick_vertex(wick_offset, 0.0),
+                    CandleVertex::lower_wick_vertex(wick_offset, 1.0),
+                    CandleVertex::lower_wick_vertex(-wick_offset, 1.0),
                 ];
                 vertices.extend_from_slice(&lower_wick);
             }

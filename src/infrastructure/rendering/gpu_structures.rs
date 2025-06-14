@@ -40,14 +40,19 @@ impl CandleVertex {
         }
     }
 
-    /// Create vertex for the candle wick
+    /// Create vertex for the candle wick (used for grid lines)
     pub fn wick_vertex(x: f32, y: f32) -> Self {
-        Self {
-            position_x: x,
-            position_y: y,
-            element_type: 1.0, // wick
-            color_type: 0.5,   // neutral color for wick
-        }
+        Self { position_x: x, position_y: y, element_type: 1.0, color_type: 0.5 }
+    }
+
+    /// Create vertex for the upper wick
+    pub fn upper_wick_vertex(x: f32, y: f32) -> Self {
+        Self { position_x: x, position_y: y, element_type: 1.0, color_type: 0.5 }
+    }
+
+    /// Create vertex for the lower wick
+    pub fn lower_wick_vertex(x: f32, y: f32) -> Self {
+        Self { position_x: x, position_y: y, element_type: 1.6, color_type: 0.5 }
     }
 
     /// Create vertex for an indicator line
