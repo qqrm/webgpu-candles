@@ -63,6 +63,16 @@ impl WebGpuRenderer {
         self.queue.write_buffer(&self.uniform_buffer, 0, uniform_bytes);
     }
 
+    pub fn cache_geometry_for_test(&mut self, chart: &Chart) {
+        let (inst, verts, uni) = self.create_geometry(chart);
+        self.update_cached_geometry(verts, inst, uni);
+        self.cached_data_hash = Self::data_hash(chart, self.zoom_level);
+    }
+
+    pub fn cached_hash_for_test(&self) -> u64 {
+        self.cached_hash
+    }
+
     pub fn render(&mut self, chart: &Chart) -> Result<(), JsValue> {
         // ⏱️ Measure frame time
         if let Some(window) = web_sys::window() {
