@@ -1236,3 +1236,50 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
         let _ = fut.await;
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    fn setup_container() -> web_sys::HtmlElement {
+        let window = web_sys::window().unwrap();
+        let document = window.document().unwrap();
+        let div =
+            document.create_element("div").unwrap().dyn_into::<web_sys::HtmlElement>().unwrap();
+        document.body().unwrap().append_child(&div).unwrap();
+        div
+    }
+
+    fn find_button(container: &web_sys::HtmlElement, label: &str) -> web_sys::HtmlElement {
+        let buttons = container.get_elements_by_tag_name("button");
+        for i in 0..buttons.length() {
+            let btn = buttons.item(i).unwrap().dyn_into::<web_sys::HtmlElement>().unwrap();
+            if btn.text_content().unwrap_or_default() == label {
+                return btn;
+            }
+        }
+        panic!("button with label {label} not found", label = label);
+    }
+
+    #[wasm_bindgen_test]
+    fn timeframe_buttons_update_interval() {
+        let container = setup_container();
+        leptos::mount_to(container.clone(), || view! { <TimeframeSelector/> });
+
+        let five = find_button(&container, "5m");
+        five.click();
+        assert_eq!(current_interval().get(), TimeInterval::FiveMinutes);
+
+        let fifteen = find_button(&container, "15m");
+        fifteen.click();
+        assert_eq!(current_interval().get(), TimeInterval::FifteenMinutes);
+
+        let thirty = find_button(&container, "30m");
+        thirty.click();
+        assert_eq!(current_interval().get(), TimeInterval::ThirtyMinutes);
+    }
+}
