@@ -31,6 +31,10 @@ pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
 }
 
 impl WebGpuRenderer {
+    /// Convert pixel size to normalized device coordinates
+    fn px_to_ndc(&self, px: f32) -> f32 {
+        (px / self.height as f32) * 2.0
+    }
     pub(super) fn create_geometry(
         &self,
         chart: &Chart,
@@ -221,7 +225,7 @@ impl WebGpuRenderer {
                 .collect()
         };
 
-        let line_width = 0.004;
+        let line_width = self.px_to_ndc(2.0);
 
         if self.line_visibility.sma_20 {
             let points = to_points(&mas.sma_20, 20);
@@ -274,7 +278,7 @@ impl WebGpuRenderer {
             let price_y = ((current_price - min_price) / price_range) * 2.0 - 1.0; // same area as candles
 
             // Solid horizontal line across the entire screen
-            let line_thickness = 0.002;
+            let line_thickness = self.px_to_ndc(2.0);
             let price_line = vec![
                 CandleVertex::current_price_vertex(-1.0, price_y - line_thickness),
                 CandleVertex::current_price_vertex(1.0, price_y - line_thickness),
@@ -303,7 +307,12 @@ impl WebGpuRenderer {
                 span_a_pts.push((x, y_a));
                 span_b_pts.push((x, y_b));
             }
-            vertices.extend(CandleGeometry::create_ichimoku_cloud(&span_a_pts, &span_b_pts, 0.002));
+            let cloud_width = self.px_to_ndc(2.0);
+            vertices.extend(CandleGeometry::create_ichimoku_cloud(
+                &span_a_pts,
+                &span_b_pts,
+                cloud_width,
+            ));
         }
 
         // Identity matrix - vertices are already in NDC coordinates [-1, 1]
@@ -328,7 +337,7 @@ impl WebGpuRenderer {
             ema12_color: [0.8, 0.2, 0.8, 0.9],         // purple
             ema26_color: [0.0, 0.8, 0.8, 0.9],         // cyan
             current_price_color: [1.0, 1.0, 0.0, 0.8], // 💰 bright yellow
-            render_params: [candle_width, spacing, 0.004, 0.0],
+            render_params: [candle_width, spacing, line_width, 0.0],
         };
 
         (instances, vertices, uniforms)
@@ -499,7 +508,7 @@ mod tests {
                 .collect()
         };
 
-        let line_width = 0.004;
+        let line_width = renderer.px_to_ndc(2.0);
         let checks = [
             (&mas.sma_20, IndicatorType::SMA20, 2.0, 20usize),
             (&mas.sma_50, IndicatorType::SMA50, 3.0, 50usize),

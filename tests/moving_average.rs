@@ -11,8 +11,19 @@ fn create_candle(close: f64, index: u64) -> Candle {
             Price::from(close),
             Price::from(close),
             Price::from(close),
-=======
+            Volume::from(1.0),
+        ),
+    )
+}
 
+fn make_candle(i: u64) -> Candle {
+    Candle::new(
+        Timestamp::from_millis(i * 60_000),
+        OHLCV::new(
+            Price::from(1.0),
+            Price::from(1.0),
+            Price::from(1.0),
+            Price::from(1.0),
             Volume::from(1.0),
         ),
     )
@@ -53,6 +64,9 @@ fn moving_averages_match_manual_calculation() {
     for (calc, exp) in ema5.iter().zip(expected_ema5.iter()) {
         assert!((calc.value() - exp).abs() < f64::EPSILON);
     }
+}
+
+#[wasm_bindgen_test]
 fn moving_average_short_input() {
     let svc = MarketAnalysisService::new();
     let candles: Vec<Candle> = (0..3).map(make_candle).collect();
