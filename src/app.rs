@@ -1274,6 +1274,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 mod tests {
     use super::*;
     use crate::domain::chart::value_objects::ChartType;
+    use crate::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -1334,8 +1335,26 @@ mod tests {
         use std::rc::Rc;
 
         let container = setup_container();
-        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 10));
+        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 50));
         let renderer = Rc::new(RefCell::new(dummy_renderer()));
+        chart.update(|c| {
+            let candles: Vec<Candle> = (0..30)
+                .map(|i| {
+                    let base = 100.0 + i as f64;
+                    Candle::new(
+                        Timestamp::from_millis(i as u64 * 60_000),
+                        OHLCV::new(
+                            Price::from(base),
+                            Price::from(base + 1.0),
+                            Price::from(base - 1.0),
+                            Price::from(base),
+                            Volume::from(1.0),
+                        ),
+                    )
+                })
+                .collect();
+            c.set_historical_data(candles);
+        });
         chart.with_untracked(|c| renderer.borrow_mut().cache_geometry_for_test(c));
         let initial = renderer.borrow().cached_hash_for_test();
 
@@ -1375,7 +1394,7 @@ mod tests {
 
         pan_offset().set(5.0);
 
-        let now = find_button(&container, "Now");
+        let now = find_button(&container, "now");
         now.click();
 
         assert_eq!(pan_offset().get(), 0.0);
