@@ -150,7 +150,7 @@ impl WebGpuRenderer {
         let price_range = max_price - min_price;
         let price_norm = |price: f64| -> f32 {
             let normalized = (price as f32 - min_price) / price_range;
-            -0.5 + normalized * 1.3
+            normalized * 2.0 - 1.0
         };
 
         for (i, candle) in visible_candles.iter().enumerate() {
@@ -337,7 +337,7 @@ impl WebGpuRenderer {
         if let Some(last_candle) = visible_candles.last() {
             let current_price = last_candle.ohlcv.close.value() as f32;
             let price_range = max_price - min_price;
-            let price_y = -0.5 + ((current_price - min_price) / price_range) * 1.3; // same area as candles
+            let price_y = ((current_price - min_price) / price_range) * 2.0 - 1.0; // same area as candles
 
             // Solid horizontal line across the entire screen
             let line_thickness = 0.002;
@@ -360,10 +360,12 @@ impl WebGpuRenderer {
             let mut span_b_pts = Vec::new();
             for i in 0..span_len {
                 let x = candle_x_position(i, visible_count);
-                let y_a = -0.5
-                    + ((ichimoku.senkou_span_a[i].value() as f32 - min_price) / price_range) * 1.3;
-                let y_b = -0.5
-                    + ((ichimoku.senkou_span_b[i].value() as f32 - min_price) / price_range) * 1.3;
+                let y_a = ((ichimoku.senkou_span_a[i].value() as f32 - min_price) / price_range)
+                    * 2.0
+                    - 1.0;
+                let y_b = ((ichimoku.senkou_span_b[i].value() as f32 - min_price) / price_range)
+                    * 2.0
+                    - 1.0;
                 span_a_pts.push((x, y_a));
                 span_b_pts.push((x, y_b));
             }
@@ -540,7 +542,7 @@ mod tests {
         min_price -= pr * 0.05;
         max_price += pr * 0.05;
         let price_norm =
-            |p: f64| -> f32 { -0.5 + ((p as f32 - min_price) / (max_price - min_price)) * 1.3 };
+            |p: f64| -> f32 { ((p as f32 - min_price) / (max_price - min_price)) * 2.0 - 1.0 };
 
         let analysis = MarketAnalysisService::new();
         let mas = analysis.calculate_multiple_mas(&candles);
@@ -642,7 +644,7 @@ mod tests {
             }
         }
 
-        assert!((min_v + 0.5).abs() < 0.1);
-        assert!((max_v - 0.8).abs() < 0.1);
+        assert!((min_v + 1.0).abs() < 0.1);
+        assert!((max_v - 1.0).abs() < 0.1);
     }
 }
