@@ -45,6 +45,9 @@ const MAX_ZOOM_LEVEL: f64 = 32.0;
 /// Pan offset required to trigger history loading
 pub const HISTORY_FETCH_THRESHOLD: f64 = -50.0;
 
+/// Number of candles kept in memory beyond the visible range
+const HISTORY_BUFFER_SIZE: usize = 150;
+
 /// Check if more historical data should be fetched
 pub fn should_fetch_history(pan: f64) -> bool {
     pan <= HISTORY_FETCH_THRESHOLD
@@ -55,8 +58,9 @@ pub fn visible_range(len: usize, zoom: f64, pan: f64) -> (usize, usize) {
     let visible = ((MAX_VISIBLE_CANDLES / zoom).max(MIN_VISIBLE_CANDLES).min(len as f64)) as isize;
     let base_start = len as isize - visible;
     let offset = pan.round() as isize;
+    let min_start = (base_start - HISTORY_BUFFER_SIZE as isize).max(0);
     let max_start = len as isize - visible;
-    let start = (base_start + offset).clamp(0, max_start);
+    let start = (base_start + offset).clamp(min_start, max_start);
     (start as usize, visible as usize)
 }
 
@@ -132,9 +136,14 @@ fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
             symbol.clone(),
             TimeInterval::OneMinute,
         )));
+        let visible = chart.with(|c| {
+            let len = c.get_candle_count();
+            visible_range(len, zoom_level().get_untracked(), pan_offset().get_untracked()).1
+        });
+        let limit = (visible + HISTORY_BUFFER_SIZE) as u32;
         let result = {
             let client = client_arc.lock().await;
-            client.fetch_historical_data_before(end_time, 300).await
+            client.fetch_historical_data_before(end_time, limit).await
         };
         match result {
             Ok(mut new_candles) => {
