@@ -6,7 +6,7 @@
 
 - ✅ Live data from Binance WebSocket
 - ✅ WebGPU rendering (60 FPS)
-- ✅ Moving averages: SMA20, EMA12
+- ✅ Technical indicators: SMA20, SMA50, SMA200, EMA12, EMA26, Ichimoku
 - ✅ Solid line for the current price
 - ✅ Interactive tooltip
 - ✅ Professional look similar to TradingView
@@ -57,7 +57,7 @@ Binance WebSocket → BinanceClient → Leptos Signals → WebGPU → Canvas
 
 ### **renderer** - GPU rendering
 - Candle rendering (green/red)
-- Moving averages (SMA20, EMA12)
+- Technical indicators (SMA20, SMA50, SMA200, EMA12, EMA26, Ichimoku)
 - Solid price line (yellow)
 - 300-candle scrolling buffer
 
@@ -79,7 +79,11 @@ TOOLTIP_DATA: TooltipData    // Tooltip info
 
 - **Candles**: green (up) / red (down)
 - **SMA20**: red line (simple 20-period average)
+- **SMA50**: yellow line (simple 50-period average)
+- **SMA200**: blue line (simple 200-period average)
 - **EMA12**: purple line (12-period exponential average)
+- **EMA26**: cyan line (26-period exponential average)
+- **Ichimoku**: cloud with Tenkan, Kijun, Senkou and Chikou
 - **Price**: yellow solid line + orange label
 - **Tooltip**: black with OHLC + Volume + % change
 
