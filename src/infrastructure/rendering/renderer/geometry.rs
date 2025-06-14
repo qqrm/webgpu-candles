@@ -322,11 +322,11 @@ impl WebGpuRenderer {
             bullish_color: [0.455, 0.780, 0.529, 1.0], // #74c787 - green
             bearish_color: [0.882, 0.424, 0.282, 1.0], // #e16c48 - red
             wick_color: [0.6, 0.6, 0.6, 0.9],          // light gray
-            sma20_color: [1.0, 0.2, 0.2, 0.9],         // bright red
-            sma50_color: [1.0, 0.8, 0.0, 0.9],         // yellow
-            sma200_color: [0.2, 0.4, 0.8, 0.9],        // blue
-            ema12_color: [0.8, 0.2, 0.8, 0.9],         // purple
-            ema26_color: [0.0, 0.8, 0.8, 0.9],         // cyan
+            sma20_color: [1.0, 1.0, 0.0, 0.9],         // yellow
+            sma50_color: [1.0, 1.0, 0.0, 0.9],         // yellow
+            sma200_color: [1.0, 1.0, 0.0, 0.9],        // yellow
+            ema12_color: [1.0, 1.0, 0.0, 0.9],         // yellow
+            ema26_color: [1.0, 1.0, 0.0, 0.9],         // yellow
             current_price_color: [1.0, 1.0, 0.0, 0.8], // 💰 bright yellow
             render_params: [candle_width, spacing, 0.004, 0.0],
         };
