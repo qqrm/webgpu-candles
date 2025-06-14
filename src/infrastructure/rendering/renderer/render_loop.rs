@@ -1,6 +1,6 @@
 use super::*;
 use crate::log_info;
-use leptos::SignalGetUntracked;
+use leptos::{SignalGetUntracked, SignalSet};
 use serde_json;
 use std::hash::{Hash, Hasher};
 
@@ -258,6 +258,7 @@ impl WebGpuRenderer {
             "ema26" => self.line_visibility.ema_26 = !self.line_visibility.ema_26,
             _ => {}
         }
+        crate::app::global_line_visibility().set(self.line_visibility.clone());
     }
 
     pub fn line_visibility(&self) -> LineVisibility {

@@ -23,6 +23,7 @@ use crate::{
             value_objects::{Symbol, default_symbols},
         },
     },
+    infrastructure::rendering::renderer::LineVisibility,
     infrastructure::{
         rendering::{
             WebGpuRenderer,
@@ -110,6 +111,7 @@ global_signals! {
     pub current_interval => current_interval: TimeInterval,
     pub current_symbol => current_symbol: Symbol,
     pub stream_abort_handle => stream_abort_handle: Option<futures::future::AbortHandle>,
+    pub global_line_visibility => line_visibility: LineVisibility,
 }
 
 /// 📈 Fetch additional history and prepend it to the list
@@ -1067,12 +1069,22 @@ fn IndicatorToggles(chart: RwSignal<Chart>) -> impl IntoView {
 fn LegendIndicatorToggle(name: &'static str, chart: RwSignal<Chart>) -> impl IntoView {
     let id = name;
     let label = name.to_uppercase();
+    let checked = move || {
+        global_line_visibility().with(|v| match name {
+            "sma20" => v.sma_20,
+            "sma50" => v.sma_50,
+            "sma200" => v.sma_200,
+            "ema12" => v.ema_12,
+            "ema26" => v.ema_26,
+            _ => true,
+        })
+    };
     view! {
         <label style="display:flex;align-items:center;gap:4px;">
             <input
                 type="checkbox"
                 id=id
-                checked=true
+                prop:checked=checked
                 on:change=move |_| {
                     chart.with_untracked(|c| {
                         with_global_renderer(|r| {
@@ -1366,6 +1378,27 @@ mod tests {
         cb.click();
 
         assert!(!renderer.borrow().line_visibility().sma_20);
+    }
+
+    #[wasm_bindgen_test]
+    fn legend_checkbox_updates_on_renderer_change() {
+        use crate::infrastructure::rendering::renderer::{dummy_renderer, set_global_renderer};
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        let container = setup_container();
+        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 10));
+        let renderer = Rc::new(RefCell::new(dummy_renderer()));
+
+        set_global_renderer(renderer.clone());
+        leptos::mount_to(container.clone(), move || view! { <Legend chart=chart /> });
+
+        let cb = find_checkbox(&container, "sma20");
+        assert!(cb.checked());
+
+        renderer.borrow_mut().toggle_line_visibility("sma20");
+
+        assert!(!cb.checked());
     }
     #[wasm_bindgen_test]
     fn now_button_resets_pan() {

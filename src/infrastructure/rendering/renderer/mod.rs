@@ -20,6 +20,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use web_sys::HtmlCanvasElement;
 use wgpu::util::DeviceExt;
+use leptos::SignalSet;
 thread_local! {
     static GLOBAL_RENDERER: RefCell<Option<Rc<RefCell<WebGpuRenderer>>>> = const { RefCell::new(None) };
 }
@@ -31,6 +32,11 @@ pub const MSAA_SAMPLE_COUNT: u32 = 4;
 pub fn set_global_renderer(renderer: Rc<RefCell<WebGpuRenderer>>) {
     GLOBAL_RENDERER.with(|cell| {
         *cell.borrow_mut() = Some(renderer);
+    });
+    GLOBAL_RENDERER.with(|cell| {
+        if let Some(rc) = &*cell.borrow() {
+            crate::app::global_line_visibility().set(rc.borrow().line_visibility.clone());
+        }
     });
 }
 

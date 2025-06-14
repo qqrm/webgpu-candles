@@ -24,6 +24,7 @@ pub struct Globals {
     pub current_interval: RwSignal<TimeInterval>,
     pub current_symbol: RwSignal<Symbol>,
     pub stream_abort_handle: RwSignal<Option<futures::future::AbortHandle>>,
+    pub line_visibility: RwSignal<crate::infrastructure::rendering::renderer::LineVisibility>,
 }
 
 // The `OnceCell` ensures this state is created at most once on demand.
@@ -45,5 +46,8 @@ pub fn globals() -> &'static Globals {
         current_interval: create_rw_signal(TimeInterval::OneMinute),
         current_symbol: create_rw_signal(Symbol::from("BTCUSDT")),
         stream_abort_handle: create_rw_signal(None),
+        line_visibility: create_rw_signal(
+            crate::infrastructure::rendering::renderer::LineVisibility::default(),
+        ),
     })
 }
