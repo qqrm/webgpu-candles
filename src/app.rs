@@ -1375,7 +1375,7 @@ mod tests {
 
         pan_offset().set(5.0);
 
-        let now = find_button(&container, "Now");
+        let now = find_button(&container, "now");
         now.click();
 
         assert_eq!(pan_offset().get(), 0.0);
