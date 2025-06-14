@@ -1188,6 +1188,7 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::chart::value_objects::ChartType;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -1216,7 +1217,8 @@ mod tests {
     #[wasm_bindgen_test]
     fn timeframe_buttons_update_interval() {
         let container = setup_container();
-        leptos::mount_to(container.clone(), || view! { <TimeframeSelector/> });
+        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 10));
+        leptos::mount_to(container.clone(), move || view! { <TimeframeSelector chart=chart /> });
 
         let five = find_button(&container, "5m");
         five.click();
