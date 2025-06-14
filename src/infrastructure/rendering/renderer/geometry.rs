@@ -42,6 +42,12 @@ pub const MAX_ELEMENT_WIDTH: f32 = 0.1;
 /// Ratio of space left empty between elements
 pub const SPACING_RATIO: f32 = 0.2;
 
+/// Dynamic spacing based on number of visible candles
+pub fn spacing_ratio_for(visible_len: usize) -> f32 {
+    let factor = (visible_len as f32 / BASE_CANDLES).min(1.0);
+    SPACING_RATIO * factor
+}
+
 /// Candle/bar position taking right edge into account
 pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
     let step_size = 2.0 / visible_len as f32;
@@ -104,7 +110,7 @@ impl WebGpuRenderer {
 
         // Calculate visible candle width and spacing
         let step_size = chart_width / candle_count as f64;
-        let candle_width_estimate = step_size * (1.0 - SPACING_RATIO as f64);
+        let candle_width_estimate = step_size * (1.0 - spacing_ratio_for(candle_count) as f64);
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
@@ -137,7 +143,9 @@ impl WebGpuRenderer {
 
         // Create instance data for each visible candle
         let step_size = 2.0 / visible_candles.len() as f32;
-        let candle_width = (step_size * (1.0 - SPACING_RATIO)).max(MIN_ELEMENT_WIDTH);
+        let spacing = spacing_ratio_for(visible_candles.len());
+        let candle_width =
+            (step_size * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
         let mut instances = Vec::with_capacity(visible_candles.len());
 
         let half_width = candle_width * 0.5;
@@ -225,7 +233,7 @@ impl WebGpuRenderer {
             vertices.extend_from_slice(&corners);
 
             // Add wicks (upper and lower)
-            let wick_width = candle_width * 0.1; // thin wicks
+            let wick_width = (candle_width * 0.15).max(MIN_ELEMENT_WIDTH * 0.5);
             let wick_half = wick_width * 0.5;
 
             // Upper wick
@@ -378,7 +386,7 @@ impl WebGpuRenderer {
             ema12_color: [0.8, 0.2, 0.8, 0.9],         // purple
             ema26_color: [0.0, 0.8, 0.8, 0.9],         // cyan
             current_price_color: [1.0, 1.0, 0.0, 0.8], // 💰 bright yellow
-            render_params: [candle_width, SPACING_RATIO, 0.004, 0.0],
+            render_params: [candle_width, spacing, 0.004, 0.0],
         };
 
         (instances, vertices, uniforms)
@@ -418,6 +426,7 @@ mod tests {
                 cached_candle_count: 0,
                 cached_zoom_level: 1.0,
                 cached_hash: 0,
+                cached_data_hash: 0,
                 zoom_level: 1.0,
                 pan_offset: 0.0,
                 last_frame_time: 0.0,
