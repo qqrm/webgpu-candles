@@ -1014,7 +1014,7 @@ fn CurrentTimeButton(chart: RwSignal<Chart>) -> impl IntoView {
                 });
             }
         >
-            "Now"
+            "now"
         </button>
     }
 }
