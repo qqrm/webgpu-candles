@@ -75,3 +75,17 @@ fn candle_color_logic() {
     );
     assert!((bearish[0].color_type - 0.0).abs() < f32::EPSILON);
 }
+
+#[wasm_bindgen_test]
+fn corner_segment_vertex_count() {
+    let narrow = CandleGeometry::create_candle_vertices(
+        0.0, 1.0, 1.1, 0.9, 1.05, 0.0, 0.0, 0.3, -0.3, 0.2, 0.02,
+    );
+
+    let wide = CandleGeometry::create_candle_vertices(
+        0.0, 1.0, 1.1, 0.9, 1.05, 0.0, 0.0, 0.3, -0.3, 0.2, 0.05,
+    );
+
+    assert_eq!(narrow.len(), 114);
+    assert_eq!(wide.len(), 186);
+}
