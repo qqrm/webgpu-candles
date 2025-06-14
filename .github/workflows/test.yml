@@ -28,8 +28,10 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings || echo 'Clippy warnings found'
       - name: Run tests
         run: wasm-pack test --headless --chrome
-      - name: Generate lcov
-        run: wasm-tools coverage target/wasm32-unknown-unknown/debug/deps/*.wasm > lcov.info
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov
+      - name: Generate coverage
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
