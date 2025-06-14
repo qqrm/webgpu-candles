@@ -25,12 +25,6 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-      - name: Install rustup if needed
-        run: |
-          if ! command -v rustup &>/dev/null; then
-            curl --proto '=https' --tlsv1.2 --retry 10 --retry-delay 5 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs | sh -s -- --default-toolchain none -y
-            echo "$CARGO_HOME/bin" >> $GITHUB_PATH
-          fi
       - name: Install wasm-pack
         run: cargo install wasm-pack --version 0.13.1
       - name: Install wasm-tools
