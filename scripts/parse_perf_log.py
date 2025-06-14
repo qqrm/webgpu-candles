@@ -15,6 +15,10 @@ with open(log_path) as f:
         if m:
             fps_values.append(float(m.group(1)))
 
+if not fps_values:
+    print("No FPS data found in log")
+    sys.exit(1)
+
 fps = sum(fps_values) / len(fps_values) if fps_values else 0.0
 
 with open(out_path, "w") as f:
