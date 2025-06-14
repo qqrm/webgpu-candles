@@ -102,7 +102,8 @@ impl Default for LineVisibility {
 
 mod geometry;
 pub use geometry::{
-    BASE_CANDLES, BASE_TEMPLATE, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, candle_x_position,
+    BASE_CANDLES, BASE_TEMPLATE, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, SPACING_RATIO,
+    candle_x_position,
 };
 mod initialization;
 mod performance;
