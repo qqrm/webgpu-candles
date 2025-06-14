@@ -145,4 +145,14 @@ impl CandleSeries {
 
         Some((min_price, max_price))
     }
+
+    /// Get timestamps of the first and last candles
+    pub fn time_bounds(&self) -> Option<(u64, u64)> {
+        if self.candles.is_empty() {
+            return None;
+        }
+        let first = self.candles.front().unwrap().timestamp.value();
+        let last = self.candles.back().unwrap().timestamp.value();
+        Some((first, last))
+    }
 }

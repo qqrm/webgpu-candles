@@ -115,6 +115,11 @@ impl Chart {
 
     pub fn zoom(&mut self, factor: f32, center_x: f32) {
         self.viewport.zoom(factor, center_x);
+        if let Some(series) = self.series.get(&TimeInterval::OneMinute) {
+            if let Some((first, last)) = series.time_bounds() {
+                self.viewport.clamp_to_data(first, last);
+            }
+        }
     }
 
     /// Vertical zoom by price
@@ -124,6 +129,11 @@ impl Chart {
 
     pub fn pan(&mut self, delta_x: f32, delta_y: f32) {
         self.viewport.pan(delta_x, delta_y);
+        if let Some(series) = self.series.get(&TimeInterval::OneMinute) {
+            if let Some((first, last)) = series.time_bounds() {
+                self.viewport.clamp_to_data(first, last);
+            }
+        }
     }
 
     pub fn get_series(&self, interval: TimeInterval) -> Option<&CandleSeries> {

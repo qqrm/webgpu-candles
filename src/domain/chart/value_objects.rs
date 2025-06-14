@@ -99,6 +99,34 @@ impl Viewport {
         self.max_price += price_delta;
     }
 
+    /// Keep the viewport within available candle data
+    pub fn clamp_to_data(&mut self, first_ts: u64, last_ts: u64) {
+        if first_ts >= last_ts {
+            self.start_time = first_ts as f64;
+            self.end_time = last_ts as f64;
+            return;
+        }
+
+        let range = self.time_range();
+
+        self.start_time = self.start_time.max(first_ts as f64);
+        self.end_time = self.start_time + range;
+
+        if self.end_time > last_ts as f64 {
+            self.end_time = last_ts as f64;
+            self.start_time = self.end_time - range;
+
+            if self.start_time < first_ts as f64 {
+                self.start_time = first_ts as f64;
+            }
+        }
+
+        if range > (last_ts - first_ts) as f64 {
+            self.start_time = first_ts as f64;
+            self.end_time = last_ts as f64;
+        }
+    }
+
     /// Convert a timestamp to a screen X coordinate
     pub fn time_to_x(&self, timestamp: f64) -> f32 {
         if self.time_range() == 0.0 {
