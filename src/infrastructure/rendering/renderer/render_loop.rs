@@ -44,11 +44,9 @@ impl WebGpuRenderer {
         }
 
         self.cached_vertices = vertices;
-        self.cached_instances = instances;
         self.cached_uniforms = uniforms;
         self.cached_hash = new_hash;
         self.template_vertices = self.cached_vertices.len() as u32;
-        self.template_instances = self.cached_instances.len() as u32;
 
         #[cfg(not(test))]
         self.write_buffers();
@@ -59,11 +57,9 @@ impl WebGpuRenderer {
     #[cfg(not(test))]
     fn write_buffers(&self) {
         let vertex_bytes = bytemuck::cast_slice(&self.cached_vertices);
-        let instance_bytes = bytemuck::cast_slice(&self.cached_instances);
         let uniform_copy = self.cached_uniforms;
         let uniform_bytes = bytemuck::bytes_of(&uniform_copy);
         self.queue.write_buffer(&self.vertex_buffer, 0, vertex_bytes);
-        self.queue.write_buffer(&self.instance_buffer, 0, instance_bytes);
         self.queue.write_buffer(&self.uniform_buffer, 0, uniform_bytes);
     }
 
@@ -179,8 +175,7 @@ impl WebGpuRenderer {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.draw(0..num_vertices, 0..self.template_instances);
+            render_pass.draw(0..num_vertices, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -424,7 +419,6 @@ impl WebGpuRenderer {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             render_pass.draw(0..6, 0..1);
 
             get_logger().info(
@@ -507,7 +501,6 @@ impl WebGpuRenderer {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             render_pass.draw(0..6, 0..1); // Draw 6 rectangle vertices
 
             get_logger().info(
@@ -587,7 +580,6 @@ impl WebGpuRenderer {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             render_pass.draw(0..3, 0..1); // Draw 3 triangle vertices
 
             get_logger().info(
@@ -625,13 +617,10 @@ mod tests {
                 config: std::mem::MaybeUninit::zeroed().assume_init(),
                 render_pipeline: std::mem::MaybeUninit::zeroed().assume_init(),
                 vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
-                instance_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
                 template_vertices: 0,
-                template_instances: 0,
                 cached_vertices: Vec::new(),
-                cached_instances: Vec::new(),
                 cached_uniforms: ChartUniforms::new(),
                 cached_candle_count: 0,
                 cached_zoom_level: 1.0,
