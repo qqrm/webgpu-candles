@@ -278,8 +278,13 @@ impl ChartUniforms {
 pub struct CandleGeometry;
 
 impl CandleGeometry {
-    /// Number of segments used to approximate rounded candle corners
-    const CORNER_SEGMENTS: usize = 6;
+    /// Base number of segments for rounded corners
+    const BASE_CORNER_SEGMENTS: usize = 6;
+
+    /// Determine corner segment count based on candle width
+    fn corner_segments(width: f32) -> usize {
+        if width >= 0.04 { 12 } else { Self::BASE_CORNER_SEGMENTS }
+    }
     /// Create vertices for a single candle
     #[allow(clippy::too_many_arguments)]
     pub fn create_candle_vertices(
@@ -363,10 +368,11 @@ impl CandleGeometry {
         ]);
 
         // Helper to build corner arcs
+        let segments = Self::corner_segments(width);
         let mut add_arc = |cx: f32, cy: f32, start: f32, end: f32| {
-            let step = (end - start) / Self::CORNER_SEGMENTS as f32;
+            let step = (end - start) / segments as f32;
             let mut angle = start;
-            for _ in 0..Self::CORNER_SEGMENTS {
+            for _ in 0..segments {
                 let x1 = cx + corner * angle.cos();
                 let y1 = cy + corner * angle.sin();
                 angle += step;
