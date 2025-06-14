@@ -150,7 +150,7 @@ impl WebGpuRenderer {
             JsValue::from_str(&error_msg)
         })?;
 
-        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let start_pass = web_sys::window().and_then(|w| w.performance()).map(|p| p.now());
 
@@ -162,8 +162,8 @@ impl WebGpuRenderer {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
+                    view: &self.msaa_view,
+                    resolve_target: Some(&surface_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.145,
@@ -298,7 +298,7 @@ impl WebGpuRenderer {
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
 
-        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Clear Only Encoder"),
         });
@@ -307,8 +307,8 @@ impl WebGpuRenderer {
             let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Clear Only Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
+                    view: &self.msaa_view,
+                    resolve_target: Some(&surface_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 1.0,
@@ -401,7 +401,7 @@ impl WebGpuRenderer {
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
 
-        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Test Simple Quad Encoder"),
         });
@@ -410,8 +410,8 @@ impl WebGpuRenderer {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Test Simple Quad Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
+                    view: &self.msaa_view,
+                    resolve_target: Some(&surface_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.2,
@@ -483,7 +483,7 @@ impl WebGpuRenderer {
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
 
-        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Test Rectangle Encoder"),
         });
@@ -492,8 +492,8 @@ impl WebGpuRenderer {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Test Rectangle Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
+                    view: &self.msaa_view,
+                    resolve_target: Some(&surface_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.1,
@@ -562,7 +562,7 @@ impl WebGpuRenderer {
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
 
-        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Test Triangle Encoder"),
         });
@@ -571,8 +571,8 @@ impl WebGpuRenderer {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Test Triangle Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
+                    view: &self.msaa_view,
+                    resolve_target: Some(&surface_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.0,
@@ -630,6 +630,8 @@ mod tests {
                 vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
                 uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
+                msaa_texture: std::mem::MaybeUninit::zeroed().assume_init(),
+                msaa_view: std::mem::MaybeUninit::zeroed().assume_init(),
                 template_vertices: 0,
                 cached_vertices: Vec::new(),
                 cached_uniforms: ChartUniforms::new(),

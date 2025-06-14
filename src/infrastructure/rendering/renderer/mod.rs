@@ -24,6 +24,9 @@ thread_local! {
     static GLOBAL_RENDERER: RefCell<Option<Rc<RefCell<WebGpuRenderer>>>> = const { RefCell::new(None) };
 }
 
+/// Number of samples for MSAA
+pub const MSAA_SAMPLE_COUNT: u32 = 4;
+
 /// Store the global renderer instance
 pub fn set_global_renderer(renderer: Rc<RefCell<WebGpuRenderer>>) {
     GLOBAL_RENDERER.with(|cell| {
@@ -59,6 +62,8 @@ pub struct WebGpuRenderer {
     vertex_buffer: wgpu::Buffer,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
+    msaa_texture: wgpu::Texture,
+    msaa_view: wgpu::TextureView,
     template_vertices: u32,
 
     // 🗄️ Cached data
@@ -121,6 +126,8 @@ pub fn dummy_renderer() -> WebGpuRenderer {
             vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
             uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
             uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
+            msaa_texture: std::mem::MaybeUninit::zeroed().assume_init(),
+            msaa_view: std::mem::MaybeUninit::zeroed().assume_init(),
             template_vertices: 0,
             cached_vertices: Vec::new(),
             cached_uniforms: ChartUniforms::new(),

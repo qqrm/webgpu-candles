@@ -129,6 +129,18 @@ impl WebGpuRenderer {
             "🎯 Surface configured successfully",
         );
 
+        let msaa_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("MSAA Texture"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: MSAA_SAMPLE_COUNT,
+            dimension: wgpu::TextureDimension::D2,
+            format: config.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniform Buffer"),
             contents: bytemuck::cast_slice(&[ChartUniforms::new()]),
@@ -201,7 +213,7 @@ impl WebGpuRenderer {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
-                count: 1,
+                count: MSAA_SAMPLE_COUNT,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -233,6 +245,8 @@ impl WebGpuRenderer {
             vertex_buffer,
             uniform_buffer,
             uniform_bind_group,
+            msaa_texture,
+            msaa_view,
             template_vertices: 0,
             cached_vertices: Vec::new(),
             cached_uniforms: ChartUniforms::new(),
@@ -259,6 +273,21 @@ impl WebGpuRenderer {
             self.config.width = new_width;
             self.config.height = new_height;
             self.surface.configure(&self.device, &self.config);
+            self.msaa_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("MSAA Texture"),
+                size: wgpu::Extent3d {
+                    width: new_width,
+                    height: new_height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: MSAA_SAMPLE_COUNT,
+                dimension: wgpu::TextureDimension::D2,
+                format: self.config.format,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+            self.msaa_view = self.msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
         }
     }
 
