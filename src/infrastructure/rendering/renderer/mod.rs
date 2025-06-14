@@ -57,15 +57,12 @@ pub struct WebGpuRenderer {
     // Rendering pipeline
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
-    instance_buffer: wgpu::Buffer,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     template_vertices: u32,
-    instance_count: u32,
 
     // 🗄️ Cached data
     cached_vertices: Vec<CandleVertex>,
-    cached_instances: Vec<CandleInstance>,
     cached_uniforms: ChartUniforms,
     cached_candle_count: usize,
     cached_zoom_level: f64,
