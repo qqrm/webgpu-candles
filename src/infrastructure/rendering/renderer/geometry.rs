@@ -41,12 +41,14 @@ pub const SPACING_RATIO: f32 = 0.2;
 
 /// Dynamic spacing based on number of visible candles
 pub fn spacing_ratio_for(visible_len: usize) -> f32 {
+    assert!(visible_len > 0, "visible_len must be > 0");
     let factor = (visible_len as f32 / 100.0).min(1.0);
     SPACING_RATIO * factor
 }
 
 /// Candle/bar position taking right edge into account
 pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
+    assert!(visible_len > 0, "visible_len must be > 0");
     let step_size = 2.0 / visible_len as f32;
     // Snap last candle exactly to the right edge (x=1.0)
     // First candle will be at (1.0 - (visible_len-1) * step_size)
