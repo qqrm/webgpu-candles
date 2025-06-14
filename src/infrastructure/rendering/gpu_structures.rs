@@ -280,9 +280,6 @@ pub struct CandleGeometry;
 impl CandleGeometry {
     /// Base number of segments for rounded corners
     const BASE_CORNER_SEGMENTS: usize = 6;
-    /// Ratio of the candle width used for rounded corners
-    const CORNER_RADIUS_RATIO: f32 = 0.15;
-
     /// Determine corner segment count based on candle width
     fn corner_segments(width: f32) -> usize {
         if width >= 0.04 { 12 } else { Self::BASE_CORNER_SEGMENTS }
