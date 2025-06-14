@@ -13,6 +13,7 @@ use crate::infrastructure::rendering::gpu_structures::{
 };
 use gloo::utils::document;
 use js_sys;
+use leptos::SignalSet;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -20,7 +21,6 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use web_sys::HtmlCanvasElement;
 use wgpu::util::DeviceExt;
-use leptos::SignalSet;
 thread_local! {
     static GLOBAL_RENDERER: RefCell<Option<Rc<RefCell<WebGpuRenderer>>>> = const { RefCell::new(None) };
 }
