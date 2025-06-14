@@ -130,7 +130,7 @@ See [TESTS.md](DOCS/TESTS.md) for more details about the test suite.
 Coverage can be collected with `cargo-llvm-cov`:
 
 ```bash
-cargo llvm-cov --workspace --lcov --output-path lcov.info --target wasm32-unknown-unknown -Z build-std=std,panic_abort,profiler_builtins
+cargo llvm-cov --workspace --lcov --output-path lcov.info --target wasm32-unknown-unknown -Z build-std=std,panic_abort
 ```
 Make sure the `rust-src` component is installed before running the command.
 
