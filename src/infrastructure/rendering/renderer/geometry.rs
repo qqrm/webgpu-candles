@@ -196,73 +196,20 @@ impl WebGpuRenderer {
                 _padding: 0.0,
             });
 
-            // Candle body vertices in local space
-            let body_vertices = vec![
-                CandleVertex::body_vertex(-0.5, 0.0, is_bullish),
-                CandleVertex::body_vertex(0.5, 0.0, is_bullish),
-                CandleVertex::body_vertex(-0.5, 1.0, is_bullish),
-                CandleVertex::body_vertex(0.5, 0.0, is_bullish),
-                CandleVertex::body_vertex(0.5, 1.0, is_bullish),
-                CandleVertex::body_vertex(-0.5, 1.0, is_bullish),
-            ];
-            vertices.extend_from_slice(&body_vertices);
-
-            // Round corners with small triangles
-            // Increase rounding for more pronounced candle corners
-            let corner = candle_width * 0.35;
-            let body_height = actual_body_top - body_bottom;
-            let corner_x = corner / candle_width;
-            let corner_y = corner / body_height;
-            let corners = vec![
-                // Top left
-                CandleVertex::body_vertex(-0.5, 1.0 - corner_y, is_bullish),
-                CandleVertex::body_vertex(-0.5 + corner_x, 1.0, is_bullish),
-                CandleVertex::body_vertex(-0.5, 1.0, is_bullish),
-                // Top right
-                CandleVertex::body_vertex(0.5 - corner_x, 1.0, is_bullish),
-                CandleVertex::body_vertex(0.5, 1.0 - corner_y, is_bullish),
-                CandleVertex::body_vertex(0.5, 1.0, is_bullish),
-                // Bottom left
-                CandleVertex::body_vertex(-0.5, 0.0, is_bullish),
-                CandleVertex::body_vertex(-0.5 + corner_x, 0.0, is_bullish),
-                CandleVertex::body_vertex(-0.5, corner_y, is_bullish),
-                // Bottom right
-                CandleVertex::body_vertex(0.5, 0.0, is_bullish),
-                CandleVertex::body_vertex(0.5, corner_y, is_bullish),
-                CandleVertex::body_vertex(0.5 - corner_x, 0.0, is_bullish),
-            ];
-            vertices.extend_from_slice(&corners);
-
-            // Add wicks (upper and lower)
-            let wick_width = (candle_width * 0.15).max(MIN_ELEMENT_WIDTH * 0.5);
-            let wick_half = wick_width * 0.5;
-            let wick_offset = wick_half / candle_width;
-
-            // Upper wick
-            if high_y > actual_body_top {
-                let upper_wick = vec![
-                    CandleVertex::upper_wick_vertex(-wick_offset, 0.0),
-                    CandleVertex::upper_wick_vertex(wick_offset, 0.0),
-                    CandleVertex::upper_wick_vertex(-wick_offset, 1.0),
-                    CandleVertex::upper_wick_vertex(wick_offset, 0.0),
-                    CandleVertex::upper_wick_vertex(wick_offset, 1.0),
-                    CandleVertex::upper_wick_vertex(-wick_offset, 1.0),
-                ];
-                vertices.extend_from_slice(&upper_wick);
-            }
-
-            // Lower wick
-            if low_y < body_bottom {
-                let lower_wick = vec![
-                    CandleVertex::lower_wick_vertex(-wick_offset, 0.0),
-                    CandleVertex::lower_wick_vertex(wick_offset, 0.0),
-                    CandleVertex::lower_wick_vertex(-wick_offset, 1.0),
-                    CandleVertex::lower_wick_vertex(wick_offset, 0.0),
-                    CandleVertex::lower_wick_vertex(wick_offset, 1.0),
-                    CandleVertex::lower_wick_vertex(-wick_offset, 1.0),
-                ];
-                vertices.extend_from_slice(&lower_wick);
-            }
+            let candle_vertices = CandleGeometry::create_candle_vertices(
+                candle.timestamp.as_f64(),
+                candle.ohlcv.open.value() as f32,
+                candle.ohlcv.high.value() as f32,
+                candle.ohlcv.low.value() as f32,
+                candle.ohlcv.close.value() as f32,
+                x,
+                open_y,
+                high_y,
+                low_y,
+                close_y,
+                candle_width,
+            );
+            vertices.extend_from_slice(&candle_vertices);
         }
 
         // Calculate moving averages for indicator lines using the full data set

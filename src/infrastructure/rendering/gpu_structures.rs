@@ -45,16 +45,6 @@ impl CandleVertex {
         Self { position_x: x, position_y: y, element_type: 1.0, color_type: 0.5 }
     }
 
-    /// Create vertex for the upper wick
-    pub fn upper_wick_vertex(x: f32, y: f32) -> Self {
-        Self { position_x: x, position_y: y, element_type: 1.0, color_type: 0.5 }
-    }
-
-    /// Create vertex for the lower wick
-    pub fn lower_wick_vertex(x: f32, y: f32) -> Self {
-        Self { position_x: x, position_y: y, element_type: 1.6, color_type: 0.5 }
-    }
-
     /// Create vertex for an indicator line
     pub fn indicator_vertex(x: f32, y: f32, indicator_type: IndicatorType) -> Self {
         let color_type = match indicator_type {
