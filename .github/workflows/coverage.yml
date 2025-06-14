@@ -30,7 +30,7 @@ jobs:
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov
       - name: Generate coverage
-        run: cargo llvm-cov --workspace --lcov --output-path lcov.info --target wasm32-unknown-unknown -Z build-std=std,panic_abort,profiler_builtins
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info --target wasm32-unknown-unknown -Z build-std=std,panic_abort
       - name: Compute coverage
         run: |
           python - <<'PY'
