@@ -767,6 +767,7 @@ fn ChartContainer() -> impl IntoView {
     let handle_mouse_down = move |event: web_sys::MouseEvent| {
         if event.button() == 0 {
             // Left mouse button
+            web_sys::console::log_1(&"🖱️ Mouse down".into());
             is_dragging().set(true);
             last_mouse_x().set(event.offset_x() as f64);
 
@@ -781,6 +782,7 @@ fn ChartContainer() -> impl IntoView {
 
     // 🖱️ End panning
     let handle_mouse_up = move |_event: web_sys::MouseEvent| {
+        web_sys::console::log_1(&"🖱️ Mouse up".into());
         is_dragging().set(false);
     };
 
