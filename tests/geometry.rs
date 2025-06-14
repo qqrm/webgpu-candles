@@ -102,6 +102,7 @@ fn corner_radius_ratio() {
     let expected_x = x - width * 0.5 + corner;
     assert!((verts[0].position_x - expected_x).abs() < f32::EPSILON);
 }
+
 #[wasm_bindgen_test]
 fn very_low_candle_no_rounding() {
     let low = CandleGeometry::create_candle_vertices(
