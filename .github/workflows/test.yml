@@ -14,6 +14,7 @@ jobs:
         with:
           toolchain: nightly
           targets: wasm32-unknown-unknown
+          components: rust-src
       - name: Install rustup if needed
         run: |
           if ! command -v rustup &>/dev/null; then

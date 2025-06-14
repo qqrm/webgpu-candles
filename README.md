@@ -132,6 +132,7 @@ Coverage can be collected with `cargo-llvm-cov`:
 ```bash
 cargo llvm-cov --workspace --lcov --output-path lcov.info --target wasm32-unknown-unknown -Z build-std=std,panic_abort,profiler_builtins
 ```
+Make sure the `rust-src` component is installed before running the command.
 
 The generated `lcov.info` file can be uploaded by CI.
 The `coverage` workflow publishes the latest percentage to `docs/coverage.md`.
