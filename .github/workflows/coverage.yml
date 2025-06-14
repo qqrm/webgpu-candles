@@ -20,6 +20,7 @@ jobs:
         with:
           toolchain: nightly
           targets: wasm32-unknown-unknown
+          components: rust-src
       - name: Install wasm-pack
         run: cargo install wasm-pack
       - name: Install wasm-tools
