@@ -4,6 +4,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   bench:
     runs-on: ubuntu-latest
