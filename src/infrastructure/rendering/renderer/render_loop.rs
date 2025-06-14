@@ -1,4 +1,5 @@
 use super::*;
+use crate::domain::logging::LogComponent;
 use crate::log_info;
 use leptos::{SignalGetUntracked, SignalSet};
 use serde_json;
@@ -250,13 +251,37 @@ impl WebGpuRenderer {
 
     /// Toggle indicator line visibility
     pub fn toggle_line_visibility(&mut self, line_name: &str) {
-        match line_name {
-            "sma20" => self.line_visibility.sma_20 = !self.line_visibility.sma_20,
-            "sma50" => self.line_visibility.sma_50 = !self.line_visibility.sma_50,
-            "sma200" => self.line_visibility.sma_200 = !self.line_visibility.sma_200,
-            "ema12" => self.line_visibility.ema_12 = !self.line_visibility.ema_12,
-            "ema26" => self.line_visibility.ema_26 = !self.line_visibility.ema_26,
-            _ => {}
+        let state = match line_name {
+            "sma20" => {
+                self.line_visibility.sma_20 = !self.line_visibility.sma_20;
+                Some(self.line_visibility.sma_20)
+            }
+            "sma50" => {
+                self.line_visibility.sma_50 = !self.line_visibility.sma_50;
+                Some(self.line_visibility.sma_50)
+            }
+            "sma200" => {
+                self.line_visibility.sma_200 = !self.line_visibility.sma_200;
+                Some(self.line_visibility.sma_200)
+            }
+            "ema12" => {
+                self.line_visibility.ema_12 = !self.line_visibility.ema_12;
+                Some(self.line_visibility.ema_12)
+            }
+            "ema26" => {
+                self.line_visibility.ema_26 = !self.line_visibility.ema_26;
+                Some(self.line_visibility.ema_26)
+            }
+            _ => None,
+        };
+
+        if let Some(state) = state {
+            log_info!(
+                LogComponent::Infrastructure("LegendToggle"),
+                "Line {} visible: {}",
+                line_name,
+                state
+            );
         }
         crate::app::global_line_visibility().set(self.line_visibility.clone());
     }
