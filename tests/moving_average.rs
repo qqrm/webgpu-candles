@@ -60,7 +60,7 @@ fn moving_averages_match_manual_calculation() {
 #[wasm_bindgen_test]
 fn moving_average_short_input() {
     let svc = MarketAnalysisService::new();
-    let candles: Vec<Candle> = (0..3).map(make_candle).collect();
+    let candles: Vec<Candle> = (0..3).map(|i| create_candle(1.0, i)).collect();
 
     assert!(svc.calculate_sma(&candles, 5).is_empty());
     assert!(svc.calculate_ema(&candles, 5).is_empty());

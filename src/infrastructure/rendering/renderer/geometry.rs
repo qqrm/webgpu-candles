@@ -274,7 +274,8 @@ impl WebGpuRenderer {
             let price_y = ((current_price - min_price) / price_range) * 2.0 - 1.0; // same area as candles
 
             // Solid horizontal line across the entire screen
-            let line_thickness = 0.002;
+            // Keep the line width constant regardless of zoom level
+            let line_thickness = 2.0 / self.height as f32;
             let price_line = vec![
                 CandleVertex::current_price_vertex(-1.0, price_y - line_thickness),
                 CandleVertex::current_price_vertex(1.0, price_y - line_thickness),
