@@ -1,5 +1,5 @@
 use price_chart_wasm::infrastructure::rendering::renderer::{
-    MIN_ELEMENT_WIDTH, candle_x_position, spacing_ratio_for,
+    EDGE_GAP, MIN_ELEMENT_WIDTH, candle_x_position, spacing_ratio_for,
 };
 use wasm_bindgen_test::*;
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -64,12 +64,16 @@ fn positioning_boundary_test() {
             );
         }
 
-        // Ensure the last position is exactly 1.0
+        // Calculate width and ensure the last position touches the right edge
+        let step_size = 2.0 / visible_len as f32;
+        let spacing = spacing_ratio_for(visible_len);
+        let width = (step_size * (1.0 - spacing)).max(MIN_ELEMENT_WIDTH);
         let last_x = candle_x_position(visible_len - 1, visible_len);
-        assert_eq!(
-            last_x, 1.0,
-            "Last position should be 1.0 for visible_len={}, got {:.10}",
-            visible_len, last_x
+        assert!(
+            (last_x + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
+            "Last position should touch right edge for visible_len={}, got {:.10}",
+            visible_len,
+            last_x
         );
     }
 }
