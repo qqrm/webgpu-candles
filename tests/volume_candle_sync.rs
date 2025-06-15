@@ -1,6 +1,7 @@
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use price_chart_wasm::infrastructure::rendering::renderer::{
-    MIN_ELEMENT_WIDTH, SPACING_RATIO, candle_x_position,
+    EDGE_GAP, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, SPACING_RATIO, candle_x_position,
+    spacing_ratio_for,
 };
 use wasm_bindgen_test::*;
 
@@ -49,9 +50,16 @@ fn volume_candle_position_sync() {
         );
     }
 
-    // Ensure the last candle and volume bar are exactly at the right
+    // Ensure the last candle and volume bar touch the right edge
     let last_x = candle_x_position(visible_len - 1, visible_len);
-    assert_eq!(last_x, 1.0, "Last element must be exactly at x=1.0, got x={:.10}", last_x);
+    let spacing = spacing_ratio_for(visible_len);
+    let step_size = 2.0 / visible_len as f32;
+    let width = (step_size * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
+    assert!(
+        (last_x + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
+        "Last element must align with right edge: x={:.6}",
+        last_x
+    );
 }
 
 #[wasm_bindgen_test]
@@ -76,10 +84,10 @@ fn volume_width_sync() {
             x - half_width
         );
         assert!(
-            x + half_width <= 1.0,
+            x + half_width + EDGE_GAP <= 1.0,
             "Right boundary of element {} out of bounds: {:.6}",
             i,
-            x + half_width
+            x + half_width + EDGE_GAP
         );
     }
 }
@@ -118,13 +126,19 @@ fn debug_positioning_logic() {
 
     // Check right edge alignment
     if !candle_positions.is_empty() {
-        let last_candle = candle_positions.last().unwrap();
-        let last_volume = volume_positions.last().unwrap();
-
-        assert_eq!(*last_candle, 1.0, "Last candle should be at x=1.0, got {:.10}", last_candle);
-        assert_eq!(
-            *last_volume, 1.0,
-            "Last volume bar should be at x=1.0, got {:.10}",
+        let last_candle = *candle_positions.last().unwrap();
+        let spacing = spacing_ratio_for(visible_len);
+        let step_size = 2.0 / visible_len as f32;
+        let width = (step_size * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
+        assert!(
+            (last_candle + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
+            "Last candle should touch right edge: x={:.6}",
+            last_candle
+        );
+        let last_volume = *volume_positions.last().unwrap();
+        assert!(
+            (last_volume + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
+            "Last volume bar should touch right edge: x={:.6}",
             last_volume
         );
     }

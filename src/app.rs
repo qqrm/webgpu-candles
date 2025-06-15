@@ -23,7 +23,9 @@ use crate::{
             value_objects::{Symbol, default_symbols},
         },
     },
-    infrastructure::rendering::renderer::LineVisibility,
+    infrastructure::rendering::renderer::{
+        EDGE_GAP, LineVisibility, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, spacing_ratio_for,
+    },
     infrastructure::{
         rendering::{
             WebGpuRenderer,
@@ -660,9 +662,15 @@ fn ChartContainer() -> impl IntoView {
 
                         // Use the same logic as in candle_x_position
                         let step_size = 2.0 / visible.len() as f64;
-                        // Inverse formula: if x = 1.0 - (visible_len - index - 1) * step_size
-                        // then index = visible_len - (1.0 - x) / step_size - 1
-                        let index_float = visible.len() as f64 - (1.0 - ndc_x) / step_size - 1.0;
+                        let spacing = spacing_ratio_for(visible.len()) as f64;
+                        let width = (step_size * (1.0 - spacing))
+                            .clamp(MIN_ELEMENT_WIDTH as f64, MAX_ELEMENT_WIDTH as f64);
+                        let half_width = width / 2.0;
+                        // Inverse formula matching candle_x_position
+                        // index = visible_len - 1 - (1.0 - EDGE_GAP as f64 - half_width - ndc_x) / step_size
+                        let index_float = visible.len() as f64
+                            - 1.0
+                            - (1.0 - EDGE_GAP as f64 - half_width - ndc_x) / step_size;
                         let candle_idx = index_float.round() as i32;
 
                         if candle_idx >= 0 && (candle_idx as usize) < visible.len() {

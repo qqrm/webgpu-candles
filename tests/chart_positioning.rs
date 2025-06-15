@@ -1,4 +1,6 @@
-use price_chart_wasm::infrastructure::rendering::renderer::candle_x_position;
+use price_chart_wasm::infrastructure::rendering::renderer::{
+    EDGE_GAP, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, candle_x_position, spacing_ratio_for,
+};
 use wasm_bindgen_test::*;
 
 #[wasm_bindgen_test]
@@ -7,18 +9,22 @@ fn chart_positioning_edge_cases() {
     let test_cases = vec![1, 2, 3, 5, 10, 20, 50, 100, 300];
 
     for &visible_len in &test_cases {
-        // Ensure the last candle is always at x=1.0
+        // Ensure the last candle touches the right edge
         let last_x = candle_x_position(visible_len - 1, visible_len);
+        let step = 2.0 / visible_len as f32;
+        let spacing = spacing_ratio_for(visible_len);
+        let width = (step * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
         assert!(
-            (last_x - 1.0).abs() < f32::EPSILON,
-            "Last candle should be at x=1.0 for visible_len={}, got x={:.10}",
+            (last_x + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
+            "Last candle should touch right edge for visible_len={}, got x={:.10}",
             visible_len,
             last_x
         );
 
         // Ensure the first candle is in the correct position
         let first_x = candle_x_position(0, visible_len);
-        let expected_first = 1.0 - (visible_len as f32 - 1.0) * (2.0 / visible_len as f32);
+        let expected_first =
+            1.0 - (visible_len as f32 - 1.0) * (2.0 / visible_len as f32) - width / 2.0 - EDGE_GAP;
         assert!(
             (first_x - expected_first).abs() < f32::EPSILON,
             "First candle position mismatch for visible_len={}: expected {:.6}, got {:.6}",
@@ -48,12 +54,16 @@ fn right_edge_alignment() {
 
     for &visible_len in &test_cases {
         let last_position = candle_x_position(visible_len - 1, visible_len);
+        let step = 2.0 / visible_len as f32;
+        let spacing = spacing_ratio_for(visible_len);
+        let width = (step * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
 
-        // The last candle must be EXACTLY at x=1.0
-        assert_eq!(
-            last_position, 1.0,
-            "Last candle must be exactly at x=1.0 for visible_len={}, got x={:.15}",
-            visible_len, last_position
+        // The last candle must touch the right edge
+        assert!(
+            (last_position + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
+            "Last candle must touch right edge for visible_len={}, got x={:.15}",
+            visible_len,
+            last_position
         );
 
         // If there is a penultimate candle, it should be to the left

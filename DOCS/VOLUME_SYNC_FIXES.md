@@ -48,7 +48,7 @@ Analysis of `src/infrastructure/rendering/renderer/geometry.rs` revealed:
 After the fixes:
 - ✅ Volume bars and candles use **identical positioning logic**
 - ✅ Volume bars and candles have **equal width** at the same zoom level
-- ✅ The last volume bars and candles are **exactly aligned to the right edge** (x=1.0)
+- ✅ The last volume bars and candles are **exactly aligned to the right edge** (x=1.0 - EDGE_GAP)
 - ✅ All chart elements are **synchronized** and aligned
 
 ## 🔧 Summary Table
@@ -59,7 +59,7 @@ After the fixes:
 | **Width calc**  | ❌ Different logic  | ✅ Same logic          |
 | **Bounds**      | ❌ Volume: only min | ✅ Volume: min+max     |
 | **Logging**     | ❌ `visible_count`  | ✅ `visible_candles.len()` |
-| **Right edge**  | ✅ x=1.0            | ✅ x=1.0               |
+| **Right edge**  | ✅ x=1.0            | ✅ x=1.0 - EDGE_GAP    |
 
 ## 📊 Covered Scenarios
 - Various zoom levels (0.2x - 32x)
