@@ -3,7 +3,7 @@
 //! Handles canvas interactions, zoom/pan logic and connects to the
 //! WebSocket stream providing market data.
 
-use futures::lock::Mutex;
+use futures::{channel::oneshot, lock::Mutex};
 use js_sys;
 use leptos::html::Canvas;
 use leptos::spawn_local_with_current_owner;
@@ -1121,7 +1121,7 @@ pub fn abort_other_streams(symbol: &Symbol) {
 }
 
 /// 🌐 Start WebSocket stream in Leptos and update global signals
-async fn start_websocket_stream(set_status: WriteSignal<String>) {
+pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
     let symbol = current_symbol().get_untracked();
     abort_other_streams(&symbol);
     let chart = ensure_chart(&symbol);
@@ -1200,23 +1200,32 @@ async fn start_websocket_stream(set_status: WriteSignal<String>) {
     let stream_client_arc =
         Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
     let (abort_handle, abort_reg) = futures::future::AbortHandle::new_pair();
+    let (done_tx, done_rx) = oneshot::channel::<()>();
     stream_abort_handles().update(|m| {
         m.insert(symbol.clone(), abort_handle.clone());
     });
     on_cleanup({
         let symbol = symbol.clone();
         let handle = abort_handle.clone();
+        let done_rx = done_rx;
         move || {
             handle.abort();
-            stream_abort_handles().update(|m| {
-                m.remove(&symbol);
+            let _ = spawn_local_with_current_owner(async move {
+                let _ = done_rx.await;
+                stream_abort_handles().update(|m| {
+                    m.remove(&symbol);
+                });
             });
         }
     });
+    let handle_check = abort_handle.clone();
     let fut = futures::future::Abortable::new(
         async move {
+            let handler_handle = handle_check.clone();
             let handler = move |candle: Candle| {
-                // Update the price in the global signal
+                if handler_handle.is_aborted() {
+                    return;
+                }
                 global_current_price().set(candle.ohlcv.close.value());
 
                 chart.update(|ch| {
@@ -1253,7 +1262,9 @@ async fn start_websocket_stream(set_status: WriteSignal<String>) {
                     }
                 });
 
-                // Update the status
+                if handler_handle.is_aborted() {
+                    return;
+                }
                 set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
             };
 
@@ -1261,7 +1272,13 @@ async fn start_websocket_stream(set_status: WriteSignal<String>) {
                 let mut client = stream_client_arc.lock().await;
                 client.start_stream(handler).await
             };
+            if handle_check.is_aborted() {
+                return;
+            }
             if let Err(e) = result {
+                if handle_check.is_aborted() {
+                    return;
+                }
                 set_status.set(format!("❌ WebSocket error: {}", e));
                 global_is_streaming().set(false);
             }
@@ -1271,6 +1288,7 @@ async fn start_websocket_stream(set_status: WriteSignal<String>) {
 
     let _ = spawn_local_with_current_owner(async move {
         let _ = fut.await;
+        let _ = done_tx.send(());
     });
 }
 
@@ -1292,24 +1310,34 @@ mod tests {
         div
     }
 
-    fn find_button(container: &web_sys::HtmlElement, label: &str) -> web_sys::HtmlElement {
+    fn find_button(
+        container: &web_sys::HtmlElement,
+        label: &str,
+    ) -> Result<web_sys::HtmlElement, String> {
         let buttons = container.get_elements_by_tag_name("button");
         for i in 0..buttons.length() {
-            let btn = buttons.item(i).unwrap().dyn_into::<web_sys::HtmlElement>().unwrap();
+            let btn = buttons
+                .item(i)
+                .ok_or_else(|| format!("button index {i} missing"))?
+                .dyn_into::<web_sys::HtmlElement>()
+                .map_err(|_| format!("element at index {i} is not an HtmlElement"))?;
             if btn.text_content().unwrap_or_default() == label {
-                return btn;
+                return Ok(btn);
             }
         }
-        panic!("button with label {label} not found", label = label);
+        Err(format!("button with label {label} not found"))
     }
 
-    fn find_checkbox(container: &web_sys::HtmlElement, id: &str) -> web_sys::HtmlInputElement {
-        container
-            .query_selector(&format!("#{}", id))
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap()
+    fn find_checkbox(
+        container: &web_sys::HtmlElement,
+        id: &str,
+    ) -> Result<web_sys::HtmlInputElement, String> {
+        let elem = container
+            .query_selector(&format!("#{id}"))
+            .map_err(|e| format!("selector error for #{id}: {e:?}"))?
+            .ok_or_else(|| format!("checkbox with id {id} not found"))?;
+        elem.dyn_into::<web_sys::HtmlInputElement>()
+            .map_err(|_| format!("element with id {id} is not an HtmlInputElement"))
     }
 
     #[wasm_bindgen_test]
@@ -1318,15 +1346,15 @@ mod tests {
         let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 100));
         leptos::mount_to(container.clone(), move || view! { <TimeframeSelector chart=chart /> });
 
-        let five = find_button(&container, "5m");
+        let five = find_button(&container, "5m").expect("5m button not found");
         five.click();
         assert_eq!(current_interval().get(), TimeInterval::FiveMinutes);
 
-        let fifteen = find_button(&container, "15m");
+        let fifteen = find_button(&container, "15m").expect("15m button not found");
         fifteen.click();
         assert_eq!(current_interval().get(), TimeInterval::FifteenMinutes);
 
-        let one_hour = find_button(&container, "1h");
+        let one_hour = find_button(&container, "1h").expect("1h button not found");
         one_hour.click();
         assert_eq!(current_interval().get(), TimeInterval::OneHour);
     }
@@ -1344,7 +1372,7 @@ mod tests {
         set_global_renderer(renderer.clone());
         leptos::mount_to(container.clone(), move || view! { <Legend chart=chart /> });
 
-        let cb = find_checkbox(&container, "sma20");
+        let cb = find_checkbox(&container, "sma20").expect("sma20 checkbox not found");
         cb.click();
 
         assert!(!renderer.borrow().line_visibility().sma_20);
@@ -1363,7 +1391,7 @@ mod tests {
         set_global_renderer(renderer.clone());
         leptos::mount_to(container.clone(), move || view! { <Legend chart=chart /> });
 
-        let cb = find_checkbox(&container, "sma20");
+        let cb = find_checkbox(&container, "sma20").expect("sma20 checkbox not found");
         assert!(cb.checked());
 
         renderer.borrow_mut().toggle_line_visibility("sma20");
