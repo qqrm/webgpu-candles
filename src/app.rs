@@ -1002,6 +1002,7 @@ fn ChartTooltip() -> impl IntoView {
 #[component]
 fn TimeframeSelector(chart: RwSignal<Chart>) -> impl IntoView {
     let options = vec![
+        TimeInterval::TwoSeconds,
         TimeInterval::OneMinute,
         TimeInterval::FiveMinutes,
         TimeInterval::FifteenMinutes,
@@ -1369,6 +1370,10 @@ mod tests {
         let container = setup_container();
         let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 100));
         leptos::mount_to(container.clone(), move || view! { <TimeframeSelector chart=chart /> });
+
+        let two_sec = find_button(&container, "2s").expect("2s button not found");
+        two_sec.click();
+        assert_eq!(current_interval().get(), TimeInterval::TwoSeconds);
 
         let five = find_button(&container, "5m").expect("5m button not found");
         five.click();

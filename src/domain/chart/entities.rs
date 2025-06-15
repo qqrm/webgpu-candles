@@ -17,6 +17,7 @@ pub struct Chart {
 impl Chart {
     pub fn new(id: String, chart_type: ChartType, max_candles: usize) -> Self {
         let mut series = HashMap::new();
+        series.insert(TimeInterval::TwoSeconds, CandleSeries::new(max_candles));
         series.insert(TimeInterval::OneMinute, CandleSeries::new(max_candles));
         series.insert(TimeInterval::FiveMinutes, CandleSeries::new(max_candles));
         series.insert(TimeInterval::FifteenMinutes, CandleSeries::new(max_candles));
@@ -36,7 +37,7 @@ impl Chart {
     }
 
     pub fn add_candle(&mut self, candle: Candle) {
-        if let Some(base) = self.series.get_mut(&TimeInterval::OneMinute) {
+        if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
             base.add_candle(candle.clone());
         }
         self.update_aggregates(candle);
@@ -50,7 +51,7 @@ impl Chart {
         // Create a new series with the original limit
         let limit = self
             .series
-            .get(&TimeInterval::OneMinute)
+            .get(&TimeInterval::TwoSeconds)
             .map(|s| s.capacity())
             .unwrap_or(candles.len());
         for s in self.series.values_mut() {
@@ -58,7 +59,7 @@ impl Chart {
         }
 
         for candle in candles {
-            if let Some(base) = self.series.get_mut(&TimeInterval::OneMinute) {
+            if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
                 base.add_candle(candle.clone());
             }
             self.update_aggregates(candle);
@@ -71,7 +72,7 @@ impl Chart {
     pub fn add_realtime_candle(&mut self, candle: Candle) {
         let is_empty = self.get_candle_count() == 0;
 
-        if let Some(base) = self.series.get_mut(&TimeInterval::OneMinute) {
+        if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
             base.add_candle(candle.clone());
         }
         self.update_aggregates(candle);
@@ -83,12 +84,12 @@ impl Chart {
 
     /// Get total number of candles
     pub fn get_candle_count(&self) -> usize {
-        self.series.get(&TimeInterval::OneMinute).map(|s| s.count()).unwrap_or(0)
+        self.series.get(&TimeInterval::TwoSeconds).map(|s| s.count()).unwrap_or(0)
     }
 
     /// Check whether data exists
     pub fn has_data(&self) -> bool {
-        self.series.get(&TimeInterval::OneMinute).map(|s| s.count() > 0).unwrap_or(false)
+        self.series.get(&TimeInterval::TwoSeconds).map(|s| s.count() > 0).unwrap_or(false)
     }
 
     pub fn add_indicator(&mut self, indicator: Indicator) {
@@ -101,7 +102,7 @@ impl Chart {
 
     /// Update the viewport based on candle data
     pub fn update_viewport_for_data(&mut self) {
-        if let Some(base) = self.series.get(&TimeInterval::OneMinute) {
+        if let Some(base) = self.series.get(&TimeInterval::TwoSeconds) {
             if let Some((min_price, max_price)) = base.price_range() {
                 // Add padding for better visualization (5% top and bottom)
                 let mut min_v = min_price.value() as f32;
@@ -126,7 +127,7 @@ impl Chart {
 
     pub fn zoom(&mut self, factor: f32, center_x: f32) {
         self.viewport.zoom(factor, center_x);
-        if let Some(series) = self.series.get(&TimeInterval::OneMinute) {
+        if let Some(series) = self.series.get(&TimeInterval::TwoSeconds) {
             if let Some((first, last)) = series.time_bounds() {
                 self.viewport.clamp_to_data(first, last);
             }
@@ -140,7 +141,7 @@ impl Chart {
 
     pub fn pan(&mut self, delta_x: f32, delta_y: f32) {
         self.viewport.pan(delta_x, delta_y);
-        if let Some(series) = self.series.get(&TimeInterval::OneMinute) {
+        if let Some(series) = self.series.get(&TimeInterval::TwoSeconds) {
             if let Some((first, last)) = series.time_bounds() {
                 self.viewport.clamp_to_data(first, last);
             }
@@ -164,12 +165,13 @@ impl Chart {
 
         self.series
             .get(&interval)
-            .or_else(|| self.series.get(&TimeInterval::OneMinute))
+            .or_else(|| self.series.get(&TimeInterval::TwoSeconds))
             .expect("base series not found")
     }
 
     fn update_aggregates(&mut self, candle: Candle) {
         let intervals = [
+            TimeInterval::OneMinute,
             TimeInterval::FiveMinutes,
             TimeInterval::FifteenMinutes,
             TimeInterval::OneHour,
