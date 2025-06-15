@@ -3,7 +3,7 @@
 //! Handles canvas interactions, zoom/pan logic and connects to the
 //! WebSocket stream providing market data.
 
-use futures::lock::Mutex;
+use futures::{channel::oneshot, lock::Mutex};
 use js_sys;
 use leptos::html::Canvas;
 use leptos::spawn_local_with_current_owner;
@@ -1121,7 +1121,7 @@ pub fn abort_other_streams(symbol: &Symbol) {
 }
 
 /// 🌐 Start WebSocket stream in Leptos and update global signals
-async fn start_websocket_stream(set_status: WriteSignal<String>) {
+pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
     let symbol = current_symbol().get_untracked();
     abort_other_streams(&symbol);
     let chart = ensure_chart(&symbol);
@@ -1200,23 +1200,32 @@ async fn start_websocket_stream(set_status: WriteSignal<String>) {
     let stream_client_arc =
         Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
     let (abort_handle, abort_reg) = futures::future::AbortHandle::new_pair();
+    let (done_tx, done_rx) = oneshot::channel::<()>();
     stream_abort_handles().update(|m| {
         m.insert(symbol.clone(), abort_handle.clone());
     });
     on_cleanup({
         let symbol = symbol.clone();
         let handle = abort_handle.clone();
+        let done_rx = done_rx;
         move || {
             handle.abort();
-            stream_abort_handles().update(|m| {
-                m.remove(&symbol);
+            let _ = spawn_local_with_current_owner(async move {
+                let _ = done_rx.await;
+                stream_abort_handles().update(|m| {
+                    m.remove(&symbol);
+                });
             });
         }
     });
+    let handle_check = abort_handle.clone();
     let fut = futures::future::Abortable::new(
         async move {
+            let handler_handle = handle_check.clone();
             let handler = move |candle: Candle| {
-                // Update the price in the global signal
+                if handler_handle.is_aborted() {
+                    return;
+                }
                 global_current_price().set(candle.ohlcv.close.value());
 
                 chart.update(|ch| {
@@ -1253,7 +1262,9 @@ async fn start_websocket_stream(set_status: WriteSignal<String>) {
                     }
                 });
 
-                // Update the status
+                if handler_handle.is_aborted() {
+                    return;
+                }
                 set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
             };
 
@@ -1261,7 +1272,13 @@ async fn start_websocket_stream(set_status: WriteSignal<String>) {
                 let mut client = stream_client_arc.lock().await;
                 client.start_stream(handler).await
             };
+            if handle_check.is_aborted() {
+                return;
+            }
             if let Err(e) = result {
+                if handle_check.is_aborted() {
+                    return;
+                }
                 set_status.set(format!("❌ WebSocket error: {}", e));
                 global_is_streaming().set(false);
             }
@@ -1271,6 +1288,7 @@ async fn start_websocket_stream(set_status: WriteSignal<String>) {
 
     let _ = spawn_local_with_current_owner(async move {
         let _ = fut.await;
+        let _ = done_tx.send(());
     });
 }
 
