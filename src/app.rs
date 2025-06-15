@@ -72,6 +72,12 @@ pub fn visible_range(len: usize, zoom: f64, pan: f64) -> (usize, usize) {
     (start as usize, visible as usize)
 }
 
+/// Check if the viewport is already at the latest candle
+pub fn should_auto_scroll(len: usize, zoom: f64, pan: f64) -> bool {
+    let (start, visible) = visible_range(len, zoom, pan);
+    start + visible >= len
+}
+
 /// Determine visible range using timestamps from the viewport
 pub fn visible_range_by_time(
     candles: &[Candle],
@@ -1253,9 +1259,10 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
 
                 chart.update(|ch| {
                     ch.add_realtime_candle(candle.clone());
-                    if (zoom_level().get_untracked() - 1.0).abs() < f64::EPSILON
-                        && pan_offset().get_untracked().abs() < f64::EPSILON
-                    {
+                    let zoom = zoom_level().get_untracked();
+                    let pan = pan_offset().get_untracked();
+                    let len = ch.get_candle_count();
+                    if should_auto_scroll(len, zoom, pan) {
                         ch.update_viewport_for_data();
                     }
                 });
