@@ -31,7 +31,7 @@ Trunk compiles the project and automatically injects the generated WASM into `in
 ```bash
 trunk serve       # dev server on http://localhost:8080
 # or
-trunk build --dist dist-local
+trunk build --no-sri --dist dist-local
 ```
 
 Local builds are saved to `dist-local`. In GitHub Actions the `dist` path is
@@ -49,7 +49,7 @@ When using Trunk, open **`index.html`** (served automatically when using `trunk 
 ### Subresource Integrity
 
 This demo intentionally omits Subresource Integrity checks in HTML files to
-speed up deployments.
+speed up deployments. Trunk is run with the `--no-sri` option.
 
 ## Building with wasm-pack
 

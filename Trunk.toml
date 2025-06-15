@@ -2,3 +2,4 @@
 filehash = false
 dist = "dist-local"
 public_url = "/webgpu-candles/"
+no_sri = true
