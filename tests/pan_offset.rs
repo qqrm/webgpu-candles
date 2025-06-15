@@ -1,11 +1,11 @@
-use price_chart_wasm::app::{HISTORY_FETCH_THRESHOLD, should_fetch_history};
+use price_chart_wasm::app::{HISTORY_FETCH_THRESHOLD, PAN_SENSITIVITY_BASE, should_fetch_history};
 
 #[test]
 fn pan_direction_and_history_activation() {
     let mut offset = 0.0;
     let delta_x = 10.0;
     let zoom_level = 1.0;
-    let pan_sensitivity = zoom_level * 0.001;
+    let pan_sensitivity = PAN_SENSITIVITY_BASE / zoom_level;
 
     // Simulate dragging to the right
     offset -= delta_x * pan_sensitivity;
