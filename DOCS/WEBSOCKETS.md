@@ -10,7 +10,7 @@ A WebSocket connection is opened to:
 wss://stream.binance.com:9443/ws/{symbol}@kline_{interval}
 ```
 
-where `symbol` is the trading pair like `BTCUSDT` and `interval` is a value such as `1m`.
+where `symbol` is the trading pair like `BTCUSDT` and `interval` is a value such as `2s`.
 
 ## Message Format
 

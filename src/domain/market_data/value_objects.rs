@@ -152,6 +152,10 @@ pub fn default_symbols() -> Vec<Symbol> {
     Deserialize,
 )]
 pub enum TimeInterval {
+    #[strum(serialize = "2s")]
+    #[serde(rename = "2s")]
+    TwoSeconds,
+
     #[strum(serialize = "1m")]
     #[serde(rename = "1m")]
     OneMinute,
@@ -192,6 +196,7 @@ impl TimeInterval {
 
     pub fn duration_ms(&self) -> u64 {
         match self {
+            Self::TwoSeconds => 2 * 1000,
             Self::OneMinute => 60 * 1000,
             Self::FiveMinutes => 5 * 60 * 1000,
             Self::FifteenMinutes => 15 * 60 * 1000,

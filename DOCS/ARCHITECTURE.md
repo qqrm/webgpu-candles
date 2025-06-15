@@ -96,7 +96,7 @@ TOOLTIP_DATA: TooltipData    // Tooltip info
 - Colors: via uniform buffer
 
 **WebSocket:**
-- Interval: 1m candles
+- Interval: 2s candles
 - Symbol: BTCUSDT
 - Auto-reconnect with exponential backoff (see [implementation](src/infrastructure/websocket/binance_client.rs#L146-L223))
 
