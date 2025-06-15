@@ -76,12 +76,43 @@ impl WebGpuRenderer {
 
         let mut vertices = Vec::with_capacity(visible_candles.len() * 24);
 
-        // Scale candles based on currently visible data
+        // Calculate moving averages for indicator lines using the full data set
+        let analysis = MarketAnalysisService::new();
+        let mas = analysis.calculate_multiple_mas(&candle_vec);
+
+        // Scale candles based on currently visible data and indicator values
         let mut min_price = f32::INFINITY;
         let mut max_price = f32::NEG_INFINITY;
         for candle in &visible_candles {
             min_price = min_price.min(candle.ohlcv.low.value() as f32);
             max_price = max_price.max(candle.ohlcv.high.value() as f32);
+        }
+
+        let mut consider_ma = |values: &[Price], period: usize| {
+            for (idx, val) in values.iter().enumerate() {
+                let candle_idx = idx + period - 1;
+                if candle_idx < start_index || candle_idx >= start_index + visible_candles.len() {
+                    continue;
+                }
+                min_price = min_price.min(val.value() as f32);
+                max_price = max_price.max(val.value() as f32);
+            }
+        };
+
+        if self.line_visibility.sma_20 {
+            consider_ma(&mas.sma_20, 20);
+        }
+        if self.line_visibility.sma_50 {
+            consider_ma(&mas.sma_50, 50);
+        }
+        if self.line_visibility.sma_200 {
+            consider_ma(&mas.sma_200, 200);
+        }
+        if self.line_visibility.ema_12 {
+            consider_ma(&mas.ema_12, 12);
+        }
+        if self.line_visibility.ema_26 {
+            consider_ma(&mas.ema_26, 26);
         }
 
         let price_range = (max_price - min_price).abs().max(1e-6);
@@ -206,10 +237,6 @@ impl WebGpuRenderer {
                 CandleGeometry::create_volume_vertices(x, candle_width, vol_ratio, is_bullish);
             vertices.extend_from_slice(&volume_vertices);
         }
-
-        // Calculate moving averages for indicator lines using the full data set
-        let analysis = MarketAnalysisService::new();
-        let mas = analysis.calculate_multiple_mas(&candle_vec);
 
         let to_points = |values: &[Price], period: usize| -> Vec<(f32, f32)> {
             values
@@ -596,6 +623,47 @@ mod tests {
 
         assert!((min_v + 1.0).abs() < 0.1);
         assert!((max_v - 1.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn moving_average_extends_price_range() {
+        // 30 candles: first 20 around 100, last 10 around 200
+        let candles: Vec<Candle> = (0..30)
+            .map(|i| {
+                let base = if i < 20 { 100.0 } else { 200.0 };
+                Candle::new(
+                    Timestamp::from_millis(i as u64 * 60_000),
+                    OHLCV::new(
+                        Price::from(base),
+                        Price::from(base + 1.0),
+                        Price::from(base - 1.0),
+                        Price::from(base),
+                        Volume::from(1.0),
+                    ),
+                )
+            })
+            .collect();
+
+        let mut chart = Chart::new("t".to_string(), ChartType::Candlestick, 300);
+        chart.set_historical_data(candles.clone());
+
+        let mut renderer = dummy_renderer();
+        renderer.zoom_level = 3.0; // show only last ~10 candles
+        let (_, _, uni) = renderer.create_geometry(&chart);
+
+        // Price range from visible candles only
+        let visible: Vec<Candle> = candles.iter().skip(20).cloned().collect();
+        let mut min_candle = f32::INFINITY;
+        let mut max_candle = f32::NEG_INFINITY;
+        for c in &visible {
+            min_candle = min_candle.min(c.ohlcv.low.value() as f32);
+            max_candle = max_candle.max(c.ohlcv.high.value() as f32);
+        }
+        let pr = max_candle - min_candle;
+        min_candle -= pr * 0.05;
+
+        // Uniform min_price should be below candle-only min due to SMA20
+        assert!(uni.viewport[2] < min_candle);
     }
 
     #[test]
