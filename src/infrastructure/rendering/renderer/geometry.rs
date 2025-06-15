@@ -5,6 +5,7 @@ use crate::domain::market_data::services::MarketAnalysisService;
 use crate::infrastructure::rendering::gpu_structures::{
     CandleGeometry, CandleInstance, IndicatorType,
 };
+use crate::{log_info, log_warn};
 use leptos::SignalGetUntracked;
 
 /// Minimum element width (candle or volume bar)
@@ -259,6 +260,17 @@ impl WebGpuRenderer {
 
         if self.line_visibility.sma_20 {
             let points = to_points(&mas.sma_20, 20);
+            log_info!(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                "SMA20 points: {}",
+                points.len()
+            );
+            if points.len() < 2 {
+                log_warn!(
+                    LogComponent::Infrastructure("WebGpuRenderer"),
+                    "Not enough points for SMA20"
+                );
+            }
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::SMA20,
@@ -268,6 +280,17 @@ impl WebGpuRenderer {
 
         if self.line_visibility.sma_50 {
             let points = to_points(&mas.sma_50, 50);
+            log_info!(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                "SMA50 points: {}",
+                points.len()
+            );
+            if points.len() < 2 {
+                log_warn!(
+                    LogComponent::Infrastructure("WebGpuRenderer"),
+                    "Not enough points for SMA50"
+                );
+            }
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::SMA50,
@@ -277,6 +300,17 @@ impl WebGpuRenderer {
 
         if self.line_visibility.sma_200 {
             let points = to_points(&mas.sma_200, 200);
+            log_info!(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                "SMA200 points: {}",
+                points.len()
+            );
+            if points.len() < 2 {
+                log_warn!(
+                    LogComponent::Infrastructure("WebGpuRenderer"),
+                    "Not enough points for SMA200"
+                );
+            }
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::SMA200,
@@ -286,6 +320,17 @@ impl WebGpuRenderer {
 
         if self.line_visibility.ema_12 {
             let points = to_points(&mas.ema_12, 12);
+            log_info!(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                "EMA12 points: {}",
+                points.len()
+            );
+            if points.len() < 2 {
+                log_warn!(
+                    LogComponent::Infrastructure("WebGpuRenderer"),
+                    "Not enough points for EMA12"
+                );
+            }
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::EMA12,
@@ -295,6 +340,17 @@ impl WebGpuRenderer {
 
         if self.line_visibility.ema_26 {
             let points = to_points(&mas.ema_26, 26);
+            log_info!(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                "EMA26 points: {}",
+                points.len()
+            );
+            if points.len() < 2 {
+                log_warn!(
+                    LogComponent::Infrastructure("WebGpuRenderer"),
+                    "Not enough points for EMA26"
+                );
+            }
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::EMA26,
