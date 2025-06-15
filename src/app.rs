@@ -487,9 +487,14 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
 /// 🎨 Container for the WebGPU chart
 #[component]
 fn ChartContainer() -> impl IntoView {
+    ensure_chart(&current_symbol().get_untracked());
+    create_effect(move |_| {
+        let sym = current_symbol().get();
+        ensure_chart(&sym);
+    });
     let chart_memo = create_memo(move |_| {
         let sym = current_symbol().get();
-        ensure_chart(&sym)
+        global_charts().with(|m| m.get(&sym).copied().unwrap())
     });
     let chart = move || chart_memo.get();
     let (renderer, set_renderer) = create_signal::<Option<Rc<RefCell<WebGpuRenderer>>>>(None);
