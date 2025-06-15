@@ -39,6 +39,12 @@ const MAX_VISIBLE_CANDLES: f64 = 32.0;
 /// Minimum number of candles that must remain visible
 const MIN_VISIBLE_CANDLES: f64 = 1.0;
 
+/// Default canvas width
+const CHART_WIDTH: f64 = 800.0;
+
+/// Base factor for converting mouse movement to candle offset
+pub const PAN_SENSITIVITY_BASE: f64 = MAX_VISIBLE_CANDLES / CHART_WIDTH;
+
 /// Minimum allowed zoom level
 const MIN_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / 300.0;
 /// Maximum allowed zoom level
@@ -159,14 +165,16 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
                     }
                 });
                 chart.with_untracked(|c| {
-                    if c.get_candle_count() > 0 && with_global_renderer(|r| {
+                    if c.get_candle_count() > 0
+                        && with_global_renderer(|r| {
                             r.set_zoom_params(
                                 zoom_level().with_untracked(|z| *z),
                                 pan_offset().with_untracked(|p| *p),
                             );
                             let _ = r.render(c);
                         })
-                        .is_none() {
+                        .is_none()
+                    {
                         // renderer not available
                     }
                 });
@@ -613,7 +621,8 @@ fn ChartContainer() -> impl IntoView {
                 let last_x = last_mouse_x().get_untracked();
                 let delta_x = mouse_x - last_x;
                 pan_offset().update(|o| {
-                    let pan_sensitivity = zoom_level().with_untracked(|val| *val) * 0.001;
+                    let zoom = zoom_level().with_untracked(|val| *val);
+                    let pan_sensitivity = PAN_SENSITIVITY_BASE / zoom;
                     *o -= delta_x * pan_sensitivity;
                 });
                 chart_signal().update(|ch| {
@@ -719,7 +728,8 @@ fn ChartContainer() -> impl IntoView {
 
             // Apply zoom immediately without effects
             chart_signal().with_untracked(|ch| {
-                if ch.get_candle_count() > 0 && with_global_renderer(|r| {
+                if ch.get_candle_count() > 0
+                    && with_global_renderer(|r| {
                         r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
                         let _ = r.render(ch);
                         get_logger().info(
@@ -727,7 +737,8 @@ fn ChartContainer() -> impl IntoView {
                             &format!("✅ Applied zoom {:.2}x to WebGPU renderer", new_zoom),
                         );
                     })
-                    .is_none() {
+                    .is_none()
+                {
                     // renderer not available
                 }
             });
@@ -815,7 +826,8 @@ fn ChartContainer() -> impl IntoView {
 
                 // Apply zoom to the renderer for keyboard commands
                 chart_signal().with_untracked(|ch| {
-                    if ch.get_candle_count() > 0 && with_global_renderer(|r| {
+                    if ch.get_candle_count() > 0
+                        && with_global_renderer(|r| {
                             r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
                             let _ = r.render(ch);
                             get_logger().info(
@@ -826,7 +838,8 @@ fn ChartContainer() -> impl IntoView {
                                 ),
                             );
                         })
-                        .is_none() {
+                        .is_none()
+                    {
                         // renderer not available
                     }
                 });
@@ -1162,14 +1175,16 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
 
             chart.update(|ch| ch.set_historical_data(historical_candles.clone()));
             chart.with_untracked(|c| {
-                if c.get_candle_count() > 0 && with_global_renderer(|r| {
+                if c.get_candle_count() > 0
+                    && with_global_renderer(|r| {
                         r.set_zoom_params(
                             zoom_level().with_untracked(|z| *z),
                             pan_offset().with_untracked(|p| *p),
                         );
                         let _ = r.render(c);
                     })
-                    .is_none() {
+                    .is_none()
+                {
                     // renderer not available
                 }
             });
