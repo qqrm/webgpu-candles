@@ -48,4 +48,4 @@ jobs:
           git config user.email github-actions@github.com
           git add docs
           git commit -m "Update release build" || echo "No changes"
-          git push
+          git push origin HEAD:release
