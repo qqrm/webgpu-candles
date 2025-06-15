@@ -5,8 +5,7 @@ use price_chart_wasm::domain::{
 use price_chart_wasm::infrastructure::rendering::renderer::WebGpuRenderer;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-
-wasm_bindgen_test_configure!(run_in_browser);
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 fn setup_canvas(id: &str, width: u32, height: u32) {
     let window = web_sys::window().unwrap();

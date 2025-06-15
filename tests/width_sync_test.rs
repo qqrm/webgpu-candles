@@ -2,6 +2,7 @@ use price_chart_wasm::infrastructure::rendering::renderer::{
     MIN_ELEMENT_WIDTH, candle_x_position, spacing_ratio_for,
 };
 use wasm_bindgen_test::*;
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test]
 fn width_calculation_sync() {

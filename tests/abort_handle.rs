@@ -4,6 +4,7 @@ use leptos::*;
 use price_chart_wasm::app::stream_abort_handle;
 use std::time::Duration;
 use wasm_bindgen_test::*;
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test(async)]
 async fn aborts_previous_stream() {
