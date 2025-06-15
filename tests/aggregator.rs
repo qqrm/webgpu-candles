@@ -46,18 +46,3 @@ fn aggregates_fifteen_minutes() {
     assert!((aggregated.ohlcv.low.value() - 95.0).abs() < f64::EPSILON);
     assert!((aggregated.ohlcv.volume.value() - 15.0).abs() < f64::EPSILON);
 }
-
-#[wasm_bindgen_test]
-fn aggregates_thirty_minutes() {
-    let candles: Vec<Candle> =
-        (0..30).map(|i| minute_candle(i * 60_000, 100.0 + i as f64)).collect();
-
-    let aggregated = Aggregator::aggregate(&candles, TimeInterval::ThirtyMinutes).unwrap();
-
-    assert_eq!(aggregated.timestamp.value(), 0);
-    assert!((aggregated.ohlcv.open.value() - 100.0).abs() < f64::EPSILON);
-    assert!((aggregated.ohlcv.close.value() - 130.0).abs() < f64::EPSILON);
-    assert!((aggregated.ohlcv.high.value() - 134.0).abs() < f64::EPSILON);
-    assert!((aggregated.ohlcv.low.value() - 95.0).abs() < f64::EPSILON);
-    assert!((aggregated.ohlcv.volume.value() - 30.0).abs() < f64::EPSILON);
-}

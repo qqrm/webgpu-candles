@@ -20,7 +20,6 @@ impl Chart {
         series.insert(TimeInterval::OneMinute, CandleSeries::new(max_candles));
         series.insert(TimeInterval::FiveMinutes, CandleSeries::new(max_candles));
         series.insert(TimeInterval::FifteenMinutes, CandleSeries::new(max_candles));
-        series.insert(TimeInterval::ThirtyMinutes, CandleSeries::new(max_candles));
         series.insert(TimeInterval::OneHour, CandleSeries::new(max_candles));
         series.insert(TimeInterval::OneDay, CandleSeries::new(max_candles));
         series.insert(TimeInterval::OneWeek, CandleSeries::new(max_candles));
@@ -173,7 +172,6 @@ impl Chart {
         let intervals = [
             TimeInterval::FiveMinutes,
             TimeInterval::FifteenMinutes,
-            TimeInterval::ThirtyMinutes,
             TimeInterval::OneHour,
             TimeInterval::OneDay,
             TimeInterval::OneWeek,
