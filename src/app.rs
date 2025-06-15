@@ -504,15 +504,16 @@ fn ChartContainer() -> impl IntoView {
     let canvas_ref = create_node_ref::<Canvas>();
     let (initialized, set_initialized) = create_signal(false);
 
-    // Initialize WebGPU when the canvas element becomes available
-    canvas_ref.on_load(move |canvas| {
+    // Initialize WebGPU once the canvas is available
+    create_effect(move |_| {
         if initialized.get() {
             return;
         }
 
-        let canvas_id = std::ops::Deref::deref(&canvas).id();
-        set_initialized.set(true);
-        let _ = spawn_local_with_current_owner(async move {
+        if let Some(canvas) = canvas_ref.get() {
+            let canvas_id = std::ops::Deref::deref(&canvas).id();
+            set_initialized.set(true);
+            let _ = spawn_local_with_current_owner(async move {
                 web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
                 set_status.set("🚀 Initializing WebGPU renderer...".to_string());
 
@@ -546,9 +547,7 @@ fn ChartContainer() -> impl IntoView {
                         start_websocket_stream(set_status).await;
                     }
                     Err(e) => {
-                        let msg = e
-                            .as_string()
-                            .unwrap_or_else(|| format!("{e:?}"));
+                        let msg = e.as_string().unwrap_or_else(|| format!("{e:?}"));
                         web_sys::console::error_1(
                             &format!("❌ WebGPU initialization error: {msg}").into(),
                         );
@@ -599,6 +598,7 @@ fn ChartContainer() -> impl IntoView {
                     }
                 }
             });
+        }
     });
 
     // 🎯 Mouse events for the tooltip
