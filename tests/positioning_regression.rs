@@ -1,4 +1,6 @@
-use price_chart_wasm::infrastructure::rendering::renderer::candle_x_position;
+use price_chart_wasm::infrastructure::rendering::renderer::{
+    EDGE_GAP, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, candle_x_position, spacing_ratio_for,
+};
 use wasm_bindgen_test::*;
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
@@ -11,7 +13,11 @@ fn positioning_regression_basic() {
     let visible = 10;
 
     // Last candle exactly at the right
-    assert_eq!(candle_x_position(9, visible), 1.0);
+    let step = 2.0 / visible as f32;
+    let spacing = spacing_ratio_for(visible);
+    let width = (step * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
+    let last = candle_x_position(9, visible);
+    assert!((last + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON);
 
     // Penultimate candle to the left of the last
     assert!(candle_x_position(8, visible) < candle_x_position(9, visible));
@@ -92,11 +98,15 @@ fn viewport_bounds_regression() {
         assert!(first >= -1.0, "First position {:.6} should be >= -1.0 for size {}", first, size);
 
         // Last position must be exactly 1.0
+        let step = 2.0 / size as f32;
+        let spacing = spacing_ratio_for(size);
+        let width = (step * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
         let last = candle_x_position(size - 1, size);
-        assert_eq!(
-            last, 1.0,
+        assert!(
+            (last + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
             "Last position should be exactly 1.0 for size {}, got {:.10}",
-            size, last
+            size,
+            last
         );
 
         // All intermediate positions within bounds
