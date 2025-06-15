@@ -40,6 +40,8 @@ jobs:
       - name: Copy dist to docs
         run: |
           cp -r dist/* docs/
+          mkdir -p docs/res
+          cp -r res/* docs/res/
       - name: Commit release build
         run: |
           git config user.name github-actions
