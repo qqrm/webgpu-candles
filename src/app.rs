@@ -500,15 +500,14 @@ fn ChartContainer() -> impl IntoView {
     let (initialized, set_initialized) = create_signal(false);
 
     // Initialize WebGPU when the canvas element becomes available
-    canvas_ref.on_load(move |_canvas| {
+    canvas_ref.on_load(move |canvas| {
         if initialized.get() {
             return;
         }
 
-        if let Some(canvas) = canvas_ref.get() {
-            let canvas_id = std::ops::Deref::deref(&canvas).id();
-            set_initialized.set(true);
-            let _ = spawn_local_with_current_owner(async move {
+        let canvas_id = std::ops::Deref::deref(&canvas).id();
+        set_initialized.set(true);
+        let _ = spawn_local_with_current_owner(async move {
                 web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
                 set_status.set("🚀 Initializing WebGPU renderer...".to_string());
 
@@ -595,13 +594,6 @@ fn ChartContainer() -> impl IntoView {
                     }
                 }
             });
-        } else {
-            #[allow(clippy::needless_return)]
-            {
-                set_status.set("❌ Canvas element not found".to_string());
-                return;
-            }
-        }
     });
 
     // 🎯 Mouse events for the tooltip
