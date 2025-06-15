@@ -9,11 +9,13 @@ use leptos::html::Canvas;
 use leptos::spawn_local_with_current_owner;
 use leptos::*;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 use wasm_bindgen::JsCast;
 
 use crate::global_signals;
+use crate::global_state::ensure_chart;
 use crate::{
     domain::{
         chart::Chart,
@@ -113,16 +115,18 @@ global_signals! {
     last_mouse_x => last_mouse_x: f64,
     pub current_interval => current_interval: TimeInterval,
     pub current_symbol => current_symbol: Symbol,
-    pub stream_abort_handle => stream_abort_handle: Option<futures::future::AbortHandle>,
+    pub global_charts => charts: HashMap<Symbol, RwSignal<Chart>>,
+    pub stream_abort_handles => stream_abort_handles: HashMap<Symbol, futures::future::AbortHandle>,
     pub global_line_visibility => line_visibility: LineVisibility,
 }
 
 /// 📈 Fetch additional history and prepend it to the list
-fn fetch_more_history(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
+fn fetch_more_history(set_status: WriteSignal<String>) {
     if loading_more().get() {
         return;
     }
 
+    let chart = ensure_chart(&current_symbol().get_untracked());
     let oldest_ts = chart.with(|c| {
         c.get_series(TimeInterval::OneMinute)
             .and_then(|s| s.get_candles().front())
@@ -483,12 +487,11 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
 /// 🎨 Container for the WebGPU chart
 #[component]
 fn ChartContainer() -> impl IntoView {
-    // Signals for the chart
-    let chart = create_rw_signal(Chart::new(
-        "leptos-chart".to_string(),
-        crate::domain::chart::ChartType::Candlestick,
-        1000,
-    ));
+    let chart_memo = create_memo(move |_| {
+        let sym = current_symbol().get();
+        ensure_chart(&sym)
+    });
+    let chart = move || chart_memo.get();
     let (renderer, set_renderer) = create_signal::<Option<Rc<RefCell<WebGpuRenderer>>>>(None);
     let (status, set_status) = create_signal("Initializing...".to_string());
 
@@ -497,7 +500,7 @@ fn ChartContainer() -> impl IntoView {
     let (initialized, set_initialized) = create_signal(false);
 
     // Initialize WebGPU when the canvas element becomes available
-    canvas_ref.on_load(move |canvas| {
+    canvas_ref.on_load(move |_canvas| {
         if initialized.get() {
             return;
         }
@@ -536,7 +539,7 @@ fn ChartContainer() -> impl IntoView {
                             LogComponent::Infrastructure("WebSocket"),
                             "🌐 Starting WebSocket stream...",
                         );
-                        start_websocket_stream(chart, set_status).await;
+                        start_websocket_stream(set_status).await;
                     }
                     Err(e) => {
                         get_logger().error(
@@ -577,7 +580,7 @@ fn ChartContainer() -> impl IntoView {
                             test_candles.push(candle);
                         }
 
-                        chart.update(|ch| ch.set_historical_data(test_candles));
+                        chart().update(|ch| ch.set_historical_data(test_candles));
                         set_status
                             .set("🎯 Demo mode: Using test data (WebSocket disabled)".to_string());
                     }
@@ -610,7 +613,7 @@ fn ChartContainer() -> impl IntoView {
                     let pan_sensitivity = zoom_level().with_untracked(|val| *val) * 0.001;
                     *o -= delta_x * pan_sensitivity;
                 });
-                chart_signal.update(|ch| {
+                chart_signal().update(|ch| {
                     let factor_x = -(delta_x as f32) / ch.viewport.width as f32;
                     ch.pan(factor_x, 0.0);
                 });
@@ -618,10 +621,10 @@ fn ChartContainer() -> impl IntoView {
 
                 let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
                 if need_history {
-                    fetch_more_history(chart_signal, status_clone);
+                    fetch_more_history(status_clone);
                 }
 
-                chart_signal.with_untracked(|ch| {
+                chart_signal().with_untracked(|ch| {
                     if ch.get_candle_count() > 0 {
                         renderer_clone.with_untracked(|renderer_opt| {
                             if let Some(renderer_rc) = renderer_opt {
@@ -643,7 +646,7 @@ fn ChartContainer() -> impl IntoView {
                 let ndc_x = (mouse_x / canvas_width) * 2.0 - 1.0;
                 let _ndc_y = 1.0 - (mouse_y / canvas_height) * 2.0;
 
-                chart_signal.with_untracked(|ch| {
+                chart_signal().with_untracked(|ch| {
                     let interval = current_interval().get_untracked();
                     let candles = ch.get_series(interval).unwrap().get_candles();
                     if !candles.is_empty() {
@@ -706,13 +709,13 @@ fn ChartContainer() -> impl IntoView {
             zoom_level().set(new_zoom);
             let applied_factor = (new_zoom / old_zoom) as f32;
             let center_x = event.offset_x() as f32 / 800.0;
-            chart_signal.update(|ch| ch.zoom(applied_factor, center_x));
+            chart_signal().update(|ch| ch.zoom(applied_factor, center_x));
             web_sys::console::log_1(
                 &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
             );
 
             // Apply zoom immediately without effects
-            chart_signal.with_untracked(|ch| {
+            chart_signal().with_untracked(|ch| {
                 if ch.get_candle_count() > 0 {
                     with_global_renderer(|r| {
                         r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
@@ -730,7 +733,7 @@ fn ChartContainer() -> impl IntoView {
             );
             let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
             if need_history {
-                fetch_more_history(chart_signal, status_clone);
+                fetch_more_history(status_clone);
             }
         }
     };
@@ -807,7 +810,7 @@ fn ChartContainer() -> impl IntoView {
                 web_sys::console::log_1(&format!("⌨️ Keyboard zoom: {:.2}x", new_zoom).into());
 
                 // Apply zoom to the renderer for keyboard commands
-                chart_signal.with_untracked(|ch| {
+                chart_signal().with_untracked(|ch| {
                     if ch.get_candle_count() > 0 {
                         with_global_renderer(|r| {
                             r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
@@ -829,7 +832,7 @@ fn ChartContainer() -> impl IntoView {
                 );
                 let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
                 if need_history {
-                    fetch_more_history(chart_signal, status_clone);
+                    fetch_more_history(status_clone);
                 }
             }
         }
@@ -840,14 +843,14 @@ fn ChartContainer() -> impl IntoView {
     view! {
         <div class="chart-container">
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;width:800px;">
-                <AssetSelector chart=chart set_status=set_status />
+                <AssetSelector set_status=set_status />
                 <div style="display:flex;gap:6px;">
-                    <TimeframeSelector chart=chart />
+                    <TimeframeSelector chart=chart() />
                 </div>
             </div>
 
             <div style="display: flex; flex-direction: row; align-items: flex-start;">
-                <PriceAxisLeft chart=chart />
+                <PriceAxisLeft chart=chart() />
                 <div style="position: relative;">
                     <canvas
                         id="chart-canvas"
@@ -863,16 +866,16 @@ fn ChartContainer() -> impl IntoView {
                         on:mouseup=handle_mouse_up
                         on:keydown=handle_keydown
                     />
-                    <PriceScale chart=chart />
+                    <PriceScale chart=chart() />
                     <ChartTooltip />
                 </div>
             </div>
 
-            <Legend chart=chart />
+            <Legend chart=chart() />
 
             // Time scale below the chart
             <div style="display: flex; justify-content: center; margin-top: 10px;">
-                <TimeScale chart=chart />
+                <TimeScale chart=chart() />
             </div>
 
             <div class="status">
@@ -1064,7 +1067,7 @@ fn Legend(chart: RwSignal<Chart>) -> impl IntoView {
 }
 
 #[component]
-fn AssetSelector(chart: RwSignal<Chart>, set_status: WriteSignal<String>) -> impl IntoView {
+fn AssetSelector(set_status: WriteSignal<String>) -> impl IntoView {
     let options = default_symbols();
 
     view! {
@@ -1074,7 +1077,6 @@ fn AssetSelector(chart: RwSignal<Chart>, set_status: WriteSignal<String>) -> imp
                 key=|s: &Symbol| s.value().to_string()
                 children=move |sym: Symbol| {
                     let label = sym.value().to_string();
-                    let chart_cloned = chart;
                     let status_cloned = set_status;
                     view! {
                         <button
@@ -1082,7 +1084,7 @@ fn AssetSelector(chart: RwSignal<Chart>, set_status: WriteSignal<String>) -> imp
                             on:click=move |_| {
                                 current_symbol().set(sym.clone());
                                 let _ = spawn_local_with_current_owner(async move {
-                                    start_websocket_stream(chart_cloned, status_cloned).await;
+                                    start_websocket_stream(status_cloned).await;
                                 });
                             }
                         >
@@ -1096,13 +1098,16 @@ fn AssetSelector(chart: RwSignal<Chart>, set_status: WriteSignal<String>) -> imp
 }
 
 /// 🌐 Start WebSocket stream in Leptos and update global signals
-async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
-    if let Some(handle) = stream_abort_handle().get_untracked() {
-        handle.abort();
-        stream_abort_handle().set(None);
+async fn start_websocket_stream(set_status: WriteSignal<String>) {
+    let symbol = current_symbol().get_untracked();
+    let chart = ensure_chart(&symbol);
+
+    if let Some(_handle) = stream_abort_handles().with(|m| m.get(&symbol).cloned()) {
+        // Already streaming for this symbol
+        set_status.set("🔄 Using existing stream".to_string());
+        return;
     }
 
-    let symbol = current_symbol().get_untracked();
     let interval = TimeInterval::OneMinute;
 
     let rest_client_arc =
@@ -1168,9 +1173,12 @@ async fn start_websocket_stream(chart: RwSignal<Chart>, set_status: WriteSignal<
     set_status.set("🔌 Starting WebSocket stream...".to_string());
     global_is_streaming().set(true);
 
-    let stream_client_arc = Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol, interval)));
+    let stream_client_arc =
+        Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
     let (abort_handle, abort_reg) = futures::future::AbortHandle::new_pair();
-    stream_abort_handle().set(Some(abort_handle.clone()));
+    stream_abort_handles().update(|m| {
+        m.insert(symbol.clone(), abort_handle.clone());
+    });
     let fut = futures::future::Abortable::new(
         async move {
             let handler = move |candle: Candle| {

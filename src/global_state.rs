@@ -5,9 +5,14 @@
 //! access.
 
 use crate::app::TooltipData;
-use crate::domain::market_data::{Symbol, TimeInterval};
+use crate::domain::{
+    chart::{Chart, value_objects::ChartType},
+    market_data::{Symbol, TimeInterval},
+};
+use futures::future::AbortHandle;
 use leptos::*;
 use once_cell::sync::OnceCell;
+use std::collections::HashMap;
 
 pub struct Globals {
     pub current_price: RwSignal<f64>,
@@ -23,7 +28,8 @@ pub struct Globals {
     pub last_mouse_x: RwSignal<f64>,
     pub current_interval: RwSignal<TimeInterval>,
     pub current_symbol: RwSignal<Symbol>,
-    pub stream_abort_handle: RwSignal<Option<futures::future::AbortHandle>>,
+    pub charts: RwSignal<HashMap<Symbol, RwSignal<Chart>>>,
+    pub stream_abort_handles: RwSignal<HashMap<Symbol, AbortHandle>>,
     pub line_visibility: RwSignal<crate::infrastructure::rendering::renderer::LineVisibility>,
 }
 
@@ -45,9 +51,28 @@ pub fn globals() -> &'static Globals {
         last_mouse_x: create_rw_signal(0.0),
         current_interval: create_rw_signal(TimeInterval::OneMinute),
         current_symbol: create_rw_signal(Symbol::from("BTCUSDT")),
-        stream_abort_handle: create_rw_signal(None),
+        charts: create_rw_signal(HashMap::new()),
+        stream_abort_handles: create_rw_signal(HashMap::new()),
         line_visibility: create_rw_signal(
             crate::infrastructure::rendering::renderer::LineVisibility::default(),
         ),
     })
+}
+
+pub fn ensure_chart(symbol: &Symbol) -> RwSignal<Chart> {
+    let charts = &globals().charts;
+    charts.update(|map| {
+        map.entry(symbol.clone()).or_insert_with(|| {
+            create_rw_signal(Chart::new(symbol.value().to_string(), ChartType::Candlestick, 1000))
+        });
+    });
+    charts.with(|map| map.get(symbol).copied().unwrap())
+}
+
+pub fn global_charts() -> RwSignal<HashMap<Symbol, RwSignal<Chart>>> {
+    globals().charts
+}
+
+pub fn stream_abort_handles() -> RwSignal<HashMap<Symbol, AbortHandle>> {
+    globals().stream_abort_handles
 }
