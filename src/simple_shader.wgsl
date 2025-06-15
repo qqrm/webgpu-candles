@@ -53,8 +53,20 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         // Candle wicks
         out.color = uniforms.wick_color; // gray
     } else if (vertex.element_type < 2.5) {
-        // Indicator lines use the same yellow color
-        out.color = uniforms.sma20_color;
+        // Indicator lines with dedicated colors
+        if (vertex.color_type < 2.5) {
+            out.color = uniforms.sma20_color;
+        } else if (vertex.color_type < 3.5) {
+            out.color = uniforms.sma50_color;
+        } else if (vertex.color_type < 4.5) {
+            out.color = uniforms.sma200_color;
+        } else if (vertex.color_type < 5.5) {
+            out.color = uniforms.ema12_color;
+        } else if (vertex.color_type < 6.5) {
+            out.color = uniforms.ema26_color;
+        } else {
+            out.color = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+        }
     } else if (vertex.element_type < 3.5) {
         // Chart grid
         out.color = vec4<f32>(0.3, 0.3, 0.3, 0.3); // semi-transparent gray
