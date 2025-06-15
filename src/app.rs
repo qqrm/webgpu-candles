@@ -1292,24 +1292,34 @@ mod tests {
         div
     }
 
-    fn find_button(container: &web_sys::HtmlElement, label: &str) -> web_sys::HtmlElement {
+    fn find_button(
+        container: &web_sys::HtmlElement,
+        label: &str,
+    ) -> Result<web_sys::HtmlElement, String> {
         let buttons = container.get_elements_by_tag_name("button");
         for i in 0..buttons.length() {
-            let btn = buttons.item(i).unwrap().dyn_into::<web_sys::HtmlElement>().unwrap();
+            let btn = buttons
+                .item(i)
+                .ok_or_else(|| format!("button index {i} missing"))?
+                .dyn_into::<web_sys::HtmlElement>()
+                .map_err(|_| format!("element at index {i} is not an HtmlElement"))?;
             if btn.text_content().unwrap_or_default() == label {
-                return btn;
+                return Ok(btn);
             }
         }
-        panic!("button with label {label} not found", label = label);
+        Err(format!("button with label {label} not found"))
     }
 
-    fn find_checkbox(container: &web_sys::HtmlElement, id: &str) -> web_sys::HtmlInputElement {
-        container
-            .query_selector(&format!("#{}", id))
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap()
+    fn find_checkbox(
+        container: &web_sys::HtmlElement,
+        id: &str,
+    ) -> Result<web_sys::HtmlInputElement, String> {
+        let elem = container
+            .query_selector(&format!("#{id}"))
+            .map_err(|e| format!("selector error for #{id}: {e:?}"))?
+            .ok_or_else(|| format!("checkbox with id {id} not found"))?;
+        elem.dyn_into::<web_sys::HtmlInputElement>()
+            .map_err(|_| format!("element with id {id} is not an HtmlInputElement"))
     }
 
     #[wasm_bindgen_test]
@@ -1318,15 +1328,15 @@ mod tests {
         let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 100));
         leptos::mount_to(container.clone(), move || view! { <TimeframeSelector chart=chart /> });
 
-        let five = find_button(&container, "5m");
+        let five = find_button(&container, "5m").expect("5m button not found");
         five.click();
         assert_eq!(current_interval().get(), TimeInterval::FiveMinutes);
 
-        let fifteen = find_button(&container, "15m");
+        let fifteen = find_button(&container, "15m").expect("15m button not found");
         fifteen.click();
         assert_eq!(current_interval().get(), TimeInterval::FifteenMinutes);
 
-        let one_hour = find_button(&container, "1h");
+        let one_hour = find_button(&container, "1h").expect("1h button not found");
         one_hour.click();
         assert_eq!(current_interval().get(), TimeInterval::OneHour);
     }
@@ -1344,7 +1354,7 @@ mod tests {
         set_global_renderer(renderer.clone());
         leptos::mount_to(container.clone(), move || view! { <Legend chart=chart /> });
 
-        let cb = find_checkbox(&container, "sma20");
+        let cb = find_checkbox(&container, "sma20").expect("sma20 checkbox not found");
         cb.click();
 
         assert!(!renderer.borrow().line_visibility().sma_20);
@@ -1363,7 +1373,7 @@ mod tests {
         set_global_renderer(renderer.clone());
         leptos::mount_to(container.clone(), move || view! { <Legend chart=chart /> });
 
-        let cb = find_checkbox(&container, "sma20");
+        let cb = find_checkbox(&container, "sma20").expect("sma20 checkbox not found");
         assert!(cb.checked());
 
         renderer.borrow_mut().toggle_line_visibility("sma20");
