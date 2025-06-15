@@ -152,9 +152,6 @@ pub fn default_symbols() -> Vec<Symbol> {
     Deserialize,
 )]
 pub enum TimeInterval {
-    #[strum(serialize = "30m")]
-    #[serde(rename = "30m")]
-    ThirtyMinutes,
     #[strum(serialize = "1m")]
     #[serde(rename = "1m")]
     OneMinute,
@@ -198,7 +195,6 @@ impl TimeInterval {
             Self::OneMinute => 60 * 1000,
             Self::FiveMinutes => 5 * 60 * 1000,
             Self::FifteenMinutes => 15 * 60 * 1000,
-            Self::ThirtyMinutes => 30 * 60 * 1000,
             Self::OneHour => 60 * 60 * 1000,
             Self::FourHours => 4 * 60 * 60 * 1000,
             Self::OneDay => 24 * 60 * 60 * 1000,

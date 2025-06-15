@@ -981,7 +981,6 @@ fn TimeframeSelector(chart: RwSignal<Chart>) -> impl IntoView {
         TimeInterval::OneMinute,
         TimeInterval::FiveMinutes,
         TimeInterval::FifteenMinutes,
-        TimeInterval::ThirtyMinutes,
         TimeInterval::OneHour,
     ];
 
@@ -1290,9 +1289,9 @@ mod tests {
         fifteen.click();
         assert_eq!(current_interval().get(), TimeInterval::FifteenMinutes);
 
-        let thirty = find_button(&container, "30m");
-        thirty.click();
-        assert_eq!(current_interval().get(), TimeInterval::ThirtyMinutes);
+        let one_hour = find_button(&container, "1h");
+        one_hour.click();
+        assert_eq!(current_interval().get(), TimeInterval::OneHour);
     }
 
     #[wasm_bindgen_test]
