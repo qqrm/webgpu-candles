@@ -83,6 +83,7 @@ pub struct WebGpuRenderer {
     cached_zoom_level: f64,
     cached_hash: u64,
     cached_data_hash: u64,
+    cached_line_visibility: LineVisibility,
 
     // 🔍 Zoom and pan parameters
     zoom_level: f64,
@@ -97,7 +98,7 @@ pub struct WebGpuRenderer {
 }
 
 /// State of indicator line visibility
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LineVisibility {
     pub sma_20: bool,
     pub sma_50: bool,
@@ -149,6 +150,7 @@ pub fn dummy_renderer() -> WebGpuRenderer {
             cached_zoom_level: 1.0,
             cached_hash: 0,
             cached_data_hash: 0,
+            cached_line_visibility: LineVisibility::default(),
             zoom_level: 1.0,
             pan_offset: 0.0,
             last_frame_time: 0.0,
