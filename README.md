@@ -42,8 +42,14 @@ When using Trunk, open **`index.html`** (served automatically when using `trunk 
 
 ```html
 <!-- Trunk will automatically inject the WASM here -->
+
 <link data-trunk rel="rust" data-wasm-opt="z" />
 ```
+
+### Subresource Integrity
+
+This demo intentionally omits Subresource Integrity checks in HTML files to
+speed up deployments.
 
 ## Building with wasm-pack
 
