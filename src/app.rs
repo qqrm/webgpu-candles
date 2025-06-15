@@ -5,6 +5,7 @@
 
 use futures::lock::Mutex;
 use js_sys;
+use leptos::ev;
 use leptos::html::Canvas;
 use leptos::spawn_local_with_current_owner;
 use leptos::*;
@@ -494,19 +495,61 @@ fn ChartContainer() -> impl IntoView {
     let canvas_ref = create_node_ref::<Canvas>();
     let (initialized, set_initialized) = create_signal(false);
 
+    // 🔍 Mouse wheel zoom - simplified without effects
+    let handle_wheel = {
+        let chart_signal = chart;
+        let status_clone = set_status;
+        move |event: web_sys::WheelEvent| {
+            web_sys::console::log_1(&format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into());
+            event.prevent_default();
+
+            let delta_y = event.delta_y();
+            let zoom_factor = if delta_y < 0.0 { 1.1 } else { 0.9 };
+
+            let old_zoom = zoom_level().with_untracked(|z| *z);
+            let new_zoom = (old_zoom * zoom_factor).clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL);
+            zoom_level().set(new_zoom);
+            let applied_factor = (new_zoom / old_zoom) as f32;
+            let center_x = event.offset_x() as f32 / 800.0;
+            chart_signal.update(|ch| ch.zoom(applied_factor, center_x));
+            web_sys::console::log_1(
+                &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
+            );
+
+            chart_signal.with_untracked(|ch| {
+                if ch.get_candle_count() > 0 {
+                    with_global_renderer(|r| {
+                        r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
+                        let _ = r.render(ch);
+                        get_logger().info(
+                            LogComponent::Infrastructure("ZoomWheel"),
+                            &format!("✅ Applied zoom {:.2}x to WebGPU renderer", new_zoom),
+                        );
+                    });
+                }
+            });
+            get_logger().info(
+                LogComponent::Presentation("ChartZoom"),
+                &format!("🔍 Zoom level: {:.2}x", zoom_level().with_untracked(|z_val| *z_val)),
+            );
+            let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
+            if need_history {
+                fetch_more_history(chart_signal, status_clone);
+            }
+        }
+    };
+
+    let mut wheel_event = ev::Custom::<ev::WheelEvent>::new("wheel");
+    wheel_event.options_mut().set_passive(false);
+
     // Initialize WebGPU only once when the canvas is mounted
-    canvas_ref.on_load(move |_| {
+    canvas_ref.on_load(move |canvas: HtmlElement<Canvas>| {
         if initialized.get() {
             return;
         }
 
-        if canvas_ref.get().is_none() {
-            web_sys::console::error_1(&"❌ Canvas element not found".into());
-            set_status.set("❌ Canvas element not found".to_string());
-            return;
-        }
-
         set_initialized.set(true);
+        let _ = canvas.on(wheel_event.clone(), handle_wheel);
         let _ = spawn_local_with_current_owner(async move {
             web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
             set_status.set("🚀 Initializing WebGPU renderer...".to_string());
@@ -679,51 +722,6 @@ fn ChartContainer() -> impl IntoView {
         is_dragging().set(false);
     };
 
-    // 🔍 Mouse wheel zoom - simplified without effects
-    let handle_wheel = {
-        let chart_signal = chart;
-        let status_clone = set_status;
-        move |event: web_sys::WheelEvent| {
-            web_sys::console::log_1(&format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into());
-            event.prevent_default();
-
-            let delta_y = event.delta_y();
-            let zoom_factor = if delta_y < 0.0 { 1.1 } else { 0.9 }; // Zoom in/out
-
-            let old_zoom = zoom_level().with_untracked(|z| *z);
-            let new_zoom = (old_zoom * zoom_factor).clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL);
-            zoom_level().set(new_zoom);
-            let applied_factor = (new_zoom / old_zoom) as f32;
-            let center_x = event.offset_x() as f32 / 800.0;
-            chart_signal.update(|ch| ch.zoom(applied_factor, center_x));
-            web_sys::console::log_1(
-                &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
-            );
-
-            // Apply zoom immediately without effects
-            chart_signal.with_untracked(|ch| {
-                if ch.get_candle_count() > 0 {
-                    with_global_renderer(|r| {
-                        r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
-                        let _ = r.render(ch);
-                        get_logger().info(
-                            LogComponent::Infrastructure("ZoomWheel"),
-                            &format!("✅ Applied zoom {:.2}x to WebGPU renderer", new_zoom),
-                        );
-                    });
-                }
-            });
-            get_logger().info(
-                LogComponent::Presentation("ChartZoom"),
-                &format!("🔍 Zoom level: {:.2}x", zoom_level().with_untracked(|z_val| *z_val)),
-            );
-            let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
-            if need_history {
-                fetch_more_history(chart_signal, status_clone);
-            }
-        }
-    };
-
     // 🖱️ Start panning
     let handle_mouse_down = move |event: web_sys::MouseEvent| {
         if event.button() == 0 {
@@ -847,7 +845,6 @@ fn ChartContainer() -> impl IntoView {
                         style="border: 2px solid #4a5d73; border-radius: 10px; background: #253242; cursor: crosshair; outline: none;"
                         on:mousemove=handle_mouse_move
                         on:mouseleave=handle_mouse_leave
-                        on:wheel=handle_wheel
                         on:mousedown=handle_mouse_down
                         on:mouseup=handle_mouse_up
                         on:keydown=handle_keydown
