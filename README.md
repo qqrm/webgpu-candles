@@ -140,6 +140,13 @@ them with:
 wasm-pack test
 ```
 
+Snapshot tests rely on the `INSTA_WORKSPACE_ROOT` environment variable. Set it to the repository root when running locally:
+
+```bash
+# example
+INSTA_WORKSPACE_ROOT=$PWD wasm-pack test
+```
+
 Alternatively install Node dependencies and run:
 
 ```bash
