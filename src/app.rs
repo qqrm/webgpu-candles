@@ -828,7 +828,7 @@ fn ChartContainer() -> impl IntoView {
 
     view! {
         <div class="chart-container">
-            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;width:800px;">
                 <AssetSelector chart=chart set_status=set_status />
                 <div style="display:flex;gap:6px;">
                     <TimeframeSelector chart=chart />
@@ -979,7 +979,7 @@ fn TimeframeSelector(chart: RwSignal<Chart>) -> impl IntoView {
                     let chart_signal = chart;
                     view! {
                         <button
-                            style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
+                            style="padding:4px 6px;border:none;border-radius:4px;background:#74c787;color:black;"
                             on:click=move |_| {
                                 current_interval().set(interval);
                                 chart_signal.update(|c| c.update_viewport_for_data());
