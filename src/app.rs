@@ -159,14 +159,15 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
                     }
                 });
                 chart.with_untracked(|c| {
-                    if c.get_candle_count() > 0 {
-                        with_global_renderer(|r| {
+                    if c.get_candle_count() > 0 && with_global_renderer(|r| {
                             r.set_zoom_params(
                                 zoom_level().with_untracked(|z| *z),
                                 pan_offset().with_untracked(|p| *p),
                             );
                             let _ = r.render(c);
-                        });
+                        })
+                        .is_none() {
+                        // renderer not available
                     }
                 });
 
@@ -718,15 +719,16 @@ fn ChartContainer() -> impl IntoView {
 
             // Apply zoom immediately without effects
             chart_signal().with_untracked(|ch| {
-                if ch.get_candle_count() > 0 {
-                    with_global_renderer(|r| {
+                if ch.get_candle_count() > 0 && with_global_renderer(|r| {
                         r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
                         let _ = r.render(ch);
                         get_logger().info(
                             LogComponent::Infrastructure("ZoomWheel"),
                             &format!("✅ Applied zoom {:.2}x to WebGPU renderer", new_zoom),
                         );
-                    });
+                    })
+                    .is_none() {
+                    // renderer not available
                 }
             });
             get_logger().info(
@@ -813,8 +815,7 @@ fn ChartContainer() -> impl IntoView {
 
                 // Apply zoom to the renderer for keyboard commands
                 chart_signal().with_untracked(|ch| {
-                    if ch.get_candle_count() > 0 {
-                        with_global_renderer(|r| {
+                    if ch.get_candle_count() > 0 && with_global_renderer(|r| {
                             r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
                             let _ = r.render(ch);
                             get_logger().info(
@@ -824,7 +825,9 @@ fn ChartContainer() -> impl IntoView {
                                     new_zoom
                                 ),
                             );
-                        });
+                        })
+                        .is_none() {
+                        // renderer not available
                     }
                 });
 
@@ -1007,14 +1010,14 @@ fn TimeframeSelector(chart: RwSignal<Chart>) -> impl IntoView {
                                 current_interval().set(interval);
                                 chart_signal.update(|c| c.update_viewport_for_data());
                                 chart_signal.with_untracked(|c| {
-                                    if c.get_candle_count() > 0 {
-                                        with_global_renderer(|r| {
+                                    if c.get_candle_count() > 0 && with_global_renderer(|r| {
                                             r.set_zoom_params(
                                                 zoom_level().with_untracked(|z| *z),
                                                 pan_offset().with_untracked(|p| *p),
                                             );
                                             let _ = r.render(c);
-                                        });
+                                        }).is_none() {
+                                        // renderer not available
                                     }
                                 });
                             }
@@ -1050,10 +1053,12 @@ fn LegendIndicatorToggle(name: &'static str, chart: RwSignal<Chart>) -> impl Int
                 prop:checked=checked
                 on:change=move |_| {
                     chart.with_untracked(|c| {
-                        with_global_renderer(|r| {
+                        if with_global_renderer(|r| {
                             r.toggle_line_visibility(name);
                             let _ = r.render(c);
-                        });
+                        }).is_none() {
+                            // renderer not available
+                        }
                     });
                 }
             />
@@ -1157,14 +1162,15 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
 
             chart.update(|ch| ch.set_historical_data(historical_candles.clone()));
             chart.with_untracked(|c| {
-                if c.get_candle_count() > 0 {
-                    with_global_renderer(|r| {
+                if c.get_candle_count() > 0 && with_global_renderer(|r| {
                         r.set_zoom_params(
                             zoom_level().with_untracked(|z| *z),
                             pan_offset().with_untracked(|p| *p),
                         );
                         let _ = r.render(c);
-                    });
+                    })
+                    .is_none() {
+                    // renderer not available
                 }
             });
 

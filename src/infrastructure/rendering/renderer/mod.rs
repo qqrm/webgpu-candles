@@ -46,8 +46,12 @@ where
     F: FnOnce(&mut WebGpuRenderer) -> R,
 {
     GLOBAL_RENDERER.with(|cell| {
-        let opt = cell.borrow_mut();
-        opt.as_ref().map(|rc| f(&mut rc.borrow_mut()))
+        let opt = cell.borrow();
+        if let Some(rc) = opt.as_ref() {
+            rc.try_borrow_mut().ok().map(|mut r| f(&mut r))
+        } else {
+            None
+        }
     })
 }
 
