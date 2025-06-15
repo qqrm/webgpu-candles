@@ -277,7 +277,7 @@ export function get_gpu_memory_usage() {
 }
 
 function __wbg_adapter_34(arg0, arg1, arg2) {
-    wasm.closure120_externref_shim(arg0, arg1, arg2);
+    wasm.closure73_externref_shim(arg0, arg1, arg2);
 }
 
 function __wbg_adapter_41(arg0, arg1) {
@@ -300,7 +300,7 @@ function __wbg_adapter_57(arg0, arg1, arg2) {
     wasm.closure355_externref_shim(arg0, arg1, arg2);
 }
 
-function __wbg_adapter_743(arg0, arg1, arg2, arg3) {
+function __wbg_adapter_747(arg0, arg1, arg2, arg3) {
     wasm.closure405_externref_shim(arg0, arg1, arg2, arg3);
 }
 
@@ -751,18 +751,10 @@ function __wbg_get_imports() {
         const ret = arg0.getCurrentTexture();
         return ret;
     }, arguments) };
-    imports.wbg.__wbg_getDate_ef336e14594b35ce = function(arg0) {
-        const ret = arg0.getDate();
-        return ret;
-    };
     imports.wbg.__wbg_getElementById_f827f0d6648718a8 = function(arg0, arg1, arg2) {
         var v0 = getCachedStringFromWasm0(arg1, arg2);
         const ret = arg0.getElementById(v0);
         return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-    };
-    imports.wbg.__wbg_getFullYear_17d3c9e4db748eb7 = function(arg0) {
-        const ret = arg0.getFullYear();
-        return ret;
     };
     imports.wbg.__wbg_getHours_70451b8de3ce8638 = function(arg0) {
         const ret = arg0.getHours();
@@ -780,16 +772,32 @@ function __wbg_get_imports() {
         const ret = arg0.getMinutes();
         return ret;
     };
-    imports.wbg.__wbg_getMonth_d37edcd23642c97d = function(arg0) {
-        const ret = arg0.getMonth();
-        return ret;
-    };
     imports.wbg.__wbg_getPreferredCanvasFormat_c56b5a9a243fe942 = function(arg0) {
         const ret = arg0.getPreferredCanvasFormat();
         return (__wbindgen_enum_GpuTextureFormat.indexOf(ret) + 1 || 96) - 1;
     };
     imports.wbg.__wbg_getSeconds_755197b634cca692 = function(arg0) {
         const ret = arg0.getSeconds();
+        return ret;
+    };
+    imports.wbg.__wbg_getUTCDate_81a922644bdea1c8 = function(arg0) {
+        const ret = arg0.getUTCDate();
+        return ret;
+    };
+    imports.wbg.__wbg_getUTCFullYear_a6f9c66b6c8698dd = function(arg0) {
+        const ret = arg0.getUTCFullYear();
+        return ret;
+    };
+    imports.wbg.__wbg_getUTCHours_0500625a80f72d27 = function(arg0) {
+        const ret = arg0.getUTCHours();
+        return ret;
+    };
+    imports.wbg.__wbg_getUTCMinutes_1d5b5b8a363e98f8 = function(arg0) {
+        const ret = arg0.getUTCMinutes();
+        return ret;
+    };
+    imports.wbg.__wbg_getUTCMonth_1628c88863ef1084 = function(arg0) {
+        const ret = arg0.getUTCMonth();
         return ret;
     };
     imports.wbg.__wbg_get_67b2ba62fc30de12 = function() { return handleError(function (arg0, arg1) {
@@ -1102,7 +1110,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_743(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_747(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -1899,16 +1907,8 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1544 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper1548 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 241, __wbg_adapter_41);
-        return ret;
-    };
-    imports.wbg.__wbindgen_closure_wrapper1559 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 248, __wbg_adapter_44);
-        return ret;
-    };
-    imports.wbg.__wbindgen_closure_wrapper1561 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 248, __wbg_adapter_47);
         return ret;
     };
     imports.wbg.__wbindgen_closure_wrapper1563 = function(arg0, arg1, arg2) {
@@ -1916,27 +1916,35 @@ function __wbg_get_imports() {
         return ret;
     };
     imports.wbg.__wbindgen_closure_wrapper1565 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 248, __wbg_adapter_47);
+        return ret;
+    };
+    imports.wbg.__wbindgen_closure_wrapper1567 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 248, __wbg_adapter_44);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1865 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper1569 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 248, __wbg_adapter_44);
+        return ret;
+    };
+    imports.wbg.__wbindgen_closure_wrapper1869 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 346, __wbg_adapter_54);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper3493 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper3497 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 356, __wbg_adapter_57);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper691 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 121, __wbg_adapter_34);
+    imports.wbg.__wbindgen_closure_wrapper529 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 74, __wbg_adapter_34);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper693 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 121, __wbg_adapter_34);
+    imports.wbg.__wbindgen_closure_wrapper531 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 74, __wbg_adapter_34);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper695 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 121, __wbg_adapter_34);
+    imports.wbg.__wbindgen_closure_wrapper533 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 74, __wbg_adapter_34);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {
