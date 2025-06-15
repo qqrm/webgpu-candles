@@ -14,7 +14,7 @@ pub const MAX_ELEMENT_WIDTH: f32 = 0.1;
 /// Ratio of space left empty between elements
 pub const SPACING_RATIO: f32 = 0.2;
 /// Gap between the right edge and the last element
-pub const EDGE_GAP: f32 = 0.01;
+pub const EDGE_GAP: f32 = 0.003;
 
 /// Dynamic spacing based on number of visible candles
 pub fn spacing_ratio_for(visible_len: usize) -> f32 {
