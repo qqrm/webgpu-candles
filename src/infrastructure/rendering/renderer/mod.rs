@@ -116,6 +116,9 @@ pub use geometry::{
 mod initialization;
 mod performance;
 mod render_loop;
+mod render_queue;
+
+pub use render_queue::{enqueue_render_task, init_render_queue};
 
 #[allow(invalid_value)]
 pub fn dummy_renderer() -> WebGpuRenderer {
