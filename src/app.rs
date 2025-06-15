@@ -1097,9 +1097,24 @@ fn AssetSelector(set_status: WriteSignal<String>) -> impl IntoView {
     }
 }
 
+/// Abort all active streams except the one for `symbol`.
+pub fn abort_other_streams(symbol: &Symbol) {
+    stream_abort_handles().update(|m| {
+        m.retain(|sym, handle| {
+            if sym != symbol {
+                handle.abort();
+                false
+            } else {
+                true
+            }
+        });
+    });
+}
+
 /// 🌐 Start WebSocket stream in Leptos and update global signals
 async fn start_websocket_stream(set_status: WriteSignal<String>) {
     let symbol = current_symbol().get_untracked();
+    abort_other_streams(&symbol);
     let chart = ensure_chart(&symbol);
 
     if let Some(_handle) = stream_abort_handles().with(|m| m.get(&symbol).cloned()) {
@@ -1178,6 +1193,16 @@ async fn start_websocket_stream(set_status: WriteSignal<String>) {
     let (abort_handle, abort_reg) = futures::future::AbortHandle::new_pair();
     stream_abort_handles().update(|m| {
         m.insert(symbol.clone(), abort_handle.clone());
+    });
+    on_cleanup({
+        let symbol = symbol.clone();
+        let handle = abort_handle.clone();
+        move || {
+            handle.abort();
+            stream_abort_handles().update(|m| {
+                m.remove(&symbol);
+            });
+        }
     });
     let fut = futures::future::Abortable::new(
         async move {
