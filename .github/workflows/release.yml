@@ -34,17 +34,16 @@ jobs:
       - name: Clean dist
         run: rm -rf dist
       - name: Build
-        run: trunk build --release --dist dist --public-url /webgpu-candles/prod/
+        run: trunk build --release --dist dist --public-url /webgpu-candles/
       - name: Save version
         run: echo ${{ github.sha }} > dist/version
-      - name: Copy dist to docs/prod
+      - name: Copy dist to docs
         run: |
-          mkdir -p docs/prod
-          cp -r dist/* docs/prod/
-      - name: Commit prod build
+          cp -r dist/* docs/
+      - name: Commit release build
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add docs/prod
-          git commit -m "Update prod build" || echo "No changes"
+          git add docs
+          git commit -m "Update release build" || echo "No changes"
           git push

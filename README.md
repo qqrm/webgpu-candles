@@ -114,8 +114,8 @@ The chart is composed of several layers:
 ## Demo
 
 The development version is available at
-<https://qqrm.github.io/webgpu-candles/dev/> and production builds are
-published at <https://qqrm.github.io/webgpu-candles/prod/>. The files are
+<https://qqrm.github.io/webgpu-candles/dev/>. Release builds are
+published at <https://qqrm.github.io/webgpu-candles/>. The files are
 stored in the [`docs/`](docs/) directory.
 
 ## Benchmarks
