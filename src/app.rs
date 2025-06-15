@@ -727,7 +727,16 @@ fn ChartContainer() -> impl IntoView {
             zoom_level().set(new_zoom);
             let applied_factor = (new_zoom / old_zoom) as f32;
             let center_x = event.offset_x() as f32 / 800.0;
-            chart_signal().update(|ch| ch.zoom(applied_factor, center_x));
+            let pan_diff = center_x - 0.5;
+            chart_signal().update(|ch| {
+                ch.zoom(applied_factor, center_x);
+                ch.pan(pan_diff, 0.0);
+            });
+            pan_offset().update(|o| {
+                let zoom = zoom_level().with_untracked(|val| *val);
+                let pan_sensitivity = PAN_SENSITIVITY_BASE / zoom;
+                *o -= pan_diff as f64 * CHART_WIDTH * pan_sensitivity;
+            });
             web_sys::console::log_1(
                 &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
             );
