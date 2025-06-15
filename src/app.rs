@@ -49,17 +49,6 @@ const MAX_ZOOM_LEVEL: f64 = 32.0;
 /// Pan offset required to trigger history loading
 pub const HISTORY_FETCH_THRESHOLD: f64 = -50.0;
 
-/// Run a closure when the component is mounted.
-fn on_mount(f: impl FnOnce() + 'static) {
-    use std::cell::RefCell;
-    let f = RefCell::new(Some(f));
-    create_render_effect(move |_| {
-        if let Some(cb) = f.borrow_mut().take() {
-            cb();
-        }
-    });
-}
-
 /// Number of candles kept in memory beyond the visible range
 const HISTORY_BUFFER_SIZE: usize = 150;
 
@@ -507,13 +496,12 @@ fn ChartContainer() -> impl IntoView {
     let canvas_ref = create_node_ref::<Canvas>();
     let (initialized, set_initialized) = create_signal(false);
 
-    // Initialize WebGPU only once when the canvas is mounted
-    on_mount(move || {
+    // Initialize WebGPU when the canvas element becomes available
+    canvas_ref.on_load(move |canvas| {
         if initialized.get() {
             return;
         }
 
-        let canvas = canvas_ref.get().expect("canvas");
         let canvas_id = std::ops::Deref::deref(&canvas).id();
 
         set_initialized.set(true);
