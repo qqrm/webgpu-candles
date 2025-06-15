@@ -34,7 +34,7 @@ jobs:
       - name: Clean dist
         run: rm -rf dist
       - name: Build
-        run: trunk build --release --dist dist --no-sri
+        run: trunk build --release --dist dist
       - name: Save version
         run: echo ${{ github.sha }} > dist/version
       - name: Copy dist to docs/dev

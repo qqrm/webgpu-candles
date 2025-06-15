@@ -48,8 +48,8 @@ When using Trunk, open **`index.html`** (served automatically when using `trunk 
 
 ### Subresource Integrity
 
-This demo intentionally omits Subresource Integrity checks in HTML files to
-speed up deployments.
+Trunk automatically includes integrity hashes for the generated JavaScript
+and WebAssembly files.
 
 ## Building with wasm-pack
 
