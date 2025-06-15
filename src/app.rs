@@ -14,6 +14,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use wasm_bindgen::JsCast;
 
+use crate::event_utils::{EventOptions, wheel_event_options, window_event_listener_with_options};
 use crate::global_signals;
 use crate::global_state::ensure_chart;
 use crate::{
@@ -840,7 +841,11 @@ fn ChartContainer() -> impl IntoView {
     };
 
     // Attach wheel event listener to the window
-    let wheel_listener = window_event_listener(ev::wheel, handle_wheel);
+    let wheel_listener = window_event_listener_with_options(
+        ev::wheel,
+        &EventOptions { passive: false, capture: false, once: false },
+        handle_wheel,
+    );
     on_cleanup(move || wheel_listener.remove());
 
     // Zoom effect removed - handled directly in the wheel handler
@@ -860,6 +865,7 @@ fn ChartContainer() -> impl IntoView {
                     <canvas
                         id="chart-canvas"
                         node_ref=canvas_ref
+                        use:wheel_event_options=&EventOptions { passive: false, capture: false, once: false }
                         width="800"
                         height="500"
                         tabindex="0"
