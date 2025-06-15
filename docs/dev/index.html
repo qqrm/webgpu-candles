@@ -36,7 +36,7 @@
             100% { transform: rotate(360deg); }
         }
     </style>
-<link rel="modulepreload" href="/webgpu-candles/dev/price-chart-wasm.js" crossorigin="anonymous" integrity="sha384-/HkzyKp3OdEWA3e3wZCgU7ckC57AM5bUJlXYujVm6kzpq1SNNeDSdIfyspsyVbR9"><link rel="preload" href="/webgpu-candles/dev/price-chart-wasm_bg.wasm" crossorigin="anonymous" integrity="sha384-D+ZG8GtOiOn3cV+ONc4/rIvpts3VtcR3i9STaJI6ffaJumF0qYqyUoM2sksZHRx7" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/webgpu-candles/dev/price-chart-wasm.js"><link rel="preload" href="/webgpu-candles/dev/price-chart-wasm_bg.wasm" as="fetch" type="application/wasm"></head>
 <body>
     <!-- Loading screen -->
     <div id="loading">
@@ -61,4 +61,4 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
 </script>
 </body>
-</html> 
+</html>
