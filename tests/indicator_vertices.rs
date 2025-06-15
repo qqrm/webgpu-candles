@@ -23,6 +23,25 @@ fn indicator_line_vertex_count() {
 }
 
 #[wasm_bindgen_test]
+fn indicator_line_color_types() {
+    let pts = [(-1.0, 0.0), (1.0, 1.0)];
+    let checks = [
+        (IndicatorType::SMA20, 2.0),
+        (IndicatorType::SMA50, 3.0),
+        (IndicatorType::SMA200, 4.0),
+        (IndicatorType::EMA12, 5.0),
+        (IndicatorType::EMA26, 6.0),
+    ];
+
+    for (t, c) in checks {
+        let verts = CandleGeometry::create_indicator_line_vertices(&pts, t, 0.1);
+        for v in verts {
+            assert!((v.color_type - c).abs() < f32::EPSILON);
+        }
+    }
+}
+
+#[wasm_bindgen_test]
 fn ichimoku_cloud_vertices() {
     let span_a = [(-1.0, 0.6), (0.0, 0.7), (1.0, 0.6)];
     let span_b = [(-1.0, 0.4), (0.0, 0.3), (1.0, 0.4)];
