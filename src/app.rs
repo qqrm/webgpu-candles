@@ -711,10 +711,10 @@ fn ChartContainer() -> impl IntoView {
             event.prevent_default();
 
             let delta_y = event.delta_y();
-            let zoom_factor = if delta_y < 0.0 { 1.1 } else { 0.9 }; // Zoom in/out
+            let delta_zoom = if delta_y < 0.0 { 0.2 } else { -0.2 }; // constant step
 
             let old_zoom = zoom_level().with_untracked(|z| *z);
-            let new_zoom = (old_zoom * zoom_factor).clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL);
+            let new_zoom = (old_zoom + delta_zoom).clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL);
             zoom_level().set(new_zoom);
             let applied_factor = (new_zoom / old_zoom) as f32;
             let center_x = event.offset_x() as f32 / 800.0;
