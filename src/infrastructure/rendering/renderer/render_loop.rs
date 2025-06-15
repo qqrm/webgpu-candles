@@ -47,6 +47,7 @@ impl WebGpuRenderer {
         self.cached_vertices = vertices;
         self.cached_uniforms = uniforms;
         self.cached_hash = new_hash;
+        self.cached_line_visibility = self.line_visibility.clone();
         self.template_vertices = self.cached_vertices.len() as u32;
 
         #[cfg(not(test))]
@@ -122,11 +123,12 @@ impl WebGpuRenderer {
 
         let data_hash = Self::data_hash(chart, self.zoom_level);
         let data_changed = data_hash != self.cached_data_hash;
+        let visibility_changed = self.line_visibility != self.cached_line_visibility;
 
         let geometry_needs_update = candle_count != self.cached_candle_count
             || (self.zoom_level - self.cached_zoom_level).abs() > f64::EPSILON;
 
-        if geometry_needs_update || data_changed {
+        if geometry_needs_update || data_changed || visibility_changed {
             let (instances, vertices, uniforms) = self.create_geometry(chart);
             if instances.is_empty() {
                 return Ok(());
@@ -665,6 +667,7 @@ mod tests {
                 cached_zoom_level: 1.0,
                 cached_hash: 0,
                 cached_data_hash: 0,
+                cached_line_visibility: LineVisibility::default(),
                 zoom_level: 1.0,
                 pan_offset: 0.0,
                 last_frame_time: 0.0,
@@ -818,7 +821,7 @@ mod tests {
     }
 
     #[test]
-    fn line_visibility_toggle_does_not_update_geometry() {
+    fn line_visibility_toggle_updates_geometry() {
         use crate::domain::chart::{Chart, value_objects::ChartType};
         use crate::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 
@@ -854,10 +857,6 @@ mod tests {
 
         r.toggle_line_visibility("sma20");
         let _ = r.render(&chart);
-        assert_eq!(r.cached_hash, cached);
-
-        let (inst2, verts2, uni2) = r.create_geometry(&chart);
-        let new_hash = WebGpuRenderer::geometry_hash(&verts2, &inst2, &uni2);
-        assert_ne!(new_hash, cached);
+        assert_ne!(r.cached_hash, cached);
     }
 }
