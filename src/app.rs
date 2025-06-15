@@ -26,15 +26,10 @@ use crate::{
         },
     },
     infrastructure::rendering::renderer::{
-        EDGE_GAP, LineVisibility, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, spacing_ratio_for,
+        EDGE_GAP, LineVisibility, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, enqueue_render_task,
+        init_render_queue, set_global_renderer, spacing_ratio_for, with_global_renderer,
     },
-    infrastructure::{
-        rendering::{
-            WebGpuRenderer,
-            renderer::{set_global_renderer, with_global_renderer},
-        },
-        websocket::BinanceWebSocketClient,
-    },
+    infrastructure::{rendering::WebGpuRenderer, websocket::BinanceWebSocketClient},
     time_utils::format_time_label,
 };
 
@@ -497,7 +492,7 @@ fn ChartContainer() -> impl IntoView {
         global_charts().with(|m| m.get(&sym).copied().unwrap())
     });
     let chart = move || chart_memo.get();
-    let (renderer, set_renderer) = create_signal::<Option<Rc<RefCell<WebGpuRenderer>>>>(None);
+    let (_renderer, set_renderer) = create_signal::<Option<Rc<RefCell<WebGpuRenderer>>>>(None);
     let (status, set_status) = create_signal("Initializing...".to_string());
 
     // Reference to the canvas element
@@ -535,6 +530,7 @@ fn ChartContainer() -> impl IntoView {
                         let renderer_rc = Rc::new(RefCell::new(webgpu_renderer));
                         set_renderer.set(Some(renderer_rc.clone()));
                         set_global_renderer(renderer_rc.clone());
+                        init_render_queue();
                         let _ = renderer_rc.borrow().log_gpu_memory_usage();
                         set_status.set("✅ WebGPU renderer ready".to_string());
 
@@ -604,7 +600,6 @@ fn ChartContainer() -> impl IntoView {
     // 🎯 Mouse events for the tooltip
     let handle_mouse_move = {
         let chart_signal = chart;
-        let renderer_clone = renderer;
         let status_clone = set_status;
         move |event: web_sys::MouseEvent| {
             let mouse_x = event.offset_x() as f64;
@@ -630,21 +625,18 @@ fn ChartContainer() -> impl IntoView {
                     fetch_more_history(status_clone);
                 }
 
-                chart_signal().with_untracked(|ch| {
-                    if ch.get_candle_count() > 0 {
-                        renderer_clone.with_untracked(|renderer_opt| {
-                            if let Some(renderer_rc) = renderer_opt {
-                                if let Ok(mut webgpu_renderer) = renderer_rc.try_borrow_mut() {
-                                    webgpu_renderer.set_zoom_params(
-                                        zoom_level().with_untracked(|val| *val),
-                                        pan_offset().with_untracked(|val| *val),
-                                    );
-                                    let _ = webgpu_renderer.render(ch);
-                                }
-                            }
-                        });
-                    }
-                });
+                enqueue_render_task(Box::new(|r| {
+                    let chart_signal = ensure_chart(&current_symbol().get_untracked());
+                    chart_signal.with_untracked(|ch| {
+                        if ch.get_candle_count() > 0 {
+                            r.set_zoom_params(
+                                zoom_level().with_untracked(|val| *val),
+                                pan_offset().with_untracked(|val| *val),
+                            );
+                            let _ = r.render(ch);
+                        }
+                    });
+                }));
             } else {
                 // Convert to NDC coordinates (assuming an 800x500 canvas)
                 let canvas_width = 800.0;
@@ -1253,17 +1245,19 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                 });
                 global_max_volume().set(max_vol);
 
-                chart.with_untracked(|ch| {
-                    if ch.get_candle_count() > 0 {
-                        with_global_renderer(|r| {
+                let sym_for_queue = symbol.clone();
+                enqueue_render_task(Box::new(move |r| {
+                    let chart_signal = ensure_chart(&sym_for_queue);
+                    chart_signal.with_untracked(|ch| {
+                        if ch.get_candle_count() > 0 {
                             r.set_zoom_params(
                                 zoom_level().with_untracked(|z| *z),
                                 pan_offset().with_untracked(|p| *p),
                             );
                             let _ = r.render(ch);
-                        });
-                    }
-                });
+                        }
+                    });
+                }));
 
                 if handler_handle.is_aborted() {
                     return;
