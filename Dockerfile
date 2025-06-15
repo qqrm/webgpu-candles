@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . .
 
 # Build the project with Trunk for production (Docker settings overridden)
-RUN trunk build --release --dist dist --public-url / && \
+RUN trunk build --release --dist dist --public-url / --no-sri && \
     git rev-parse HEAD > dist/version
 
 FROM nginx:alpine
