@@ -699,6 +699,9 @@ fn ChartContainer() -> impl IntoView {
         let chart_signal = chart;
         let status_clone = set_status;
         move |event: web_sys::WheelEvent| {
+            if chart_signal().try_get_untracked().is_none() {
+                return;
+            }
             web_sys::console::log_1(&format!("🖱️ Wheel event: delta_y={}", event.delta_y()).into());
             event.prevent_default();
 
@@ -839,6 +842,10 @@ fn ChartContainer() -> impl IntoView {
         }
     };
 
+    // Attach wheel event listener to the window
+    let wheel_listener = window_event_listener(ev::wheel, handle_wheel);
+    on_cleanup(move || wheel_listener.remove());
+
     // Zoom effect removed - handled directly in the wheel handler
 
     view! {
@@ -862,7 +869,6 @@ fn ChartContainer() -> impl IntoView {
                         style="border: 2px solid #4a5d73; border-radius: 10px; background: #253242; cursor: crosshair; outline: none;"
                         on:mousemove=handle_mouse_move
                         on:mouseleave=handle_mouse_leave
-                        on:wheel=handle_wheel
                         on:mousedown=handle_mouse_down
                         on:mouseup=handle_mouse_up
                         on:keydown=handle_keydown
