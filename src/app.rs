@@ -542,11 +542,19 @@ fn ChartContainer() -> impl IntoView {
                         start_websocket_stream(set_status).await;
                     }
                     Err(e) => {
+                        let msg = e
+                            .as_string()
+                            .unwrap_or_else(|| format!("{e:?}"));
+                        web_sys::console::error_1(
+                            &format!("❌ WebGPU initialization error: {msg}").into(),
+                        );
                         get_logger().error(
                             LogComponent::Infrastructure("WebGPU"),
-                            &format!("❌ WebGPU initialization failed: {:?}", e),
+                            &format!("❌ WebGPU initialization failed: {msg}"),
                         );
-                        set_status.set(format!("❌ WebGPU failed: {:?}\n💡 Try Chrome Canary with --enable-unsafe-webgpu flag", e));
+                        set_status.set(format!(
+                            "❌ WebGPU failed: {msg}\n💡 Try Chrome Canary with --enable-unsafe-webgpu flag",
+                        ));
 
                         // Fallback: show data even without the chart
                         get_logger().info(
@@ -581,8 +589,9 @@ fn ChartContainer() -> impl IntoView {
                         }
 
                         chart().update(|ch| ch.set_historical_data(test_candles));
-                        set_status
-                            .set("🎯 Demo mode: Using test data (WebSocket disabled)".to_string());
+                        set_status.set(format!(
+                            "🎯 Demo mode: Using test data (WebSocket disabled)\nReason: {msg}",
+                        ));
                     }
                 }
             });
