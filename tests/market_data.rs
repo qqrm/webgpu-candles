@@ -2,6 +2,7 @@ use price_chart_wasm::domain::market_data::{
     Candle, CandleSeries, OHLCV, Price, Timestamp, Volume,
 };
 use wasm_bindgen_test::*;
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test]
 fn candle_methods() {
