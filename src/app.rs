@@ -47,6 +47,17 @@ const MAX_ZOOM_LEVEL: f64 = 32.0;
 /// Pan offset required to trigger history loading
 pub const HISTORY_FETCH_THRESHOLD: f64 = -50.0;
 
+/// Run a closure when the component is mounted.
+fn on_mount(f: impl FnOnce() + 'static) {
+    use std::cell::RefCell;
+    let f = RefCell::new(Some(f));
+    create_render_effect(move |_| {
+        if let Some(cb) = f.borrow_mut().take() {
+            cb();
+        }
+    });
+}
+
 /// Number of candles kept in memory beyond the visible range
 const HISTORY_BUFFER_SIZE: usize = 150;
 
@@ -495,96 +506,93 @@ fn ChartContainer() -> impl IntoView {
     let (initialized, set_initialized) = create_signal(false);
 
     // Initialize WebGPU only once when the canvas is mounted
-    canvas_ref.on_load(move |_| {
+    on_mount(move || {
         if initialized.get() {
             return;
         }
 
-        if canvas_ref.get().is_none() {
-            web_sys::console::error_1(&"❌ Canvas element not found".into());
-            set_status.set("❌ Canvas element not found".to_string());
-            return;
-        }
+        let canvas = canvas_ref.get().expect("canvas");
+        let canvas_id = std::ops::Deref::deref(&canvas).id();
 
         set_initialized.set(true);
         let _ = spawn_local_with_current_owner(async move {
             web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
             set_status.set("🚀 Initializing WebGPU renderer...".to_string());
 
-                // Detailed WebGPU diagnostics
-                web_sys::console::log_1(&"🏗️ Creating WebGPU renderer...".into());
-                get_logger().info(
-                    LogComponent::Infrastructure("WebGPU"),
-                    "🔍 Starting WebGPU initialization...",
-                );
+            // Detailed WebGPU diagnostics
+            web_sys::console::log_1(&"🏗️ Creating WebGPU renderer...".into());
+            get_logger().info(
+                LogComponent::Infrastructure("WebGPU"),
+                "🔍 Starting WebGPU initialization...",
+            );
 
-                web_sys::console::log_1(&"⚡ About to call WebGpuRenderer::new...".into());
+            web_sys::console::log_1(&"⚡ About to call WebGpuRenderer::new...".into());
 
-                match WebGpuRenderer::new("chart-canvas", 800, 500).await {
-                    Ok(webgpu_renderer) => {
-                        get_logger().info(
-                            LogComponent::Infrastructure("WebGPU"),
-                            "✅ WebGPU renderer created successfully",
-                        );
+            match WebGpuRenderer::new(canvas_id.as_str(), 800, 500).await {
+                Ok(webgpu_renderer) => {
+                    get_logger().info(
+                        LogComponent::Infrastructure("WebGPU"),
+                        "✅ WebGPU renderer created successfully",
+                    );
 
-                        let renderer_rc = Rc::new(RefCell::new(webgpu_renderer));
-                        set_renderer.set(Some(renderer_rc.clone()));
-                        set_global_renderer(renderer_rc.clone());
-                        let _ = renderer_rc.borrow().log_gpu_memory_usage();
-                        set_status.set("✅ WebGPU renderer ready".to_string());
+                    let renderer_rc = Rc::new(RefCell::new(webgpu_renderer));
+                    set_renderer.set(Some(renderer_rc.clone()));
+                    set_global_renderer(renderer_rc.clone());
+                    let _ = renderer_rc.borrow().log_gpu_memory_usage();
+                    set_status.set("✅ WebGPU renderer ready".to_string());
 
-                        // Start WebSocket after the renderer is initialized
-                        get_logger().info(
-                            LogComponent::Infrastructure("WebSocket"),
-                            "🌐 Starting WebSocket stream...",
-                        );
-                        start_websocket_stream(chart, set_status).await;
-                    }
-                    Err(e) => {
-                        get_logger().error(
-                            LogComponent::Infrastructure("WebGPU"),
-                            &format!("❌ WebGPU initialization failed: {:?}", e),
-                        );
-                        set_status.set(format!("❌ WebGPU failed: {:?}\n💡 Try Chrome Canary with --enable-unsafe-webgpu flag", e));
-
-                        // Fallback: show data even without the chart
-                        get_logger().info(
-                            LogComponent::Infrastructure("Fallback"),
-                            "🔄 Starting fallback mode without WebGPU...",
-                        );
-
-                        // Generate sample data for demo purposes
-                        let mut test_candles = Vec::new();
-                        let base_price = 90000.0;
-                        let base_time = js_sys::Date::now() as u64;
-
-                        for i in 0..50 {
-                            let price_variation = (i as f64 * 0.1).sin() * 1000.0;
-                            let open = base_price + price_variation;
-                            let close = open + (i as f64 % 3.0 - 1.0) * 200.0;
-                            let high = open.max(close) + 100.0;
-                            let low = open.min(close) - 100.0;
-                            let volume = 100.0 + (i as f64 * 0.2).cos() * 50.0;
-
-                            let candle = Candle::new(
-                                crate::domain::market_data::Timestamp::from(base_time + i * 60000),
-                                crate::domain::market_data::OHLCV::new(
-                                    crate::domain::market_data::Price::from(open),
-                                    crate::domain::market_data::Price::from(high),
-                                    crate::domain::market_data::Price::from(low),
-                                    crate::domain::market_data::Price::from(close),
-                                    crate::domain::market_data::Volume::from(volume),
-                                ),
-                            );
-                            test_candles.push(candle);
-                        }
-
-                        chart.update(|ch| ch.set_historical_data(test_candles));
-                        set_status
-                            .set("🎯 Demo mode: Using test data (WebSocket disabled)".to_string());
-                    }
+                    // Start WebSocket after the renderer is initialized
+                    get_logger().info(
+                        LogComponent::Infrastructure("WebSocket"),
+                        "🌐 Starting WebSocket stream...",
+                    );
+                    start_websocket_stream(chart, set_status).await;
                 }
-            });
+                Err(e) => {
+                    get_logger().error(
+                        LogComponent::Infrastructure("WebGPU"),
+                        &format!("❌ WebGPU initialization failed: {:?}", e),
+                    );
+                    set_status.set(format!("❌ WebGPU failed: {:?}\n💡 Try Chrome Canary with --enable-unsafe-webgpu flag", e));
+
+                    // Fallback: show data even without the chart
+                    get_logger().info(
+                        LogComponent::Infrastructure("Fallback"),
+                        "🔄 Starting fallback mode without WebGPU...",
+                    );
+
+                    // Generate sample data for demo purposes
+                    let mut test_candles = Vec::new();
+                    let base_price = 90000.0;
+                    let base_time = js_sys::Date::now() as u64;
+
+                    for i in 0..50 {
+                        let price_variation = (i as f64 * 0.1).sin() * 1000.0;
+                        let open = base_price + price_variation;
+                        let close = open + (i as f64 % 3.0 - 1.0) * 200.0;
+                        let high = open.max(close) + 100.0;
+                        let low = open.min(close) - 100.0;
+                        let volume = 100.0 + (i as f64 * 0.2).cos() * 50.0;
+
+                        let candle = Candle::new(
+                            crate::domain::market_data::Timestamp::from(base_time + i * 60000),
+                            crate::domain::market_data::OHLCV::new(
+                                crate::domain::market_data::Price::from(open),
+                                crate::domain::market_data::Price::from(high),
+                                crate::domain::market_data::Price::from(low),
+                                crate::domain::market_data::Price::from(close),
+                                crate::domain::market_data::Volume::from(volume),
+                            ),
+                        );
+                        test_candles.push(candle);
+                    }
+
+                    chart.update(|ch| ch.set_historical_data(test_candles));
+                    set_status
+                        .set("🎯 Demo mode: Using test data (WebSocket disabled)".to_string());
+                }
+            }
+        });
     });
 
     // 🎯 Mouse events for the tooltip
