@@ -13,6 +13,8 @@ pub const MIN_ELEMENT_WIDTH: f32 = 0.002;
 pub const MAX_ELEMENT_WIDTH: f32 = 0.1;
 /// Ratio of space left empty between elements
 pub const SPACING_RATIO: f32 = 0.2;
+/// Gap between the right edge and the last element
+pub const EDGE_GAP: f32 = 0.01;
 
 /// Dynamic spacing based on number of visible candles
 pub fn spacing_ratio_for(visible_len: usize) -> f32 {
@@ -25,9 +27,10 @@ pub fn spacing_ratio_for(visible_len: usize) -> f32 {
 pub fn candle_x_position(index: usize, visible_len: usize) -> f32 {
     assert!(visible_len > 0, "visible_len must be > 0");
     let step_size = 2.0 / visible_len as f32;
-    // Snap last candle exactly to the right edge (x=1.0)
-    // First candle will be at (1.0 - (visible_len-1) * step_size)
-    1.0 - (visible_len as f32 - index as f32 - 1.0) * step_size
+    let spacing = spacing_ratio_for(visible_len);
+    let width = (step_size * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
+    let base_x = 1.0 - (visible_len as f32 - index as f32 - 1.0) * step_size;
+    base_x - width / 2.0 - EDGE_GAP
 }
 
 impl WebGpuRenderer {

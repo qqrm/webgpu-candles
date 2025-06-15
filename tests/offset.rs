@@ -1,4 +1,6 @@
-use price_chart_wasm::infrastructure::rendering::renderer::candle_x_position;
+use price_chart_wasm::infrastructure::rendering::renderer::{
+    EDGE_GAP, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, candle_x_position, spacing_ratio_for,
+};
 use wasm_bindgen_test::*;
 
 #[wasm_bindgen_test]
@@ -11,30 +13,39 @@ fn candle_offset_calculation() {
     let x = candle_x_position(0, visible);
     assert!((x - expected_first).abs() < f32::EPSILON);
 
-    // ✅ Last candle must now be EXACTLY at position x=1.0 (right edge)
-    let expected_last = 1.0;
+    // ✅ Last candle's right edge should align with 1.0
+    let spacing = spacing_ratio_for(visible);
+    let width = (step * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
     let x_last = candle_x_position(visible - 1, visible);
-    assert!((x_last - expected_last).abs() < f32::EPSILON);
+    assert!((x_last + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON);
 }
 
 #[wasm_bindgen_test]
 fn candle_positioning_edge_cases() {
-    // Test with a single candle - it should be on the right edge (x=1.0)
+    // Test with a single candle - right edge alignment
+    let step = 2.0 / 1.0_f32;
+    let width_single =
+        (step * (1.0 - spacing_ratio_for(1))).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
     let x_single = candle_x_position(0, 1);
-    assert!((x_single - 1.0).abs() < f32::EPSILON);
+    assert!((x_single + width_single / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON);
 
     // Test with two candles
+    let step_two = 1.0;
+    let width_two =
+        (step_two * (1.0 - spacing_ratio_for(2))).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
     let x_first_of_two = candle_x_position(0, 2);
     let x_second_of_two = candle_x_position(1, 2);
     assert!(x_first_of_two < x_second_of_two); // order correct
-    assert!((x_second_of_two - 1.0).abs() < f32::EPSILON); // second exactly right
+    assert!((x_second_of_two + width_two / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON); // second right
 }
 
 #[wasm_bindgen_test]
 fn single_candle_centered() {
-    // When only one candle is visible it should be centered at x=0.0
+    // When only one candle is visible it should still touch the right edge
+    let step = 2.0;
+    let width = (step * (1.0 - spacing_ratio_for(1))).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
     let pos = candle_x_position(0, 1);
-    assert!((pos - 0.0).abs() < f32::EPSILON);
+    assert!((pos + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON);
 }
 
 #[wasm_bindgen_test]
@@ -59,12 +70,16 @@ fn candle_positioning_monotonic() {
         );
     }
 
-    // Ensure the last position is exactly 1.0
-    assert!((positions.last().unwrap() - 1.0).abs() < f32::EPSILON);
+    let step = 2.0 / visible as f32;
+    let spacing = spacing_ratio_for(visible);
+    let width = (step * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
+    assert!((positions.last().unwrap() + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON);
 }
 
 #[wasm_bindgen_test]
 fn single_candle_centered_duplicate() {
+    let step = 2.0;
+    let width = (step * (1.0 - spacing_ratio_for(1))).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
     let x = candle_x_position(0, 1);
-    assert!((x - 0.0).abs() < f32::EPSILON);
+    assert!((x + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON);
 }

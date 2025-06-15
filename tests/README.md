@@ -5,7 +5,7 @@ This test set covers fixes for right-edge alignment and synchronization of all c
 ## Covered Fixes
 
 ### 1. **Right edge alignment** (`candle_x_position`)
-- ✅ Last candle exactly at `x=1.0`
+- ✅ Last candle exactly at `1.0 - EDGE_GAP`
 - ✅ Even candle spacing
 - ✅ Monotonic position increase
 
@@ -73,12 +73,15 @@ wasm-pack test --chrome --headless
 ### ✅ Right edge alignment
 ```rust
 let last_x = candle_x_position(visible_len - 1, visible_len);
-assert_eq!(last_x, 1.0); // Exactly on the right
+let step = 2.0 / visible_len as f32;
+let spacing = spacing_ratio_for(visible_len);
+let width = (step * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
+assert!((last_x + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON);
 ```
 
 ### ✅ Tooltip synchronization
 ```rust
-let index_float = visible_len as f64 - (1.0 - ndc_x) / step_size - 1.0;
+let index_float = visible_len as f64 - 1.0 - (1.0 - EDGE_GAP - half_width - ndc_x) / step_size;
 let calculated_index = index_float.round() as i32;
 assert_eq!(calculated_index as usize, expected_index);
 ```
