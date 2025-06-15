@@ -36,9 +36,13 @@ pub fn init_render_queue() {
         *cell.borrow_mut() = Some(tx);
         spawn_async(async move {
             while let Some(task) = rx.next().await {
-                with_global_renderer(|r| {
+                if with_global_renderer(|r| {
                     task(r);
-                });
+                })
+                .is_none()
+                {
+                    // renderer not available
+                }
             }
         });
     });
