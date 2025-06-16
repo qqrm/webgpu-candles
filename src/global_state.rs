@@ -45,7 +45,7 @@ pub fn globals() -> &'static Globals {
         loading_more: create_rw_signal(false),
         tooltip_data: create_rw_signal(None),
         tooltip_visible: create_rw_signal(false),
-        zoom_level: create_rw_signal(1.0),
+        zoom_level: create_rw_signal(0.32),
         pan_offset: create_rw_signal(0.0),
         is_dragging: create_rw_signal(false),
         last_mouse_x: create_rw_signal(0.0),
