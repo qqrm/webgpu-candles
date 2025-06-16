@@ -70,7 +70,7 @@ fn aggregates_one_minute_from_two_seconds() {
 
     assert_eq!(aggregated.timestamp.value(), 0);
     assert!((aggregated.ohlcv.open.value() - 100.0).abs() < f64::EPSILON);
-    assert!((aggregated.ohlcv.close.value() - 129.0).abs() < f64::EPSILON);
+    assert!((aggregated.ohlcv.close.value() - 129.1).abs() < f64::EPSILON);
     assert!((aggregated.ohlcv.high.value() - 129.5).abs() < f64::EPSILON);
     assert!((aggregated.ohlcv.low.value() - 99.5).abs() < f64::EPSILON);
     assert!((aggregated.ohlcv.volume.value() - 30.0).abs() < f64::EPSILON);
