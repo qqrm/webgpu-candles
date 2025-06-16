@@ -66,7 +66,7 @@ pub fn visible_range(len: usize, zoom: f64, pan: f64) -> (usize, usize) {
     let visible = ((MAX_VISIBLE_CANDLES / zoom).max(MIN_VISIBLE_CANDLES).min(len as f64)) as isize;
     let base_start = len as isize - visible;
     let offset = pan.round() as isize;
-    let min_start = (base_start - HISTORY_BUFFER_SIZE as isize).max(0);
+    let min_start = 0;
     let max_start = len as isize - visible;
     let start = (base_start + offset).clamp(min_start, max_start);
     (start as usize, visible as usize)
