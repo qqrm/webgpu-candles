@@ -879,6 +879,13 @@ fn ChartContainer() -> impl IntoView {
     );
     on_cleanup(move || wheel_listener.remove());
 
+    // Reset dragging state when the mouse is released anywhere
+    let mouseup_listener =
+        window_event_listener_with_options(ev::mouseup, &EventOptions::default(), move |_| {
+            is_dragging().set(false)
+        });
+    on_cleanup(move || mouseup_listener.remove());
+
     // Zoom effect removed - handled directly in the wheel handler
 
     view! {
