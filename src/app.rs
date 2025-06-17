@@ -136,7 +136,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
 
     let chart = ensure_chart(&current_symbol().get_untracked());
     let oldest_ts = chart.with(|c| {
-        c.get_series(TimeInterval::OneMinute)
+        c.get_series(current_interval().get_untracked())
             .and_then(|s| s.get_candles().front())
             .map(|c| c.timestamp.value())
     });
@@ -149,10 +149,9 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
 
     let symbol = current_symbol().get_untracked();
     let _ = spawn_local_with_current_owner(async move {
-        let client_arc = Arc::new(Mutex::new(BinanceWebSocketClient::new(
-            symbol.clone(),
-            TimeInterval::OneMinute,
-        )));
+        let interval = current_interval().get_untracked();
+        let client_arc =
+            Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
         let visible = chart.with(|c| {
             let len = c.get_candle_count();
             visible_range(len, zoom_level().get_untracked(), pan_offset().get_untracked()).1
@@ -187,7 +186,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
 
                 let new_count = chart.with(|c| c.get_candle_count());
                 let max_volume = chart.with(|c| {
-                    c.get_series(TimeInterval::OneMinute)
+                    c.get_series(current_interval().get_untracked())
                         .unwrap()
                         .get_candles()
                         .iter()
@@ -1174,7 +1173,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
         return;
     }
 
-    let interval = TimeInterval::OneMinute;
+    let interval = current_interval().get_untracked();
 
     let rest_client_arc =
         Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
@@ -1287,7 +1286,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                 global_candle_count().set(count);
 
                 let max_vol = chart.with(|c| {
-                    c.get_series(TimeInterval::OneMinute)
+                    c.get_series(interval)
                         .unwrap()
                         .get_candles()
                         .iter()
