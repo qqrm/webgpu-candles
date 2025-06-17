@@ -63,3 +63,8 @@ jobs:
         with:
           name: perf_results
           path: docs/perf_result.json
+      - name: Send benchmark results to bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: scripts/send_to_bot.sh docs/perf_result.json "Benchmark results"
