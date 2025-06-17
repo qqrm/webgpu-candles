@@ -42,3 +42,8 @@ jobs:
         with:
           name: perf-log
           path: perf.log
+      - name: Send results to bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: scripts/send_to_bot.sh perf.log "Performance results"

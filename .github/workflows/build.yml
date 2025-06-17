@@ -37,6 +37,17 @@ jobs:
         run: trunk build --release --dist dist --public-url /webgpu-candles/dev/
       - name: Save version
         run: echo ${{ github.sha }} > dist/version
+      - name: Archive dist
+        run: tar -czf dist.tar.gz -C dist .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist.tar.gz
+      - name: Send build to bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: scripts/send_to_bot.sh dist.tar.gz "Development build"
       - name: Copy dist to docs/dev
         run: |
           mkdir -p docs/dev
