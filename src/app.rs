@@ -16,7 +16,7 @@ use wasm_bindgen::JsCast;
 
 use crate::event_utils::{EventOptions, wheel_event_options, window_event_listener_with_options};
 use crate::global_signals;
-use crate::global_state::ensure_chart;
+use crate::global_state::{ensure_chart, set_chart_in_ecs};
 use crate::{
     domain::{
         chart::Chart,
@@ -169,6 +169,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
                         ch.add_candle(candle.clone());
                     }
                 });
+                chart.with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
                 chart.with_untracked(|c| {
                     if c.get_candle_count() > 0
                         && with_global_renderer(|r| {
@@ -603,6 +604,8 @@ fn ChartContainer() -> impl IntoView {
                         }
 
                         chart().update(|ch| ch.set_historical_data(test_candles));
+                        let symbol = current_symbol().get_untracked();
+                        chart().with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
                         set_status.set(format!(
                             "🎯 Demo mode: Using test data (WebSocket disabled)\nReason: {msg}",
                         ));
@@ -634,6 +637,8 @@ fn ChartContainer() -> impl IntoView {
                     let factor_x = -(delta_x as f32) / ch.viewport.width as f32;
                     ch.pan(factor_x, 0.0);
                 });
+                let symbol = current_symbol().get_untracked();
+                chart_signal().with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
                 last_mouse_x().set(mouse_x);
 
                 let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
@@ -731,6 +736,8 @@ fn ChartContainer() -> impl IntoView {
                 ch.zoom(applied_factor, center_x);
                 ch.pan(pan_diff, 0.0);
             });
+            let symbol = current_symbol().get_untracked();
+            chart_signal().with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
             pan_offset().update(|o| {
                 let zoom = zoom_level().with_untracked(|val| *val);
                 let pan_sensitivity = PAN_SENSITIVITY_BASE / zoom;
@@ -1196,6 +1203,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
             );
 
             chart.update(|ch| ch.set_historical_data(historical_candles.clone()));
+            chart.with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
             chart.with_untracked(|c| {
                 if c.get_candle_count() > 0
                     && with_global_renderer(|r| {
@@ -1281,6 +1289,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                         ch.update_viewport_for_data();
                     }
                 });
+                chart.with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
                 crate::global_state::push_realtime_candle(candle.clone());
 
                 let count = chart.with(|c| c.get_candle_count());

@@ -94,3 +94,20 @@ pub fn push_realtime_candle(candle: Candle) {
     world.world.spawn((CandleComponent(candle),));
     world.run_candle_system();
 }
+
+/// Replace or spawn a chart entity in the ECS world.
+pub fn set_chart_in_ecs(symbol: &Symbol, chart: Chart) {
+    use crate::ecs::components::ChartComponent;
+    let mut world = ecs_world().lock().unwrap();
+    let mut found = false;
+    for (_, comp) in world.world.query::<&mut ChartComponent>().iter() {
+        if comp.0.id == symbol.value() {
+            comp.0 = chart.clone();
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        world.world.spawn((ChartComponent(chart),));
+    }
+}
