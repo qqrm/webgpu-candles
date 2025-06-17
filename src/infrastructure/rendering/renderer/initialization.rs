@@ -1,4 +1,5 @@
 use super::*;
+use crate::domain::market_data::TimeInterval;
 use leptos::SignalGetUntracked;
 use std::collections::VecDeque;
 
@@ -296,10 +297,9 @@ impl WebGpuRenderer {
         // Simplified update method - just store vertex count for debugging
         use crate::app::current_interval;
         let interval = current_interval().get_untracked();
-        let candles = chart
-            .get_series(interval)
-            .map(|s| s.get_candles())
-            .unwrap_or_else(|| chart.get_series_for_zoom(self.zoom_level).get_candles());
+        let candles = chart.get_series(interval).map(|s| s.get_candles()).unwrap_or_else(|| {
+            chart.get_series(TimeInterval::TwoSeconds).expect("base series not found").get_candles()
+        });
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
             &format!("📊 Updated chart data: {} candles", candles.len()),

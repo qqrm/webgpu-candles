@@ -1,5 +1,6 @@
 use super::*;
 use crate::domain::logging::LogComponent;
+use crate::domain::market_data::TimeInterval;
 use crate::log_info;
 use leptos::{SignalGetUntracked, SignalSet};
 use serde_json;
@@ -18,8 +19,12 @@ impl WebGpuRenderer {
         hasher.finish()
     }
 
-    pub fn data_hash(chart: &Chart, zoom: f64) -> u64 {
-        let candles = chart.get_series_for_zoom(zoom).get_candles();
+    pub fn data_hash(chart: &Chart, _zoom: f64) -> u64 {
+        let candles = chart
+            .get_series(crate::app::current_interval().get_untracked())
+            .or_else(|| chart.get_series(TimeInterval::TwoSeconds))
+            .expect("base series not found")
+            .get_candles();
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         candles.len().hash(&mut hasher);
         for c in candles {
@@ -103,10 +108,14 @@ impl WebGpuRenderer {
 
         use crate::app::current_interval;
         let interval = current_interval().get_untracked();
-        let candle_count = chart
-            .get_series(interval)
-            .map(|s| s.get_candles().len())
-            .unwrap_or_else(|| chart.get_series_for_zoom(self.zoom_level).get_candles().len());
+        let candle_count =
+            chart.get_series(interval).map(|s| s.get_candles().len()).unwrap_or_else(|| {
+                chart
+                    .get_series(TimeInterval::TwoSeconds)
+                    .expect("base series not found")
+                    .get_candles()
+                    .len()
+            });
 
         // Log only every 100 frames for performance
         if candle_count % 100 == 0 {

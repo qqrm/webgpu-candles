@@ -1,7 +1,7 @@
 use super::*;
 use crate::domain::logging::{LogComponent, get_logger};
-use crate::domain::market_data::Price;
 use crate::domain::market_data::services::MarketAnalysisService;
+use crate::domain::market_data::{Price, TimeInterval};
 use crate::infrastructure::rendering::gpu_structures::{
     CandleGeometry, CandleInstance, IndicatorType,
 };
@@ -46,10 +46,9 @@ impl WebGpuRenderer {
         use crate::app::current_interval;
 
         let interval = current_interval().get_untracked();
-        let candles = chart
-            .get_series(interval)
-            .map(|s| s.get_candles())
-            .unwrap_or_else(|| chart.get_series_for_zoom(self.zoom_level).get_candles());
+        let candles = chart.get_series(interval).map(|s| s.get_candles()).unwrap_or_else(|| {
+            chart.get_series(TimeInterval::TwoSeconds).expect("base series not found").get_candles()
+        });
 
         if candles.is_empty() {
             get_logger()
