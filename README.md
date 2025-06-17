@@ -38,6 +38,9 @@ Local builds are saved to `dist-local`. In GitHub Actions the `dist` path is
 used and the files are copied to [`docs/`](docs/) to publish the demo.
 The `docs/version` file stores the SHA of the last commit.
 
+Both release and development builds are copied into `docs/` by default. To use a different folder, adjust the copy steps in the workflow files:
+`.github/workflows/build.yml` lines **51–54** and `.github/workflows/release.yml` lines **51–56**.
+
 When using Trunk, open **`index.html`** (served automatically when using `trunk serve`). The file contains a Trunk hook so the WASM is loaded for you:
 
 ```html
