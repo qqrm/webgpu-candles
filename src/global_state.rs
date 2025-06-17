@@ -7,12 +7,14 @@
 use crate::app::TooltipData;
 use crate::domain::{
     chart::{Chart, value_objects::ChartType},
-    market_data::{Symbol, TimeInterval},
+    market_data::{Candle, Symbol, TimeInterval},
 };
+use crate::ecs::EcsWorld;
 use futures::future::AbortHandle;
 use leptos::*;
 use once_cell::sync::OnceCell;
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 pub struct Globals {
     pub current_price: RwSignal<f64>,
@@ -35,6 +37,7 @@ pub struct Globals {
 
 // The `OnceCell` ensures this state is created at most once on demand.
 static GLOBALS: OnceCell<Globals> = OnceCell::new();
+static ECS_WORLD: OnceCell<Mutex<EcsWorld>> = OnceCell::new();
 
 pub fn globals() -> &'static Globals {
     GLOBALS.get_or_init(|| Globals {
@@ -59,11 +62,18 @@ pub fn globals() -> &'static Globals {
     })
 }
 
+/// Access the global ECS world.
+pub fn ecs_world() -> &'static Mutex<EcsWorld> {
+    ECS_WORLD.get_or_init(|| Mutex::new(EcsWorld::new()))
+}
+
 pub fn ensure_chart(symbol: &Symbol) -> RwSignal<Chart> {
     let charts = &globals().charts;
     charts.update(|map| {
         map.entry(symbol.clone()).or_insert_with(|| {
-            create_rw_signal(Chart::new(symbol.value().to_string(), ChartType::Candlestick, 1000))
+            let chart = Chart::new(symbol.value().to_string(), ChartType::Candlestick, 1000);
+            ecs_world().lock().unwrap().spawn_chart(chart.clone());
+            create_rw_signal(chart)
         });
     });
     charts.with(|map| map.get(symbol).copied().unwrap())
@@ -75,4 +85,12 @@ pub fn global_charts() -> RwSignal<HashMap<Symbol, RwSignal<Chart>>> {
 
 pub fn stream_abort_handles() -> RwSignal<HashMap<Symbol, AbortHandle>> {
     globals().stream_abort_handles
+}
+
+/// Add a candle to the ECS world and process systems.
+pub fn push_realtime_candle(candle: Candle) {
+    use crate::ecs::components::CandleComponent;
+    let mut world = ecs_world().lock().unwrap();
+    world.world.spawn((CandleComponent(candle),));
+    world.run_candle_system();
 }
