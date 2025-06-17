@@ -1344,6 +1344,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
 mod tests {
     use super::*;
     use crate::domain::chart::value_objects::ChartType;
+    use crate::domain::market_data::value_objects::Symbol;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -1458,5 +1459,43 @@ mod tests {
 
         let (_, visible_max_zoom) = visible_range(1000, MAX_ZOOM_LEVEL, 0.0);
         assert!(visible_max_zoom as f64 >= MIN_VISIBLE_CANDLES);
+    }
+
+    #[wasm_bindgen_test]
+    fn asset_buttons_update_current_symbol() {
+        let container = setup_container();
+        let (_status, set_status) = create_signal(String::new());
+        leptos::mount_to(
+            container.clone(),
+            move || view! { <AssetSelector set_status=set_status /> },
+        );
+
+        let eth_btn = find_button(&container, "ETHUSDT").expect("ETHUSDT button not found");
+        eth_btn.click();
+        assert_eq!(current_symbol().get(), Symbol::from("ETHUSDT"));
+
+        let btc_btn = find_button(&container, "BTCUSDT").expect("BTCUSDT button not found");
+        btc_btn.click();
+        assert_eq!(current_symbol().get(), Symbol::from("BTCUSDT"));
+    }
+
+    #[wasm_bindgen_test]
+    fn zoom_persists_across_symbol_switch() {
+        let container = setup_container();
+        let (_status, set_status) = create_signal(String::new());
+        leptos::mount_to(
+            container.clone(),
+            move || view! { <AssetSelector set_status=set_status /> },
+        );
+
+        zoom_level().set(2.0);
+        let sol_btn = find_button(&container, "SOLUSDT").expect("SOLUSDT button not found");
+        sol_btn.click();
+
+        assert_eq!(current_symbol().get(), Symbol::from("SOLUSDT"));
+        assert!((zoom_level().get() - 2.0).abs() < f64::EPSILON);
+
+        zoom_level().update(|z| *z = (*z * 1.5).min(MAX_ZOOM_LEVEL));
+        assert!((zoom_level().get() - 3.0).abs() < f64::EPSILON);
     }
 }
