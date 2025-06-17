@@ -18,6 +18,7 @@
 - Markdown in the project must be consistent: use `#` for headers, specify languages for code blocks, and maintain clear structure.
 - Comments in the code and all documentation are written only in English.
 - A summary of available tests and snapshot locations is found in [TESTS.md](DOCS/TESTS.md).
+- The pipelines documentation resides in [PIPELINES.md](DOCS/PIPELINES.md).
 - Translate branch and task names into English even if they were originally given in Russian.
 - Branch names must be strictly in English; do not use Russian words or letters.
 - Always provide branch names and task titles in English, even if the original request is in Russian.

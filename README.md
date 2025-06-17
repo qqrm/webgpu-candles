@@ -95,6 +95,7 @@ All additional documentation lives in the [`DOCS/`](DOCS/) directory:
 - [CONTRIBUTING.md](DOCS/CONTRIBUTING.md)
 - [PERFORMANCE.md](DOCS/PERFORMANCE.md)
 - [TESTS.md](DOCS/TESTS.md)
+- [PIPELINES.md](DOCS/PIPELINES.md)
 - [VOLUME_SYNC_FIXES.md](DOCS/VOLUME_SYNC_FIXES.md)
 - [COLORS.md](DOCS/COLORS.md)
 
