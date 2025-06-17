@@ -59,9 +59,8 @@ fn candle_geometry_snapshot() {
         );
     }
 
-    unsafe {
-        std::env::set_var("INSTA_WORKSPACE_ROOT", env!("CARGO_MANIFEST_DIR"));
-    }
+    #[cfg(not(target_arch = "wasm32"))]
+    std::env::set_var("INSTA_WORKSPACE_ROOT", env!("CARGO_MANIFEST_DIR"));
     with_settings!({snapshot_path => "tests/fixtures"}, {
         assert_json_snapshot!("candle_vertices", result);
     });
