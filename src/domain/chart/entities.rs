@@ -152,23 +152,6 @@ impl Chart {
         self.series.get(&interval)
     }
 
-    pub fn get_series_for_zoom(&self, zoom: f64) -> &CandleSeries {
-        let interval = if zoom >= 4.0 {
-            TimeInterval::OneMinute
-        } else if zoom >= 2.0 {
-            TimeInterval::FiveMinutes
-        } else if zoom >= 1.0 {
-            TimeInterval::FifteenMinutes
-        } else {
-            TimeInterval::OneHour
-        };
-
-        self.series
-            .get(&interval)
-            .or_else(|| self.series.get(&TimeInterval::TwoSeconds))
-            .expect("base series not found")
-    }
-
     fn update_aggregates(&mut self, candle: Candle) {
         let intervals = [
             TimeInterval::OneMinute,
