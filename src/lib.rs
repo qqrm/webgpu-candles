@@ -7,6 +7,7 @@
 
 pub mod app;
 pub mod domain;
+pub mod ecs;
 pub mod event_utils;
 pub mod global_state;
 pub mod infrastructure;
