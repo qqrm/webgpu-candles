@@ -37,6 +37,7 @@ jobs:
         run: cargo install wasm-pack --version 0.13.1
       - name: Run benchmarks
         run: |
+          set -o pipefail
           wasm-pack test --headless --chrome | tee perf.log
           python scripts/parse_perf_log.py perf.log benchmark_result.json
       - name: Analyze FPS
