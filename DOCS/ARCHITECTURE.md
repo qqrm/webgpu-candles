@@ -10,7 +10,7 @@
 - ✅ Solid line for the current price
 - ✅ Interactive tooltip
 - ✅ Professional look similar to TradingView
-See [PERFORMANCE.md](./PERFORMANCE.md) for optimization details.
+See [PIPELINES.md](../.github/workflows/PIPELINES.md) for optimization details.
 
 ## 🗂️ File Structure
 
