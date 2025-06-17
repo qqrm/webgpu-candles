@@ -1281,6 +1281,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                         ch.update_viewport_for_data();
                     }
                 });
+                crate::global_state::push_realtime_candle(candle.clone());
 
                 let count = chart.with(|c| c.get_candle_count());
                 global_candle_count().set(count);
