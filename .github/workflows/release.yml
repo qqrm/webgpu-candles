@@ -40,6 +40,7 @@ jobs:
       - name: Copy dist to docs
         run: |
           cp -r dist/* docs/
+          rm -rf docs/res
           mkdir -p docs/res
           cp -r res/* docs/res/
       - name: Commit release build
@@ -48,4 +49,4 @@ jobs:
           git config user.email github-actions@github.com
           git add docs
           git commit -m "Update release build" || echo "No changes"
-          git push origin HEAD:refs/heads/release
+          git push origin HEAD:refs/heads/main
