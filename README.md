@@ -96,7 +96,7 @@ All additional documentation lives in the [`DOCS/`](DOCS/) directory:
 - [FEATURES.md](DOCS/FEATURES.md)
 - [WEBSOCKETS.md](DOCS/WEBSOCKETS.md)
 - [CONTRIBUTING.md](DOCS/CONTRIBUTING.md)
-- [PERFORMANCE.md](DOCS/PERFORMANCE.md)
+- [PIPELINES.md](.github/workflows/PIPELINES.md)
 - [TESTS.md](DOCS/TESTS.md)
 - [PIPELINES.md](DOCS/PIPELINES.md)
 - [VOLUME_SYNC_FIXES.md](DOCS/VOLUME_SYNC_FIXES.md)
@@ -131,7 +131,7 @@ wasm-pack test --headless --chrome
 ```
 
 FPS is printed to the console and the `perf.yml` workflow saves the log as an
-artifact. Current metric values are stored in [docs/perf.md](docs/perf.md).
+artifact. Current metric values are stored in [PIPELINES.md](.github/workflows/PIPELINES.md).
 `tests/performance_limit.rs` logs when FPS drops below 30 for large charts.
 
 
