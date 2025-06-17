@@ -30,6 +30,7 @@ futures = "0.3"
 derive_more = "0.99"
 strum = { version = "0.26", features = ["derive"] }
 once_cell = "1"
+hecs = "0.10"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
