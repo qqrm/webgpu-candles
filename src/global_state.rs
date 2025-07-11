@@ -24,8 +24,6 @@ pub struct Globals {
     pub loading_more: RwSignal<bool>,
     pub tooltip_data: RwSignal<Option<TooltipData>>,
     pub tooltip_visible: RwSignal<bool>,
-    pub zoom_level: RwSignal<f64>,
-    pub pan_offset: RwSignal<f64>,
     pub is_dragging: RwSignal<bool>,
     pub last_mouse_x: RwSignal<f64>,
     pub current_interval: RwSignal<TimeInterval>,
@@ -47,8 +45,6 @@ pub fn globals() -> &'static Globals {
         loading_more: create_rw_signal(false),
         tooltip_data: create_rw_signal(None),
         tooltip_visible: create_rw_signal(false),
-        zoom_level: create_rw_signal(0.32),
-        pan_offset: create_rw_signal(0.0),
         is_dragging: create_rw_signal(false),
         last_mouse_x: create_rw_signal(0.0),
         current_interval: create_rw_signal(TimeInterval::OneMinute),
@@ -96,6 +92,7 @@ pub fn push_realtime_candle(candle: Candle) {
         let mut world = ecs_world().lock().unwrap();
         world.world.spawn((CandleComponent(candle),));
         world.run_candle_system_parallel();
+        world.run_viewport_system();
     }
 }
 
@@ -115,5 +112,6 @@ pub fn set_chart_in_ecs(symbol: &Symbol, chart: Chart) {
         if !found {
             world.spawn_chart(chart);
         }
+        world.run_viewport_system();
     }
 }

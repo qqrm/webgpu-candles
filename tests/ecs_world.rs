@@ -3,7 +3,7 @@ use price_chart_wasm::domain::chart::{Chart, value_objects::ChartType};
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use price_chart_wasm::ecs::EcsWorld;
 use price_chart_wasm::ecs::components::CandleComponent;
-use price_chart_wasm::ecs::components::ChartComponent;
+use price_chart_wasm::ecs::components::{ChartComponent, ViewportComponent};
 
 #[test]
 fn world_starts_empty() {
@@ -79,7 +79,7 @@ fn candle_system_parallel_matches_sequential() {
         .expect("chart component")
         .1
         .0
-        .get_candle_count();
+        .with(|c| c.get_candle_count());
     let count_par = world_par
         .world
         .query::<&ChartComponent>()
@@ -88,6 +88,26 @@ fn candle_system_parallel_matches_sequential() {
         .expect("chart component")
         .1
         .0
-        .get_candle_count();
+        .with(|c| c.get_candle_count());
     assert_eq!(count_seq, count_par);
+}
+
+#[test]
+fn viewport_component_updates() {
+    let mut world = EcsWorld::new();
+    let mut chart = Chart::new("test".into(), ChartType::Candlestick, 10);
+    let entity = world.spawn_chart(chart.clone());
+
+    chart.zoom(2.0, 0.5);
+    chart.pan(0.1, 0.0);
+
+    {
+        let comp = world.world.get::<&mut ChartComponent>(entity).unwrap();
+        comp.0.set(chart.clone());
+    }
+
+    world.run_viewport_system();
+
+    let vp = world.world.get::<&ViewportComponent>(entity).unwrap();
+    assert_eq!(vp.0, chart.viewport);
 }

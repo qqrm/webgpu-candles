@@ -1,7 +1,8 @@
 use hecs::World;
 
+use super::components::ViewportComponent;
 use super::components::{CandleComponent, ChartComponent};
-use leptos::SignalUpdate;
+use leptos::{SignalUpdate, SignalWith};
 
 /// Apply new candles to all charts and remove processed candle entities.
 pub fn apply_candles(world: &mut World) {
@@ -66,4 +67,13 @@ pub fn apply_candles_parallel(world: &mut World) {
 #[cfg(any(target_arch = "wasm32", not(feature = "parallel")))]
 pub fn apply_candles_parallel(world: &mut World) {
     apply_candles(world);
+}
+
+/// Update `ViewportComponent` to match the chart's viewport.
+pub fn sync_viewports(world: &mut World) {
+    let mut query = world.query::<(&ChartComponent, &mut ViewportComponent)>();
+    for (_, (chart, viewport)) in query.iter() {
+        let vp = chart.0.with(|c| c.viewport.clone());
+        viewport.0 = vp;
+    }
 }
