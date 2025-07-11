@@ -4,6 +4,14 @@
 
 A demonstration Bitcoin candlestick chart built with **WebGPU** for rendering and **Leptos** for the reactive UI. Real-time price data is streamed from Binance via WebSocket and drawn directly to a `<canvas>` using Rust compiled to WebAssembly.
 The chart supports zoom levels from roughly `0.2x` up to `32x` with a minimum of one visible candle.
+> **Note**: WebGPU must be enabled in your browser. The demo works in Microsoft Edge but is not supported in Firefox.
+
+## Demo
+
+The development version is available at <https://qqrm.github.io/webgpu-candles/dev/>. Release builds are
+published at <https://qqrm.github.io/webgpu-candles/>. The files are
+stored in the [`docs/`](docs/) directory.
+
 The project requires the `wasm32-unknown-unknown` target, which the build script verifies is installed. Install it with:
 `rustup target add wasm32-unknown-unknown`.
 
@@ -116,13 +124,6 @@ The chart is composed of several layers:
   - Simple Moving Averages (20, 50, 200 periods)
   - Exponential Moving Averages (12, 26 periods)
   - Ichimoku cloud with Tenkan, Kijun, Senkou spans and Chikou line
-
-## Demo
-
-The development version is available at
-<https://qqrm.github.io/webgpu-candles/dev/>. Release builds are
-published at <https://qqrm.github.io/webgpu-candles/>. The files are
-stored in the [`docs/`](docs/) directory.
 
 ## Benchmarks
 
