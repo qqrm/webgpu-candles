@@ -75,10 +75,6 @@ pub fn ensure_chart(symbol: &Symbol) -> RwSignal<Chart> {
     charts.with(|map| map.get(symbol).copied().unwrap())
 }
 
-pub fn global_charts() -> RwSignal<HashMap<Symbol, RwSignal<Chart>>> {
-    globals().charts
-}
-
 pub fn stream_abort_handles() -> RwSignal<HashMap<Symbol, AbortHandle>> {
     globals().stream_abort_handles
 }

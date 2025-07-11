@@ -1131,7 +1131,23 @@ fn AssetSelector(set_status: WriteSignal<String>) -> impl IntoView {
                         <button
                             style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
                             on:click=move |_| {
+                                let prev_symbol = current_symbol().get_untracked();
+                                let prev_zoom = ensure_chart(&prev_symbol)
+                                    .with(|c| c.viewport.zoom_level);
+                                let prev_pan =
+                                    ensure_chart(&prev_symbol).with(|c| c.viewport.pan_offset);
+
+                                let existed = global_charts().with(|m| m.contains_key(&sym));
                                 current_symbol().set(sym.clone());
+
+                                let chart_signal = ensure_chart(&sym);
+                                if !existed {
+                                    chart_signal.update(|c| {
+                                        c.viewport.zoom_level = prev_zoom;
+                                        c.viewport.pan_offset = prev_pan;
+                                    });
+                                }
+
                                 let _ = spawn_local_with_current_owner(async move {
                                     start_websocket_stream(status_cloned).await;
                                 });

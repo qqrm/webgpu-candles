@@ -1,6 +1,7 @@
 use leptos::*;
+use price_chart_wasm::app::global_charts;
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Symbol, Timestamp, Volume};
-use price_chart_wasm::global_state::{ensure_chart, global_charts};
+use price_chart_wasm::global_state::ensure_chart;
 use std::collections::HashMap;
 
 #[test]
