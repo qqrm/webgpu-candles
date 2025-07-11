@@ -1,3 +1,4 @@
+use leptos::*;
 use price_chart_wasm::domain::chart::{Chart, value_objects::ChartType};
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Symbol, Timestamp, Volume};
 use price_chart_wasm::ecs::components::ChartComponent;
@@ -13,7 +14,7 @@ fn set_chart_spawns_when_missing() {
     let mut query = world_ref.world.query::<&ChartComponent>();
     assert_eq!(query.iter().count(), 1);
     let stored = query.iter().next().unwrap().1;
-    assert_eq!(stored.0.id, chart.id);
+    assert_eq!(stored.0.with(|c| c.id.clone()), chart.id);
 }
 
 #[test]
@@ -37,5 +38,5 @@ fn set_chart_replaces_existing() {
     let world_ref = ecs_world().lock().unwrap();
     let mut query = world_ref.world.query::<&ChartComponent>();
     let stored = query.iter().next().unwrap().1;
-    assert_eq!(stored.0.get_candle_count(), 1);
+    assert_eq!(stored.0.with(|c| c.get_candle_count()), 1);
 }
