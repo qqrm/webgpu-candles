@@ -9,7 +9,7 @@ use crate::domain::{
     chart::{Chart, value_objects::ChartType},
     market_data::{Candle, Symbol, TimeInterval},
 };
-use crate::ecs::{components::ChartComponent, EcsWorld};
+use crate::ecs::{EcsWorld, components::ChartComponent};
 use futures::future::AbortHandle;
 use leptos::*;
 use once_cell::sync::OnceCell;
@@ -64,7 +64,6 @@ pub fn globals() -> &'static Globals {
 pub fn ecs_world() -> &'static Mutex<EcsWorld> {
     ECS_WORLD.get_or_init(|| Mutex::new(EcsWorld::new()))
 }
-
 
 pub fn get_chart_signal(symbol: &Symbol) -> Option<RwSignal<Chart>> {
     let world = ecs_world().lock().unwrap();
