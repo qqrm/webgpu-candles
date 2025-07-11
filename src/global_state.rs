@@ -93,7 +93,7 @@ pub fn push_realtime_candle(candle: Candle) {
     {
         let mut world = ecs_world().lock().unwrap();
         world.world.spawn((CandleComponent(candle),));
-        world.run_candle_system();
+        world.run_candle_system_parallel();
     }
     sync_charts_from_ecs();
 }

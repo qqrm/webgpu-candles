@@ -154,6 +154,15 @@ npm test
 ```
 
 See [TESTS.md](DOCS/TESTS.md) for more details about the test suite.
+
+## Native Run
+
+For benchmarking outside the browser you can run the native binary. Parallel ECS
+systems powered by Rayon are enabled automatically:
+
+```bash
+cargo run --release --features parallel
+```
 ## Docker
 
 Build and run the container with:

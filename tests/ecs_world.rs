@@ -44,3 +44,49 @@ fn candle_system_applies_candles() {
     assert_eq!(chart_comp.0.get_candle_count(), 1);
     assert_eq!(world.world.len(), 1);
 }
+
+#[test]
+fn candle_system_parallel_matches_sequential() {
+    let mut world_seq = EcsWorld::new();
+    let mut world_par = EcsWorld::new();
+    let chart_seq = Chart::new("par".into(), ChartType::Candlestick, 10);
+    let chart_par = chart_seq.clone();
+    world_seq.spawn_chart(chart_seq);
+    world_par.spawn_chart(chart_par);
+
+    let candle = Candle::new(
+        Timestamp::from_millis(0),
+        OHLCV::new(
+            Price::from(1.0),
+            Price::from(1.0),
+            Price::from(1.0),
+            Price::from(1.0),
+            Volume::from(1.0),
+        ),
+    );
+    world_seq.world.spawn((CandleComponent(candle.clone()),));
+    world_par.world.spawn((CandleComponent(candle.clone()),));
+
+    world_seq.run_candle_system();
+    world_par.run_candle_system_parallel();
+
+    let count_seq = world_seq
+        .world
+        .query::<&ChartComponent>()
+        .iter()
+        .next()
+        .expect("chart component")
+        .1
+        .0
+        .get_candle_count();
+    let count_par = world_par
+        .world
+        .query::<&ChartComponent>()
+        .iter()
+        .next()
+        .expect("chart component")
+        .1
+        .0
+        .get_candle_count();
+    assert_eq!(count_seq, count_par);
+}
