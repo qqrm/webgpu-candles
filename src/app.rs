@@ -16,7 +16,7 @@ use wasm_bindgen::JsCast;
 
 use crate::event_utils::{EventOptions, wheel_event_options, window_event_listener_with_options};
 use crate::global_signals;
-use crate::global_state::{ensure_chart, set_chart_in_ecs};
+use crate::global_state::{ensure_chart, get_chart_signal, set_chart_in_ecs};
 use crate::{
     domain::{
         chart::Chart,
@@ -123,7 +123,6 @@ global_signals! {
     last_mouse_x => last_mouse_x: f64,
     pub current_interval => current_interval: TimeInterval,
     pub current_symbol => current_symbol: Symbol,
-    pub global_charts => charts: HashMap<Symbol, RwSignal<Chart>>,
     pub stream_abort_handles => stream_abort_handles: HashMap<Symbol, futures::future::AbortHandle>,
     pub global_line_visibility => line_visibility: LineVisibility,
 }
@@ -134,7 +133,8 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
         return;
     }
 
-    let chart = ensure_chart(&current_symbol().get_untracked());
+    ensure_chart(&current_symbol().get_untracked());
+    let chart = get_chart_signal(&current_symbol().get_untracked()).unwrap();
     let oldest_ts = chart.with(|c| {
         c.get_series(current_interval().get_untracked())
             .and_then(|s| s.get_candles().front())
@@ -505,7 +505,7 @@ fn ChartContainer() -> impl IntoView {
     });
     let chart_memo = create_memo(move |_| {
         let sym = current_symbol().get();
-        global_charts().with(|m| m.get(&sym).copied().unwrap())
+        get_chart_signal(&sym).unwrap_or_else(|| ensure_chart(&sym))
     });
     let chart = move || chart_memo.get();
     let (_renderer, set_renderer) = create_signal::<Option<Rc<RefCell<WebGpuRenderer>>>>(None);
@@ -647,7 +647,7 @@ fn ChartContainer() -> impl IntoView {
                 }
 
                 enqueue_render_task(Box::new(|r| {
-                    let chart_signal = ensure_chart(&current_symbol().get_untracked());
+                    let chart_signal = get_chart_signal(&current_symbol().get_untracked()).unwrap();
                     chart_signal.with_untracked(|ch| {
                         if ch.get_candle_count() > 0 {
                             r.set_zoom_params(
@@ -1172,7 +1172,8 @@ pub fn abort_other_streams(symbol: &Symbol) {
 pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
     let symbol = current_symbol().get_untracked();
     abort_other_streams(&symbol);
-    let chart = ensure_chart(&symbol);
+    ensure_chart(&symbol);
+    let chart = get_chart_signal(&symbol).unwrap();
 
     if let Some(_handle) = stream_abort_handles().with(|m| m.get(&symbol).cloned()) {
         // Already streaming for this symbol
@@ -1307,7 +1308,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
 
                 let sym_for_queue = symbol.clone();
                 enqueue_render_task(Box::new(move |r| {
-                    let chart_signal = ensure_chart(&sym_for_queue);
+                    let chart_signal = get_chart_signal(&sym_for_queue).unwrap();
                     chart_signal.with_untracked(|ch| {
                         if ch.get_candle_count() > 0 {
                             r.set_zoom_params(
