@@ -21,6 +21,16 @@ fn spawn_chart_entity() {
 }
 
 #[test]
+fn spawn_chart_adds_viewport_component() {
+    let mut world = EcsWorld::new();
+    let chart = Chart::new("test_vp".into(), ChartType::Candlestick, 50);
+    let entity = world.spawn_chart(chart.clone());
+
+    let vp = world.world.get::<&ViewportComponent>(entity).expect("viewport component exists");
+    assert_eq!(vp.0, chart.viewport);
+}
+
+#[test]
 fn candle_system_applies_candles() {
     let mut world = EcsWorld::new();
     let chart = Chart::new("test".into(), ChartType::Candlestick, 10);
