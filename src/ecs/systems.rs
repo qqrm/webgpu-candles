@@ -1,7 +1,7 @@
 use hecs::World;
 
-use super::components::{CandleComponent, ChartComponent};
-use leptos::SignalUpdate;
+use super::components::{CandleComponent, ChartComponent, ViewportComponent};
+use leptos::{SignalUpdate, SignalWithUntracked};
 
 /// Apply new candles to all charts and remove processed candle entities.
 pub fn apply_candles(world: &mut World) {
@@ -22,5 +22,14 @@ pub fn apply_candles(world: &mut World) {
     candle_entities.extend(candles.into_iter().map(|(e, _)| e));
     for e in candle_entities {
         let _ = world.despawn(e);
+    }
+}
+
+/// Sync ViewportComponent with the Chart's internal viewport.
+pub fn sync_viewports(world: &mut World) {
+    for (_, (chart, viewport)) in world.query::<(&ChartComponent, &mut ViewportComponent)>().iter()
+    {
+        let vp = chart.0.with_untracked(|c| c.viewport.clone());
+        viewport.0 = vp;
     }
 }

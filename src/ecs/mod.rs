@@ -18,15 +18,21 @@ impl EcsWorld {
 
     /// Spawn a new chart entity with its component.
     pub fn spawn_chart(&mut self, chart: crate::domain::chart::Chart) -> hecs::Entity {
-        use crate::ecs::components::ChartComponent;
+        use crate::ecs::components::{ChartComponent, ViewportComponent};
         use leptos::create_rw_signal;
 
-        let signal = create_rw_signal(chart);
-        self.world.spawn((ChartComponent(signal),))
+        let signal = create_rw_signal(chart.clone());
+        let viewport = chart.viewport.clone();
+        self.world.spawn((ChartComponent(signal), ViewportComponent(viewport)))
     }
 
     /// Apply all pending candle components to charts.
     pub fn run_candle_system(&mut self) {
         crate::ecs::systems::apply_candles(&mut self.world);
+    }
+
+    /// Update all viewport components from their charts.
+    pub fn run_viewport_system(&mut self) {
+        crate::ecs::systems::sync_viewports(&mut self.world);
     }
 }
