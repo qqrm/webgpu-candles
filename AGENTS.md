@@ -8,7 +8,6 @@
   - `cargo test`
 - If your changes touch only Markdown files, you can skip the build checks above.
 - Do not mention these commands in commit messages.
-- Запускайте тесты командой `cargo test`.
 - One of the readiness criteria is the absence of formatting issues and linter warnings.
 - Do not suppress warnings about unused code via `#[allow(dead_code)]`. Remove dead code instead.
 - When adding new functionality you must write tests.
