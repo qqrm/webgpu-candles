@@ -29,4 +29,9 @@ impl EcsWorld {
     pub fn run_candle_system(&mut self) {
         crate::ecs::systems::apply_candles(&mut self.world);
     }
+
+    /// Run the candle system in parallel when supported.
+    pub fn run_candle_system_parallel(&mut self) {
+        crate::ecs::systems::apply_candles_parallel(&mut self.world);
+    }
 }
