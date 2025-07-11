@@ -9,7 +9,7 @@ use crate::domain::{
     chart::{Chart, value_objects::ChartType},
     market_data::{Candle, Symbol, TimeInterval},
 };
-use crate::ecs::EcsWorld;
+use crate::ecs::{EcsWorld, components::ChartComponent};
 use futures::future::AbortHandle;
 use leptos::*;
 use once_cell::sync::OnceCell;
@@ -30,7 +30,6 @@ pub struct Globals {
     pub last_mouse_x: RwSignal<f64>,
     pub current_interval: RwSignal<TimeInterval>,
     pub current_symbol: RwSignal<Symbol>,
-    pub charts: RwSignal<HashMap<Symbol, RwSignal<Chart>>>,
     pub stream_abort_handles: RwSignal<HashMap<Symbol, AbortHandle>>,
     pub line_visibility: RwSignal<crate::infrastructure::rendering::renderer::LineVisibility>,
 }
@@ -54,7 +53,6 @@ pub fn globals() -> &'static Globals {
         last_mouse_x: create_rw_signal(0.0),
         current_interval: create_rw_signal(TimeInterval::OneMinute),
         current_symbol: create_rw_signal(Symbol::from("BTCUSDT")),
-        charts: create_rw_signal(HashMap::new()),
         stream_abort_handles: create_rw_signal(HashMap::new()),
         line_visibility: create_rw_signal(
             crate::infrastructure::rendering::renderer::LineVisibility::default(),
@@ -67,20 +65,24 @@ pub fn ecs_world() -> &'static Mutex<EcsWorld> {
     ECS_WORLD.get_or_init(|| Mutex::new(EcsWorld::new()))
 }
 
-pub fn ensure_chart(symbol: &Symbol) -> RwSignal<Chart> {
-    let charts = &globals().charts;
-    charts.update(|map| {
-        map.entry(symbol.clone()).or_insert_with(|| {
-            let chart = Chart::new(symbol.value().to_string(), ChartType::Candlestick, 1000);
-            ecs_world().lock().unwrap().spawn_chart(chart.clone());
-            create_rw_signal(chart)
-        });
-    });
-    charts.with(|map| map.get(symbol).copied().unwrap())
+pub fn get_chart_signal(symbol: &Symbol) -> Option<RwSignal<Chart>> {
+    let world = ecs_world().lock().unwrap();
+    world
+        .world
+        .query::<&ChartComponent>()
+        .iter()
+        .find(|(_, c)| c.0.with(|ch| ch.id == symbol.value()))
+        .map(|(_, c)| c.0)
 }
 
-pub fn global_charts() -> RwSignal<HashMap<Symbol, RwSignal<Chart>>> {
-    globals().charts
+pub fn ensure_chart(symbol: &Symbol) -> RwSignal<Chart> {
+    if let Some(sig) = get_chart_signal(symbol) {
+        return sig;
+    }
+    let mut world = ecs_world().lock().unwrap();
+    let chart = Chart::new(symbol.value().to_string(), ChartType::Candlestick, 1000);
+    let entity = world.spawn_chart(chart);
+    world.world.get::<&ChartComponent>(entity).map(|c| c.0).expect("chart just spawned")
 }
 
 pub fn stream_abort_handles() -> RwSignal<HashMap<Symbol, AbortHandle>> {
@@ -95,7 +97,6 @@ pub fn push_realtime_candle(candle: Candle) {
         world.world.spawn((CandleComponent(candle),));
         world.run_candle_system_parallel();
     }
-    sync_charts_from_ecs();
 }
 
 /// Replace or spawn a chart entity in the ECS world.
@@ -105,38 +106,14 @@ pub fn set_chart_in_ecs(symbol: &Symbol, chart: Chart) {
         let mut world = ecs_world().lock().unwrap();
         let mut found = false;
         for (_, comp) in world.world.query::<&mut ChartComponent>().iter() {
-            if comp.0.id == symbol.value() {
-                comp.0 = chart.clone();
+            if comp.0.with(|c| c.id.clone()) == symbol.value() {
+                comp.0.set(chart.clone());
                 found = true;
                 break;
             }
         }
         if !found {
-            world.world.spawn((ChartComponent(chart),));
+            world.spawn_chart(chart);
         }
     }
-    sync_charts_from_ecs();
-}
-
-/// Synchronize chart signals from the ECS world.
-pub fn sync_charts_from_ecs() {
-    use crate::domain::market_data::Symbol;
-    use crate::ecs::components::ChartComponent;
-
-    let world = ecs_world().lock().unwrap();
-    let updates: Vec<(Symbol, Chart)> = world
-        .world
-        .query::<&ChartComponent>()
-        .iter()
-        .map(|(_, comp)| (Symbol::from(comp.0.id.as_str()), comp.0.clone()))
-        .collect();
-    drop(world);
-
-    globals().charts.update(|map| {
-        for (symbol, chart) in updates {
-            if let Some(signal) = map.get(&symbol) {
-                signal.set(chart);
-            }
-        }
-    });
 }

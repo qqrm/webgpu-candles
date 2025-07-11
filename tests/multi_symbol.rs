@@ -1,11 +1,9 @@
 use leptos::*;
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Symbol, Timestamp, Volume};
-use price_chart_wasm::global_state::{ensure_chart, global_charts};
-use std::collections::HashMap;
+use price_chart_wasm::global_state::ensure_chart;
 
 #[test]
 fn charts_accumulate_independently() {
-    global_charts().set(HashMap::new());
     let btc = Symbol::from("BTCUSDT");
     let eth = Symbol::from("ETHUSDT");
     let btc_chart = ensure_chart(&btc);

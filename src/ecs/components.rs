@@ -1,9 +1,10 @@
 use crate::domain::chart::{Chart, value_objects::Viewport};
 use crate::domain::market_data::Candle;
+use leptos::RwSignal;
 
-/// ECS component containing a complete trading chart.
-#[derive(Debug, Clone)]
-pub struct ChartComponent(pub Chart);
+/// ECS component containing a reactive trading chart.
+#[derive(Debug, Clone, Copy)]
+pub struct ChartComponent(pub RwSignal<Chart>);
 
 /// ECS component storing a single candle.
 #[derive(Debug, Clone)]

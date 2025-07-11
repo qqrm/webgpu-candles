@@ -21,21 +21,22 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+            ~/.cargo/bin
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
       - name: Install wasm-pack
-        run: cargo install wasm-pack --version 0.13.1
+        run: cargo install wasm-pack --version 0.13.1 --quiet
       - name: Install wasm-tools
-        run: cargo install wasm-tools
+        run: cargo install wasm-tools --quiet
       - name: Update dependencies
-        run: cargo update
+        run: cargo update --quiet
       - name: Cargo check
-        run: cargo check --all-targets
+        run: cargo check --all-targets --quiet
       - name: Cargo clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings || echo 'Clippy warnings found'
+        run: cargo clippy --all-targets --all-features --quiet -- -D warnings || echo 'Clippy warnings found'
       - name: Run browser tests
-        run: wasm-pack test --headless --chrome
+        run: wasm-pack test -q --headless --chrome
       - name: Run Node.js tests
-        run: wasm-pack test --node
+        run: wasm-pack test -q --node

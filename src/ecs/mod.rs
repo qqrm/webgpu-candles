@@ -19,7 +19,10 @@ impl EcsWorld {
     /// Spawn a new chart entity with its component.
     pub fn spawn_chart(&mut self, chart: crate::domain::chart::Chart) -> hecs::Entity {
         use crate::ecs::components::ChartComponent;
-        self.world.spawn((ChartComponent(chart),))
+        use leptos::create_rw_signal;
+
+        let signal = create_rw_signal(chart);
+        self.world.spawn((ChartComponent(signal),))
     }
 
     /// Apply all pending candle components to charts.

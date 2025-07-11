@@ -1,3 +1,4 @@
+use leptos::*;
 use price_chart_wasm::domain::chart::{Chart, value_objects::ChartType};
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use price_chart_wasm::ecs::EcsWorld;
@@ -16,7 +17,7 @@ fn spawn_chart_entity() {
     let chart = Chart::new("test".into(), ChartType::Candlestick, 100);
     let entity = world.spawn_chart(chart.clone());
     let stored = world.world.get::<&ChartComponent>(entity).expect("chart component exists");
-    assert_eq!(stored.0.id, chart.id);
+    assert_eq!(stored.0.with(|c| c.id.clone()), chart.id);
 }
 
 #[test]
@@ -41,7 +42,7 @@ fn candle_system_applies_candles() {
 
     let mut query = world.world.query::<&ChartComponent>();
     let chart_comp = query.iter().next().expect("chart component").1;
-    assert_eq!(chart_comp.0.get_candle_count(), 1);
+    assert_eq!(chart_comp.0.with(|c| c.get_candle_count()), 1);
     assert_eq!(world.world.len(), 1);
 }
 
