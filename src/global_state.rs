@@ -96,6 +96,7 @@ pub fn push_realtime_candle(candle: Candle) {
         let mut world = ecs_world().lock().unwrap();
         world.world.spawn((CandleComponent(candle),));
         world.run_candle_system();
+        world.run_viewport_system();
     }
 }
 
@@ -115,5 +116,6 @@ pub fn set_chart_in_ecs(symbol: &Symbol, chart: Chart) {
         if !found {
             world.spawn_chart(chart);
         }
+        world.run_viewport_system();
     }
 }
