@@ -25,7 +25,7 @@ pub fn apply_candles(world: &mut World) {
 }
 
 /// Apply candles using Rayon for parallel chart updates on native targets.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "parallel"))]
 pub fn apply_candles_parallel(world: &mut World) {
     use rayon::prelude::*;
 
@@ -40,7 +40,7 @@ pub fn apply_candles_parallel(world: &mut World) {
         world.query::<&ChartComponent>().iter().map(|(e, _)| e).collect();
     let mut charts: Vec<ChartComponent> = chart_entities
         .iter()
-        .filter_map(|&e| world.get::<&ChartComponent>(e).ok().cloned())
+        .filter_map(|&e| world.get::<&ChartComponent>(e).ok().map(|c| c.clone()))
         .collect();
 
     charts.par_iter_mut().for_each(|comp| {
@@ -62,7 +62,7 @@ pub fn apply_candles_parallel(world: &mut World) {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", not(feature = "parallel")))]
 pub fn apply_candles_parallel(world: &mut World) {
     apply_candles(world);
 }
