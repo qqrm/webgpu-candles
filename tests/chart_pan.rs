@@ -17,6 +17,8 @@ fn horizontal_pan_moves_viewport() {
             max_price: 100.0,
             width: 800,
             height: 600,
+            zoom_level: 1.0,
+            pan_offset: 0.0,
         },
         indicators: Vec::new(),
         ichimoku: Default::default(),

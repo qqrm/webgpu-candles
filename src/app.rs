@@ -117,8 +117,6 @@ global_signals! {
     loading_more => loading_more: bool,
     tooltip_data => tooltip_data: Option<TooltipData>,
     tooltip_visible => tooltip_visible: bool,
-    zoom_level => zoom_level: f64,
-    pan_offset => pan_offset: f64,
     is_dragging => is_dragging: bool,
     last_mouse_x => last_mouse_x: f64,
     pub current_interval => current_interval: TimeInterval,
@@ -154,7 +152,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
             Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
         let visible = chart.with(|c| {
             let len = c.get_candle_count();
-            visible_range(len, zoom_level().get_untracked(), pan_offset().get_untracked()).1
+            visible_range(len, c.viewport.zoom_level, c.viewport.pan_offset).1
         });
         let limit = (visible + HISTORY_BUFFER_SIZE) as u32;
         let result = {
@@ -173,10 +171,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
                 chart.with_untracked(|c| {
                     if c.get_candle_count() > 0
                         && with_global_renderer(|r| {
-                            r.set_zoom_params(
-                                zoom_level().with_untracked(|z| *z),
-                                pan_offset().with_untracked(|p| *p),
-                            );
+                            r.set_zoom_params(c.viewport.zoom_level, c.viewport.pan_offset);
                             let _ = r.render(c);
                         })
                         .is_none()
@@ -384,7 +379,8 @@ fn header() -> impl IntoView {
     let candle_count = global_candle_count();
     let is_streaming = global_is_streaming();
     let max_volume = global_max_volume();
-    let zoom_level = zoom_level();
+    let zoom_level =
+        move || ensure_chart(&current_symbol().get_untracked()).with(|c| c.viewport.zoom_level);
 
     view! {
         <div class="header">
@@ -418,7 +414,7 @@ fn header() -> impl IntoView {
                 </div>
                 <div class="price-item">
                     <div class="price-value">
-                        {move || format!("{:.1}x", zoom_level.get())}
+                        {move || format!("{:.1}x", zoom_level())}
                     </div>
                     <div class="price-label">"🔍 Zoom"</div>
                 </div>
@@ -451,7 +447,7 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
 #[component]
 fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
     let time_labels = move || {
-        let zoom = zoom_level().get_untracked();
+        let zoom = chart.with(|c| c.viewport.zoom_level);
         let interval = current_interval().get_untracked();
         let candles = chart.with(|c| c.get_series(interval).unwrap().get_candles().clone());
 
@@ -459,7 +455,8 @@ fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
             return vec![];
         }
 
-        let (start_idx, visible) = visible_range(candles.len(), zoom, pan_offset().get_untracked());
+        let (start_idx, visible) =
+            visible_range(candles.len(), zoom, chart.with(|c| c.viewport.pan_offset));
 
         // Show 5 time labels
         let num_labels = 5;
@@ -628,12 +625,10 @@ fn ChartContainer() -> impl IntoView {
             if dragging {
                 let last_x = last_mouse_x().get_untracked();
                 let delta_x = mouse_x - last_x;
-                pan_offset().update(|o| {
-                    let zoom = zoom_level().with_untracked(|val| *val);
-                    let pan_sensitivity = PAN_SENSITIVITY_BASE / zoom;
-                    *o -= delta_x * pan_sensitivity;
-                });
                 chart_signal().update(|ch| {
+                    let zoom = ch.viewport.zoom_level;
+                    let pan_sensitivity = PAN_SENSITIVITY_BASE / zoom;
+                    ch.viewport.pan_offset -= delta_x * pan_sensitivity;
                     let factor_x = -(delta_x as f32) / ch.viewport.width as f32;
                     ch.pan(factor_x, 0.0);
                 });
@@ -641,7 +636,8 @@ fn ChartContainer() -> impl IntoView {
                 chart_signal().with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
                 last_mouse_x().set(mouse_x);
 
-                let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
+                let need_history = chart_signal()
+                    .with_untracked(|val| should_fetch_history(val.viewport.pan_offset));
                 if need_history {
                     fetch_more_history(status_clone);
                 }
@@ -650,10 +646,7 @@ fn ChartContainer() -> impl IntoView {
                     let chart_signal = ensure_chart(&current_symbol().get_untracked());
                     chart_signal.with_untracked(|ch| {
                         if ch.get_candle_count() > 0 {
-                            r.set_zoom_params(
-                                zoom_level().with_untracked(|val| *val),
-                                pan_offset().with_untracked(|val| *val),
-                            );
+                            r.set_zoom_params(ch.viewport.zoom_level, ch.viewport.pan_offset);
                             let _ = r.render(ch);
                         }
                     });
@@ -671,8 +664,8 @@ fn ChartContainer() -> impl IntoView {
                     if !candles.is_empty() {
                         let (start_idx, visible_count) = visible_range(
                             candles.len(),
-                            zoom_level().get_untracked(),
-                            pan_offset().get_untracked(),
+                            ch.viewport.zoom_level,
+                            ch.viewport.pan_offset,
                         );
                         let visible: Vec<_> =
                             candles.iter().skip(start_idx).take(visible_count).collect();
@@ -726,23 +719,20 @@ fn ChartContainer() -> impl IntoView {
             let delta_y = event.delta_y();
             let delta_zoom = if delta_y < 0.0 { 0.2 } else { -0.2 }; // constant step
 
-            let old_zoom = zoom_level().with_untracked(|z| *z);
+            let old_zoom = chart_signal().with_untracked(|c| c.viewport.zoom_level);
             let new_zoom = (old_zoom + delta_zoom).clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL);
-            zoom_level().set(new_zoom);
+            chart_signal().update(|ch| ch.viewport.zoom_level = new_zoom);
             let applied_factor = (new_zoom / old_zoom) as f32;
             let center_x = event.offset_x() as f32 / 800.0;
             let pan_diff = center_x - 0.5;
             chart_signal().update(|ch| {
                 ch.zoom(applied_factor, center_x);
                 ch.pan(pan_diff, 0.0);
+                let pan_sensitivity = PAN_SENSITIVITY_BASE / new_zoom;
+                ch.viewport.pan_offset -= pan_diff as f64 * CHART_WIDTH * pan_sensitivity;
             });
             let symbol = current_symbol().get_untracked();
             chart_signal().with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
-            pan_offset().update(|o| {
-                let zoom = zoom_level().with_untracked(|val| *val);
-                let pan_sensitivity = PAN_SENSITIVITY_BASE / zoom;
-                *o -= pan_diff as f64 * CHART_WIDTH * pan_sensitivity;
-            });
             web_sys::console::log_1(
                 &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
             );
@@ -751,7 +741,7 @@ fn ChartContainer() -> impl IntoView {
             chart_signal().with_untracked(|ch| {
                 if ch.get_candle_count() > 0
                     && with_global_renderer(|r| {
-                        r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
+                        r.set_zoom_params(new_zoom, ch.viewport.pan_offset);
                         let _ = r.render(ch);
                         get_logger().info(
                             LogComponent::Infrastructure("ZoomWheel"),
@@ -765,9 +755,10 @@ fn ChartContainer() -> impl IntoView {
             });
             get_logger().info(
                 LogComponent::Presentation("ChartZoom"),
-                &format!("🔍 Zoom level: {:.2}x", zoom_level().with_untracked(|z_val| *z_val)),
+                &format!("🔍 Zoom level: {:.2}x", new_zoom),
             );
-            let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
+            let need_history =
+                chart_signal().with_untracked(|val| should_fetch_history(val.viewport.pan_offset));
             if need_history {
                 fetch_more_history(status_clone);
             }
@@ -808,33 +799,33 @@ fn ChartContainer() -> impl IntoView {
             match key.as_str() {
                 "+" | "=" => {
                     event.prevent_default();
-                    zoom_level().update(|z| {
-                        *z *= 1.2;
-                        *z = z.min(MAX_ZOOM_LEVEL);
+                    chart_signal().update(|ch| {
+                        ch.viewport.zoom_level *= 1.2;
+                        ch.viewport.zoom_level = ch.viewport.zoom_level.min(MAX_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
                 "-" | "_" => {
                     event.prevent_default();
-                    zoom_level().update(|z| {
-                        *z *= 0.8;
-                        *z = z.max(MIN_ZOOM_LEVEL);
+                    chart_signal().update(|ch| {
+                        ch.viewport.zoom_level *= 0.8;
+                        ch.viewport.zoom_level = ch.viewport.zoom_level.max(MIN_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
                 "PageUp" => {
                     event.prevent_default();
-                    zoom_level().update(|z| {
-                        *z *= 1.5;
-                        *z = z.min(MAX_ZOOM_LEVEL);
+                    chart_signal().update(|ch| {
+                        ch.viewport.zoom_level *= 1.5;
+                        ch.viewport.zoom_level = ch.viewport.zoom_level.min(MAX_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
                 "PageDown" => {
                     event.prevent_default();
-                    zoom_level().update(|z| {
-                        *z *= 0.67;
-                        *z = z.max(MIN_ZOOM_LEVEL);
+                    chart_signal().update(|ch| {
+                        ch.viewport.zoom_level *= 0.67;
+                        ch.viewport.zoom_level = ch.viewport.zoom_level.max(MIN_ZOOM_LEVEL);
                     });
                     zoom_changed = true;
                 }
@@ -842,14 +833,14 @@ fn ChartContainer() -> impl IntoView {
             }
 
             if zoom_changed {
-                let new_zoom = zoom_level().with_untracked(|z_val| *z_val);
+                let new_zoom = chart_signal().with_untracked(|ch| ch.viewport.zoom_level);
                 web_sys::console::log_1(&format!("⌨️ Keyboard zoom: {:.2}x", new_zoom).into());
 
                 // Apply zoom to the renderer for keyboard commands
                 chart_signal().with_untracked(|ch| {
                     if ch.get_candle_count() > 0
                         && with_global_renderer(|r| {
-                            r.set_zoom_params(new_zoom, pan_offset().with_untracked(|val| *val));
+                            r.set_zoom_params(new_zoom, ch.viewport.pan_offset);
                             let _ = r.render(ch);
                             get_logger().info(
                                 LogComponent::Infrastructure("KeyboardZoom"),
@@ -869,7 +860,8 @@ fn ChartContainer() -> impl IntoView {
                     LogComponent::Presentation("KeyboardZoom"),
                     &format!("⌨️ Zoom level: {:.2}x", new_zoom),
                 );
-                let need_history = pan_offset().with_untracked(|val| should_fetch_history(*val));
+                let need_history = chart_signal()
+                    .with_untracked(|val| should_fetch_history(val.viewport.pan_offset));
                 if need_history {
                     fetch_more_history(status_clone);
                 }
@@ -1052,13 +1044,13 @@ fn TimeframeSelector(chart: RwSignal<Chart>) -> impl IntoView {
                                 current_interval().set(interval);
                                 chart_signal.update(|c| c.update_viewport_for_data());
                                 chart_signal.with_untracked(|c| {
-                                    if c.get_candle_count() > 0 && with_global_renderer(|r| {
-                                            r.set_zoom_params(
-                                                zoom_level().with_untracked(|z| *z),
-                                                pan_offset().with_untracked(|p| *p),
-                                            );
+                                    if c.get_candle_count() > 0
+                                        && with_global_renderer(|r| {
+                                            r.set_zoom_params(c.viewport.zoom_level, c.viewport.pan_offset);
                                             let _ = r.render(c);
-                                        }).is_none() {
+                                        })
+                                        .is_none()
+                                    {
                                         // renderer not available
                                     }
                                 });
@@ -1207,10 +1199,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
             chart.with_untracked(|c| {
                 if c.get_candle_count() > 0
                     && with_global_renderer(|r| {
-                        r.set_zoom_params(
-                            zoom_level().with_untracked(|z| *z),
-                            pan_offset().with_untracked(|p| *p),
-                        );
+                        r.set_zoom_params(c.viewport.zoom_level, c.viewport.pan_offset);
                         let _ = r.render(c);
                     })
                     .is_none()
@@ -1282,8 +1271,8 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
 
                 chart.update(|ch| {
                     ch.add_realtime_candle(candle.clone());
-                    let zoom = zoom_level().get_untracked();
-                    let pan = pan_offset().get_untracked();
+                    let zoom = ch.viewport.zoom_level;
+                    let pan = ch.viewport.pan_offset;
                     let len = ch.get_candle_count();
                     if should_auto_scroll(len, zoom, pan) {
                         ch.update_viewport_for_data();
@@ -1310,10 +1299,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                     let chart_signal = ensure_chart(&sym_for_queue);
                     chart_signal.with_untracked(|ch| {
                         if ch.get_candle_count() > 0 {
-                            r.set_zoom_params(
-                                zoom_level().with_untracked(|z| *z),
-                                pan_offset().with_untracked(|p| *p),
-                            );
+                            r.set_zoom_params(ch.viewport.zoom_level, ch.viewport.pan_offset);
                             let _ = r.render(ch);
                         }
                     });
@@ -1497,14 +1483,19 @@ mod tests {
             move || view! { <AssetSelector set_status=set_status /> },
         );
 
-        zoom_level().set(2.0);
+        let chart_signal = ensure_chart(&Symbol::from("BTCUSDT"));
+        chart_signal.update(|c| c.viewport.zoom_level = 2.0);
         let sol_btn = find_button(&container, "SOLUSDT").expect("SOLUSDT button not found");
         sol_btn.click();
 
         assert_eq!(current_symbol().get(), Symbol::from("SOLUSDT"));
-        assert!((zoom_level().get() - 2.0).abs() < f64::EPSILON);
+        assert!(
+            (ensure_chart(&Symbol::from("SOLUSDT")).with(|c| c.viewport.zoom_level) - 2.0).abs()
+                < f64::EPSILON
+        );
 
-        zoom_level().update(|z| *z = (*z * 1.5).min(MAX_ZOOM_LEVEL));
-        assert!((zoom_level().get() - 3.0).abs() < f64::EPSILON);
+        chart_signal
+            .update(|c| c.viewport.zoom_level = (c.viewport.zoom_level * 1.5).min(MAX_ZOOM_LEVEL));
+        assert!((chart_signal.with(|c| c.viewport.zoom_level) - 3.0).abs() < f64::EPSILON);
     }
 }

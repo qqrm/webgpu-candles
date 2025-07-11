@@ -11,6 +11,8 @@ fn zoom_pan_moves_toward_center() {
         max_price: 100.0,
         width: 800,
         height: 600,
+        zoom_level: 1.0,
+        pan_offset: 0.0,
     };
 
     vp.zoom(2.0, 0.25);

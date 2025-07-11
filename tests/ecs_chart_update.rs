@@ -1,6 +1,6 @@
 use price_chart_wasm::domain::chart::{Chart, value_objects::ChartType};
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Symbol, Timestamp, Volume};
-use price_chart_wasm::ecs::components::ChartComponent;
+use price_chart_wasm::ecs::components::{ChartComponent, ViewportComponent};
 use price_chart_wasm::global_state::{ecs_world, set_chart_in_ecs};
 
 #[test]
@@ -14,6 +14,9 @@ fn set_chart_spawns_when_missing() {
     assert_eq!(query.iter().count(), 1);
     let stored = query.iter().next().unwrap().1;
     assert_eq!(stored.0.id, chart.id);
+    let mut vp_query = world_ref.world.query::<&ViewportComponent>();
+    let vp = vp_query.iter().next().unwrap().1;
+    assert_eq!(vp.0, chart.viewport);
 }
 
 #[test]
@@ -38,4 +41,7 @@ fn set_chart_replaces_existing() {
     let mut query = world_ref.world.query::<&ChartComponent>();
     let stored = query.iter().next().unwrap().1;
     assert_eq!(stored.0.get_candle_count(), 1);
+    let mut vp_query = world_ref.world.query::<&ViewportComponent>();
+    let vp = vp_query.iter().next().unwrap().1;
+    assert_eq!(vp.0, chart.viewport);
 }

@@ -14,6 +14,8 @@ fn add_realtime_candle_keeps_viewport() {
         max_price: 20.0,
         width: 800,
         height: 600,
+        zoom_level: 1.0,
+        pan_offset: 0.0,
     };
 
     let original = chart.viewport.clone();

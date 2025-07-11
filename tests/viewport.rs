@@ -11,6 +11,8 @@ fn zoom_changes_time_range() {
         max_price: 100.0,
         width: 800,
         height: 600,
+        zoom_level: 1.0,
+        pan_offset: 0.0,
     };
     vp.zoom(2.0, 0.5);
     assert!((vp.start_time - 25.0).abs() < 1e-6);
@@ -26,6 +28,8 @@ fn pan_moves_viewport() {
         max_price: 100.0,
         width: 800,
         height: 600,
+        zoom_level: 1.0,
+        pan_offset: 0.0,
     };
     vp.pan(0.1, 0.1);
     assert!((vp.start_time - 10.0).abs() < 1e-6);
@@ -43,6 +47,8 @@ fn time_to_x_calculates() {
         max_price: 100.0,
         width: 200,
         height: 100,
+        zoom_level: 1.0,
+        pan_offset: 0.0,
     };
     let x = vp.time_to_x(50.0);
     assert!((x - 100.0).abs() < 1e-6);
@@ -57,6 +63,8 @@ fn zoom_round_trip_preserves_viewport() {
         max_price: 100.0,
         width: 800,
         height: 600,
+        zoom_level: 1.0,
+        pan_offset: 0.0,
     };
     let original = vp.clone();
     vp.zoom(2.0, 0.5);

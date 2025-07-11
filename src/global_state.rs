@@ -24,8 +24,6 @@ pub struct Globals {
     pub loading_more: RwSignal<bool>,
     pub tooltip_data: RwSignal<Option<TooltipData>>,
     pub tooltip_visible: RwSignal<bool>,
-    pub zoom_level: RwSignal<f64>,
-    pub pan_offset: RwSignal<f64>,
     pub is_dragging: RwSignal<bool>,
     pub last_mouse_x: RwSignal<f64>,
     pub current_interval: RwSignal<TimeInterval>,
@@ -48,8 +46,6 @@ pub fn globals() -> &'static Globals {
         loading_more: create_rw_signal(false),
         tooltip_data: create_rw_signal(None),
         tooltip_visible: create_rw_signal(false),
-        zoom_level: create_rw_signal(0.32),
-        pan_offset: create_rw_signal(0.0),
         is_dragging: create_rw_signal(false),
         last_mouse_x: create_rw_signal(0.0),
         current_interval: create_rw_signal(TimeInterval::OneMinute),
@@ -103,17 +99,27 @@ pub fn set_chart_in_ecs(symbol: &Symbol, chart: Chart) {
     use crate::ecs::components::ChartComponent;
     {
         let mut world = ecs_world().lock().unwrap();
-        let mut found = false;
-        for (_, comp) in world.world.query::<&mut ChartComponent>().iter() {
+        let mut found = None;
+        for (e, comp) in world.world.query::<&mut ChartComponent>().iter() {
             if comp.0.id == symbol.value() {
                 comp.0 = chart.clone();
-                found = true;
+                found = Some(e);
                 break;
             }
         }
-        if !found {
-            world.world.spawn((ChartComponent(chart),));
+        match found {
+            Some(entity) => {
+                if let Ok(mut vp) =
+                    world.world.get::<&mut crate::ecs::components::ViewportComponent>(entity)
+                {
+                    vp.0 = chart.viewport.clone();
+                }
+            }
+            None => {
+                world.spawn_chart(chart);
+            }
         }
+        world.run_viewport_system();
     }
     sync_charts_from_ecs();
 }

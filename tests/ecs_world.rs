@@ -2,7 +2,7 @@ use price_chart_wasm::domain::chart::{Chart, value_objects::ChartType};
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use price_chart_wasm::ecs::EcsWorld;
 use price_chart_wasm::ecs::components::CandleComponent;
-use price_chart_wasm::ecs::components::ChartComponent;
+use price_chart_wasm::ecs::components::{ChartComponent, ViewportComponent};
 
 #[test]
 fn world_starts_empty() {
@@ -16,7 +16,9 @@ fn spawn_chart_entity() {
     let chart = Chart::new("test".into(), ChartType::Candlestick, 100);
     let entity = world.spawn_chart(chart.clone());
     let stored = world.world.get::<&ChartComponent>(entity).expect("chart component exists");
+    let vp = world.world.get::<&ViewportComponent>(entity).expect("viewport component exists");
     assert_eq!(stored.0.id, chart.id);
+    assert_eq!(vp.0, chart.viewport);
 }
 
 #[test]

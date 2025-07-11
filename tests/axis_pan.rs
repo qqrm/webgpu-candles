@@ -12,6 +12,8 @@ fn price_levels_change_after_pan() {
         max_price: 100.0,
         width: 800,
         height: 600,
+        zoom_level: 1.0,
+        pan_offset: 0.0,
     };
 
     let original = price_levels(&vp);

@@ -36,6 +36,8 @@ pub struct Viewport {
     pub max_price: f32,
     pub width: u32,
     pub height: u32,
+    pub zoom_level: f64,
+    pub pan_offset: f64,
 }
 
 impl Default for Viewport {
@@ -47,6 +49,8 @@ impl Default for Viewport {
             max_price: 100.0,
             width: 800,
             height: 600,
+            zoom_level: 0.32,
+            pan_offset: 0.0,
         }
     }
 }

@@ -1,6 +1,6 @@
 use hecs::World;
 
-use super::components::{CandleComponent, ChartComponent};
+use super::components::{CandleComponent, ChartComponent, ViewportComponent};
 
 /// Apply new candles to all charts and remove processed candle entities.
 pub fn apply_candles(world: &mut World) {
@@ -21,5 +21,13 @@ pub fn apply_candles(world: &mut World) {
     candle_entities.extend(candles.into_iter().map(|(e, _)| e));
     for e in candle_entities {
         let _ = world.despawn(e);
+    }
+}
+
+/// Sync `ViewportComponent` with the chart's viewport.
+pub fn update_viewports(world: &mut World) {
+    let mut query = world.query::<(&ChartComponent, &mut ViewportComponent)>();
+    for (_, (chart, viewport)) in query.iter() {
+        viewport.0 = chart.0.viewport.clone();
     }
 }

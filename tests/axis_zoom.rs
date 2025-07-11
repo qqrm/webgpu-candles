@@ -26,6 +26,8 @@ fn price_levels_change_after_zoom() {
         max_price: 100.0,
         width: 800,
         height: 600,
+        zoom_level: 1.0,
+        pan_offset: 0.0,
     };
 
     let before = price_levels(&vp);
@@ -47,6 +49,8 @@ fn time_axis_respects_zoom() {
         max_price: 1.0,
         width: 800,
         height: 600,
+        zoom_level: 1.0,
+        pan_offset: 0.0,
     };
 
     let (start_before, count_before) = visible_range_by_time(&candles, &vp, 1.0);

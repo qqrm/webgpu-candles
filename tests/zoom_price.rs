@@ -11,6 +11,8 @@ fn zoom_price_not_negative() {
         max_price: 20.0,
         width: 800,
         height: 600,
+        zoom_level: 1.0,
+        pan_offset: 0.0,
     };
 
     for _ in 0..3 {
