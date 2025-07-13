@@ -20,7 +20,7 @@ fn push_candle_syncs_signal() {
         ),
     );
     push_realtime_candle(candle);
-    assert_eq!(chart.with(|c| c.get_candle_count()), 1);
+    assert_eq!(chart.with_untracked(|c| c.get_candle_count()), 1);
 }
 
 #[test]
@@ -41,5 +41,5 @@ fn set_chart_updates_signal() {
     );
     chart.add_candle(candle);
     set_chart_in_ecs(&symbol, chart);
-    assert_eq!(chart_signal.with(|c| c.get_candle_count()), 1);
+    assert_eq!(chart_signal.with_untracked(|c| c.get_candle_count()), 1);
 }
