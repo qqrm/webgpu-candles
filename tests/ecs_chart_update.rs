@@ -14,7 +14,7 @@ fn set_chart_spawns_when_missing() {
     let mut query = world_ref.world.query::<&ChartComponent>();
     assert_eq!(query.iter().count(), 1);
     let stored = query.iter().next().unwrap().1;
-    assert_eq!(stored.0.with(|c| c.id.clone()), chart.id);
+    assert_eq!(stored.0.with_untracked(|c| c.id.clone()), chart.id);
 }
 
 #[test]
@@ -38,5 +38,5 @@ fn set_chart_replaces_existing() {
     let world_ref = ecs_world().lock().unwrap();
     let mut query = world_ref.world.query::<&ChartComponent>();
     let stored = query.iter().next().unwrap().1;
-    assert_eq!(stored.0.with(|c| c.get_candle_count()), 1);
+    assert_eq!(stored.0.with_untracked(|c| c.get_candle_count()), 1);
 }

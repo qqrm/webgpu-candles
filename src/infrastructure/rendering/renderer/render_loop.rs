@@ -55,13 +55,13 @@ impl WebGpuRenderer {
         self.cached_line_visibility = self.line_visibility.clone();
         self.template_vertices = self.cached_vertices.len() as u32;
 
-        #[cfg(not(test))]
+        #[cfg(all(not(test), not(target_arch = "wasm32")))]
         self.write_buffers();
 
         true
     }
 
-    #[cfg(not(test))]
+    #[cfg(all(not(test), not(target_arch = "wasm32")))]
     fn write_buffers(&self) {
         let vertex_bytes = bytemuck::cast_slice(&self.cached_vertices);
         let uniform_copy = self.cached_uniforms;

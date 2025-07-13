@@ -23,9 +23,9 @@ fn websocket_to_webgpu_pipeline() {
     let candle2 = client.parse_message(msg2).unwrap();
     push_realtime_candle(candle2);
 
-    assert_eq!(chart.with(|c| c.get_candle_count()), 2);
+    assert_eq!(chart.with_untracked(|c| c.get_candle_count()), 2);
 
-    let chart_clone = chart.with(|c| c.clone());
+    let chart_clone = chart.with_untracked(|c| c.clone());
     let mut renderer = dummy_renderer();
     renderer.cache_geometry_for_test(&chart_clone);
     assert_ne!(renderer.cached_hash_for_test(), 0);

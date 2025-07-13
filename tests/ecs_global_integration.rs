@@ -33,7 +33,7 @@ fn push_candle_updates_world() {
     let world_ref = ecs_world().lock().unwrap();
     let mut query = world_ref.world.query::<&ChartComponent>();
     let chart_comp = query.iter().next().expect("chart component").1;
-    assert_eq!(chart_comp.0.with(|c| c.get_candle_count()), 1);
+    assert_eq!(chart_comp.0.with_untracked(|c| c.get_candle_count()), 1);
 }
 
 #[test]
@@ -42,7 +42,7 @@ fn ensure_chart_returns_same_signal() {
     let symbol = Symbol::from("DUP");
     let first = ensure_chart(&symbol);
     let second = ensure_chart(&symbol);
-    assert_eq!(first.with(|c| c.id.clone()), second.with(|c| c.id.clone()));
+    assert_eq!(first.with_untracked(|c| c.id.clone()), second.with_untracked(|c| c.id.clone()));
     let world_ref = ecs_world().lock().unwrap();
     let mut query = world_ref.world.query::<&ChartComponent>();
     assert_eq!(query.iter().count(), 1);
@@ -84,6 +84,6 @@ fn push_candle_updates_multiple_charts() {
         ),
     );
     push_realtime_candle(candle);
-    assert_eq!(chart_a.with(|c| c.get_candle_count()), 1);
-    assert_eq!(chart_b.with(|c| c.get_candle_count()), 1);
+    assert_eq!(chart_a.with_untracked(|c| c.get_candle_count()), 1);
+    assert_eq!(chart_b.with_untracked(|c| c.get_candle_count()), 1);
 }

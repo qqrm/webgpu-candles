@@ -17,7 +17,7 @@ fn spawn_chart_entity() {
     let chart = Chart::new("test".into(), ChartType::Candlestick, 100);
     let entity = world.spawn_chart(chart.clone());
     let stored = world.world.get::<&ChartComponent>(entity).expect("chart component exists");
-    assert_eq!(stored.0.with(|c| c.id.clone()), chart.id);
+    assert_eq!(stored.0.with_untracked(|c| c.id.clone()), chart.id);
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn candle_system_applies_candles() {
 
     let mut query = world.world.query::<&ChartComponent>();
     let chart_comp = query.iter().next().expect("chart component").1;
-    assert_eq!(chart_comp.0.with(|c| c.get_candle_count()), 1);
+    assert_eq!(chart_comp.0.with_untracked(|c| c.get_candle_count()), 1);
     assert_eq!(world.world.len(), 1);
 }
 
@@ -89,7 +89,7 @@ fn candle_system_parallel_matches_sequential() {
         .expect("chart component")
         .1
         .0
-        .with(|c| c.get_candle_count());
+        .with_untracked(|c| c.get_candle_count());
     let count_par = world_par
         .world
         .query::<&ChartComponent>()
@@ -98,7 +98,7 @@ fn candle_system_parallel_matches_sequential() {
         .expect("chart component")
         .1
         .0
-        .with(|c| c.get_candle_count());
+        .with_untracked(|c| c.get_candle_count());
     assert_eq!(count_seq, count_par);
 }
 
