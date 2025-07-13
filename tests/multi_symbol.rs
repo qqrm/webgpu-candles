@@ -33,6 +33,6 @@ fn charts_accumulate_independently() {
     );
     eth_chart.update(|ch| ch.add_candle(candle_eth));
 
-    assert_eq!(btc_chart.with(|c| c.get_candle_count()), 1);
-    assert_eq!(eth_chart.with(|c| c.get_candle_count()), 1);
+    assert_eq!(btc_chart.with_untracked(|c| c.get_candle_count()), 1);
+    assert_eq!(eth_chart.with_untracked(|c| c.get_candle_count()), 1);
 }

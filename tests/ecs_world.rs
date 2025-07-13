@@ -17,7 +17,7 @@ fn spawn_chart_entity() {
     let chart = Chart::new("test".into(), ChartType::Candlestick, 100);
     let entity = world.spawn_chart(chart.clone());
     let stored = world.world.get::<&ChartComponent>(entity).expect("chart component exists");
-    assert_eq!(stored.0.with(|c| c.id.clone()), chart.id);
+    assert_eq!(stored.0.with_untracked(|c| c.id.clone()), chart.id);
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn candle_system_applies_candles() {
 
     let mut query = world.world.query::<&ChartComponent>();
     let chart_comp = query.iter().next().expect("chart component").1;
-    assert_eq!(chart_comp.0.with(|c| c.get_candle_count()), 1);
+    assert_eq!(chart_comp.0.with_untracked(|c| c.get_candle_count()), 1);
     assert_eq!(world.world.len(), 1);
 }
 
@@ -89,7 +89,7 @@ fn candle_system_parallel_matches_sequential() {
         .expect("chart component")
         .1
         .0
-        .with(|c| c.get_candle_count());
+        .with_untracked(|c| c.get_candle_count());
     let count_par = world_par
         .world
         .query::<&ChartComponent>()
@@ -98,7 +98,7 @@ fn candle_system_parallel_matches_sequential() {
         .expect("chart component")
         .1
         .0
-        .with(|c| c.get_candle_count());
+        .with_untracked(|c| c.get_candle_count());
     assert_eq!(count_seq, count_par);
 }
 
@@ -120,4 +120,67 @@ fn viewport_component_updates() {
 
     let vp = world.world.get::<&ViewportComponent>(entity).unwrap();
     assert_eq!(vp.0, chart.viewport);
+}
+#[test]
+fn candle_system_no_candles() {
+    let mut world = EcsWorld::new();
+    world.spawn_chart(Chart::new("noop".into(), ChartType::Candlestick, 10));
+    world.run_candle_system();
+    let count = world
+        .world
+        .query::<&ChartComponent>()
+        .iter()
+        .next()
+        .unwrap()
+        .1
+        .0
+        .with_untracked(|c| c.get_candle_count());
+    assert_eq!(count, 0);
+    assert_eq!(world.world.len(), 1);
+}
+
+#[test]
+fn candle_system_no_charts() {
+    let mut world = EcsWorld::new();
+    let candle = Candle::new(
+        Timestamp::from_millis(0),
+        OHLCV::new(
+            Price::from(1.0),
+            Price::from(1.0),
+            Price::from(1.0),
+            Price::from(1.0),
+            Volume::from(1.0),
+        ),
+    );
+    world.world.spawn((CandleComponent(candle),));
+    world.run_candle_system();
+    assert_eq!(world.world.len(), 0);
+}
+
+#[test]
+fn viewport_system_multiple_charts() {
+    let mut world = EcsWorld::new();
+    let mut chart_a = Chart::new("A".into(), ChartType::Candlestick, 10);
+    let mut chart_b = Chart::new("B".into(), ChartType::Candlestick, 10);
+    let entity_a = world.spawn_chart(chart_a.clone());
+    let entity_b = world.spawn_chart(chart_b.clone());
+
+    chart_a.pan(0.1, 0.0);
+    chart_b.zoom(2.0, 0.5);
+
+    {
+        let comp = world.world.get::<&mut ChartComponent>(entity_a).unwrap();
+        comp.0.set(chart_a.clone());
+    }
+    {
+        let comp = world.world.get::<&mut ChartComponent>(entity_b).unwrap();
+        comp.0.set(chart_b.clone());
+    }
+
+    world.run_viewport_system();
+
+    let vp_a = world.world.get::<&ViewportComponent>(entity_a).unwrap();
+    assert_eq!(vp_a.0, chart_a.viewport);
+    let vp_b = world.world.get::<&ViewportComponent>(entity_b).unwrap();
+    assert_eq!(vp_b.0, chart_b.viewport);
 }
