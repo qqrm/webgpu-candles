@@ -130,7 +130,7 @@ The chart is composed of several layers:
 To measure performance use:
 
 ```bash
-wasm-pack test --headless --chrome
+wasm-pack test --node
 ```
 
 FPS is printed to the console and the `perf.yml` workflow saves the log as an
