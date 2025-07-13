@@ -19,7 +19,11 @@ fn websocket_to_webgpu_pipeline() {
     let candle = client.parse_message(msg).unwrap();
     push_realtime_candle(candle);
 
-    assert_eq!(chart.with(|c| c.get_candle_count()), 1);
+    let msg2 = r#"{"k":{"t":60000,"o":"1.05","h":"1.1","l":"1.0","c":"1.08","v":"1.5"}}"#;
+    let candle2 = client.parse_message(msg2).unwrap();
+    push_realtime_candle(candle2);
+
+    assert_eq!(chart.with(|c| c.get_candle_count()), 2);
 
     let chart_clone = chart.with(|c| c.clone());
     let mut renderer = dummy_renderer();
