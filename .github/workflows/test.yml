@@ -27,7 +27,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
       - name: Install wasm-pack
-        run: cargo install wasm-pack --version 0.13.1 --quiet
+        run: cargo install wasm-pack --version 0.13.1 --force --quiet
       - name: Install wasm-tools
         run: cargo install wasm-tools --quiet
       - name: Update dependencies
