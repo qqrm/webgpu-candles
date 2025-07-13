@@ -130,7 +130,7 @@ The chart is composed of several layers:
 To measure performance use Node:
 
 ```bash
-wasm-pack test --node
+wasm-pack test --node -- --quiet
 ```
 
 You can also benchmark in a browser with:
@@ -150,7 +150,7 @@ The tests use [`wasm-bindgen-test`](https://docs.rs/wasm-bindgen-test). Run
 them with:
 
 ```bash
-wasm-pack test --node
+wasm-pack test --node -- --quiet
 ```
 
 To test in a browser:

@@ -38,7 +38,7 @@ jobs:
       - name: Run benchmarks
         run: |
           set -o pipefail
-          wasm-pack test --node | tee perf.log
+          wasm-pack test --node -- --quiet | tee perf.log
           python scripts/parse_perf_log.py perf.log benchmark_result.json
       - name: Analyze FPS
         run: |

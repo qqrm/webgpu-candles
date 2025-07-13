@@ -20,7 +20,7 @@
 The benchmark is run with:
 
 ```bash
-wasm-pack test --node
+wasm-pack test --node -- --quiet
 ```
 
 Workflow `perf.yml` stores the `perf-log` file.

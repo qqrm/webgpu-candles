@@ -59,10 +59,10 @@ Before running the suite ensure the WebAssembly target is installed:
 The build script will fail if the target is missing.
 ```bash
 # All WASM tests
-wasm-pack test --node
+wasm-pack test --node -- --quiet
 
 # Specific test
-wasm-pack test --node --test offset
+wasm-pack test --node --test offset -- --quiet
 
 # In a browser
 wasm-pack test --chrome --headless

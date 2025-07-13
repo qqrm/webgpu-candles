@@ -38,7 +38,7 @@ jobs:
       - name: Run benchmarks
         run: |
           set -o pipefail
-          wasm-pack test --node | tee perf.log
+          wasm-pack test --node -- --quiet | tee perf.log
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
