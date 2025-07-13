@@ -37,6 +37,6 @@ jobs:
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --quiet -- -D warnings || echo 'Clippy warnings found'
       - name: Run browser tests
-        run: wasm-pack -q test --headless --chrome
+        run: wasm-pack test --headless --chrome
       - name: Run Node.js tests
-        run: wasm-pack -q test --node
+        run: wasm-pack test --node
