@@ -127,10 +127,16 @@ The chart is composed of several layers:
 
 ## Benchmarks
 
-To measure performance use:
+To measure performance use Node:
 
 ```bash
 wasm-pack test --node
+```
+
+You can also benchmark in a browser with:
+
+```bash
+wasm-pack test --chrome --headless
 ```
 
 FPS is printed to the console and the `perf.yml` workflow saves the log as an
@@ -144,7 +150,13 @@ The tests use [`wasm-bindgen-test`](https://docs.rs/wasm-bindgen-test). Run
 them with:
 
 ```bash
-wasm-pack test
+wasm-pack test --node
+```
+
+To test in a browser:
+
+```bash
+wasm-pack test --chrome --headless
 ```
 
 Alternatively install Node dependencies and run:

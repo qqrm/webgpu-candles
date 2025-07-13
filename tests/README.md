@@ -63,6 +63,9 @@ wasm-pack test --node
 
 # Specific test
 wasm-pack test --node --test offset
+
+# In a browser
+wasm-pack test --chrome --headless
 ```
 
 ## Key Checks
