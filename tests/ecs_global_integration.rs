@@ -87,3 +87,15 @@ fn push_candle_updates_multiple_charts() {
     assert_eq!(chart_a.with_untracked(|c| c.get_candle_count()), 1);
     assert_eq!(chart_b.with_untracked(|c| c.get_candle_count()), 1);
 }
+
+#[test]
+fn ensure_chart_creates_new_for_new_symbol() {
+    ecs_world().lock().unwrap().world = hecs::World::new();
+    let sym_a = Symbol::from("AAA");
+    let sym_b = Symbol::from("BBB");
+    ensure_chart(&sym_a);
+    ensure_chart(&sym_b);
+    let world_ref = ecs_world().lock().unwrap();
+    let count = world_ref.world.query::<&ChartComponent>().iter().count();
+    assert_eq!(count, 2);
+}
