@@ -37,4 +37,4 @@ jobs:
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --quiet -- -D warnings || echo 'Clippy warnings found'
       - name: Run tests
-        run: wasm-pack test -q --node
+        run: wasm-pack test --node
