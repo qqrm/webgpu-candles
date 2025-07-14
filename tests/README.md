@@ -64,8 +64,8 @@ wasm-pack test --node
 # Specific test
 wasm-pack test --node --test offset
 
-# In a browser (for integration tests)
-wasm-pack test --chrome --headless
+# Node environment without a browser
+wasm-pack test --node
 ```
 
 ## Key Checks
