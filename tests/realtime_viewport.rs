@@ -2,7 +2,6 @@ use price_chart_wasm::domain::chart::Chart;
 use price_chart_wasm::domain::chart::value_objects::{ChartType, Viewport};
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use wasm_bindgen_test::*;
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test]
 fn add_realtime_candle_keeps_viewport() {

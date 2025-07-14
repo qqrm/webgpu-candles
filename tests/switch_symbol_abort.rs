@@ -6,8 +6,6 @@ use price_chart_wasm::domain::market_data::Symbol;
 use std::time::Duration;
 use wasm_bindgen_test::*;
 
-wasm_bindgen_test_configure!(run_in_browser);
-
 #[wasm_bindgen_test(async)]
 async fn aborts_old_stream_on_symbol_change() {
     let (handle, reg) = AbortHandle::new_pair();

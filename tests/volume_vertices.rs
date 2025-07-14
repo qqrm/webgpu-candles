@@ -1,6 +1,5 @@
 use price_chart_wasm::infrastructure::rendering::gpu_structures::CandleGeometry;
 use wasm_bindgen_test::*;
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test]
 fn volume_vertex_basic() {

@@ -1396,8 +1396,6 @@ mod tests {
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
-    wasm_bindgen_test_configure!(run_in_browser);
-
     fn setup_container() -> web_sys::HtmlElement {
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();

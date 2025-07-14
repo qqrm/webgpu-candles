@@ -4,7 +4,6 @@ use price_chart_wasm::domain::{
 };
 use price_chart_wasm::infrastructure::rendering::renderer::dummy_renderer;
 use wasm_bindgen_test::*;
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 fn sample_chart() -> Chart {
     let mut chart = Chart::new("vis".to_string(), ChartType::Candlestick, 100);

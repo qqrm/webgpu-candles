@@ -1,6 +1,5 @@
 use price_chart_wasm::infrastructure::rendering::gpu_structures::CandleGeometry;
 use wasm_bindgen_test::*;
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test]
 fn grid_vertex_count_and_bounds() {
