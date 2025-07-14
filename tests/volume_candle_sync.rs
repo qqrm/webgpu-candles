@@ -4,7 +4,6 @@ use price_chart_wasm::infrastructure::rendering::renderer::{
     spacing_ratio_for,
 };
 use wasm_bindgen_test::*;
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 fn create_test_candles(count: usize) -> Vec<Candle> {
     let mut candles = Vec::new();

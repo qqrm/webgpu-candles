@@ -5,7 +5,6 @@ use price_chart_wasm::app::{current_symbol, stream_abort_handles};
 use price_chart_wasm::domain::market_data::Symbol;
 use std::time::Duration;
 use wasm_bindgen_test::*;
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test(async)]
 async fn aborts_previous_stream() {

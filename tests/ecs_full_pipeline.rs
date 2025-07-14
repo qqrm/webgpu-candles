@@ -5,8 +5,6 @@ use price_chart_wasm::infrastructure::rendering::renderer::dummy_renderer;
 use price_chart_wasm::infrastructure::websocket::binance_client::BinanceWebSocketClient;
 use wasm_bindgen_test::*;
 
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
 #[wasm_bindgen_test]
 fn websocket_to_webgpu_pipeline() {
     ecs_world().lock().unwrap().world = hecs::World::new();

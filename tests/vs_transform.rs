@@ -1,6 +1,5 @@
 use price_chart_wasm::infrastructure::rendering::gpu_structures::{CandleInstance, CandleVertex};
 use wasm_bindgen_test::*;
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 fn apply_vs(v: &CandleVertex, inst: &CandleInstance) -> (f32, f32) {
     let x = inst.x + v.position_x * inst.width;

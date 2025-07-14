@@ -5,7 +5,6 @@ use price_chart_wasm::domain::market_data::{
 };
 use price_chart_wasm::time_utils::format_time_label;
 use wasm_bindgen_test::*;
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 fn make_candle(i: u64) -> Candle {
     Candle::new(
