@@ -36,10 +36,6 @@ jobs:
         run: cargo check --all-targets --quiet
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --quiet -- -D warnings || echo 'Clippy warnings found'
-      - name: Run browser tests
-        env:
-          INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
-        run: wasm-pack test --headless --chrome
       - name: Run Node.js tests
         env:
           INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
