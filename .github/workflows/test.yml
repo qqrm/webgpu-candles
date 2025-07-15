@@ -39,4 +39,4 @@ jobs:
       - name: Run Node.js tests
         env:
           INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
-        run: wasm-pack test --node
+        run: wasm-pack test --chrome --headless

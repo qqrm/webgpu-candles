@@ -59,13 +59,13 @@ Before running the suite ensure the WebAssembly target is installed:
 The build script will fail if the target is missing.
 ```bash
 # All WASM tests
-wasm-pack test --node
+wasm-pack test --chrome --headless
 
 # Specific test
-wasm-pack test --node --test offset
+wasm-pack test --chrome --headless --test offset
 
-# Node environment without a browser
-wasm-pack test --node
+# Headless Chrome without UI
+wasm-pack test --chrome --headless
 ```
 
 ## Key Checks
