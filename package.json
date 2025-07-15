@@ -2,7 +2,7 @@
   "name": "webgpu-candles",
   "private": true,
   "scripts": {
-    "test": "wasm-pack test --node"
+    "test": "wasm-pack test --chrome --headless"
   },
   "devDependencies": {
     "wasm-pack": "^0.13.1"
