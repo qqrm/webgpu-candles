@@ -9,5 +9,5 @@ fn candle_width_at_max_zoom() {
     let step_size = 2.0 / visible as f32;
     let candle_width = (step_size * (1.0 - SPACING_RATIO)).max(MIN_ELEMENT_WIDTH);
     let pixel_width = candle_width * 400.0; // canvas width 800 -> half width per NDC unit
-    assert!(pixel_width >= 30.0, "width {:.2} too small", pixel_width);
+    assert!(pixel_width >= 30.0, "width {pixel_width:.2} too small");
 }

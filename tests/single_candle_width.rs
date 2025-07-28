@@ -14,5 +14,5 @@ fn single_candle_pixel_width() {
     let ndc_width = (step_size * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
     let pixel_width = ndc_width * canvas_width / 2.0;
 
-    assert!(pixel_width > 2.0, "Single candle width should exceed 2px, got {:.2} px", pixel_width);
+    assert!(pixel_width > 2.0, "Single candle width should exceed 2px, got {pixel_width:.2} px");
 }

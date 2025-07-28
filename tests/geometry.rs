@@ -1,8 +1,7 @@
-use insta::{assert_json_snapshot};
+use insta::assert_json_snapshot;
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use price_chart_wasm::infrastructure::rendering::gpu_structures::CandleGeometry;
 use wasm_bindgen_test::*;
-
 
 fn sample_candles() -> Vec<Candle> {
     vec![
@@ -64,7 +63,7 @@ fn candle_geometry_snapshot() {
     settings.set_snapshot_path(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures"));
     assert_json_snapshot!("candle_vertices", result);
     //with_settings!({snapshot_path => concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures")}, {
-        //assert_json_snapshot!("candle_vertices", result);
+    //assert_json_snapshot!("candle_vertices", result);
     //});
 }
 

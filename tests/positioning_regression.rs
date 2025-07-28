@@ -51,11 +51,7 @@ fn positioning_regression_math() {
             let actual = candle_x_position(i, visible_len);
             assert!(
                 (actual - expected).abs() < 1e-6,
-                "Position mismatch for visible_len={}, index={}: expected {:.6}, got {:.6}",
-                visible_len,
-                i,
-                expected,
-                actual
+                "Position mismatch for visible_len={visible_len}, index={i}: expected {expected:.6}, got {actual:.6}"
             );
         }
     }
@@ -81,8 +77,7 @@ fn tooltip_compatibility_regression() {
 
         assert_eq!(
             calculated_index as usize, expected_index,
-            "Tooltip should find correct candle for index {}: got {}",
-            expected_index, calculated_index
+            "Tooltip should find correct candle for index {expected_index}: got {calculated_index}"
         );
     }
 }
@@ -96,7 +91,7 @@ fn viewport_bounds_regression() {
         // First position should not be left of -1.0
         let first = candle_x_position(0, size);
 
-        assert!(first >= -1.0, "First position {:.6} should be >= -1.0 for size {}", first, size);
+        assert!(first >= -1.0, "First position {first:.6} should be >= -1.0 for size {size}");
 
         // Last position must be exactly 1.0
         let step = 2.0 / size as f32;
@@ -105,9 +100,7 @@ fn viewport_bounds_regression() {
         let last = candle_x_position(size - 1, size);
         assert!(
             (last + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
-            "Last position should be exactly 1.0 for size {}, got {:.10}",
-            size,
-            last
+            "Last position should be exactly 1.0 for size {size}, got {last:.10}"
         );
 
         // All intermediate positions within bounds
@@ -115,10 +108,7 @@ fn viewport_bounds_regression() {
             let pos = candle_x_position(i, size);
             assert!(
                 (-1.0..=1.0).contains(&pos),
-                "Position {:.6} out of bounds [-1, 1] for size {} index {}",
-                pos,
-                size,
-                i
+                "Position {pos:.6} out of bounds [-1, 1] for size {size} index {i}"
             );
         }
 
@@ -128,10 +118,7 @@ fn viewport_bounds_regression() {
             let expected_span = 2.0 * (size - 1) as f32 / size as f32;
             assert!(
                 (total_span - expected_span).abs() < 1e-6,
-                "Total span should be {:.6}, got {:.6} for size {}",
-                expected_span,
-                total_span,
-                size
+                "Total span should be {expected_span:.6}, got {total_span:.6} for size {size}"
             );
         }
     }
