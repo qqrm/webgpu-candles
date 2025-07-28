@@ -19,16 +19,14 @@ fn width_calculation_sync() {
     // Verify the widths match
     assert_eq!(
         candle_width, bar_width,
-        "Candle and volume bar width should match: candle={:.6}, volume={:.6}",
-        candle_width, bar_width
+        "Candle and volume bar width should match: candle={candle_width:.6}, volume={bar_width:.6}"
     );
 
     // Ensure width stays within limits
-    assert!(candle_width >= MIN_ELEMENT_WIDTH, "Width too small: {:.6}", candle_width);
+    assert!(candle_width >= MIN_ELEMENT_WIDTH, "Width too small: {candle_width:.6}");
     assert!(
         candle_width <= step_size * (1.0 - spacing) + f32::EPSILON,
-        "Width exceeds expected maximum: {:.6}",
-        candle_width
+        "Width exceeds expected maximum: {candle_width:.6}"
     );
 }
 
@@ -42,7 +40,7 @@ fn no_extra_gaps_small_range() {
 
     // Expected gap equals spacing ratio portion of the step
     let gap = step_size - candle_width;
-    assert!((gap - step_size * spacing).abs() < f32::EPSILON, "Unexpected gap size: {:.6}", gap);
+    assert!((gap - step_size * spacing).abs() < f32::EPSILON, "Unexpected gap size: {gap:.6}");
 }
 
 #[wasm_bindgen_test]
@@ -56,10 +54,7 @@ fn positioning_boundary_test() {
             let x = candle_x_position(i, visible_len);
             assert!(
                 (-1.0..=1.0).contains(&x),
-                "Position {} of {} out of bounds: x={:.6}",
-                i,
-                visible_len,
-                x
+                "Position {i} of {visible_len} out of bounds: x={x:.6}"
             );
         }
 
@@ -70,9 +65,7 @@ fn positioning_boundary_test() {
         let last_x = candle_x_position(visible_len - 1, visible_len);
         assert!(
             (last_x + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
-            "Last position should touch right edge for visible_len={}, got {:.10}",
-            visible_len,
-            last_x
+            "Last position should touch right edge for visible_len={visible_len}, got {last_x:.10}"
         );
     }
 }
@@ -85,5 +78,5 @@ fn single_candle_width() {
     let candle_width = (step_size * (1.0 - spacing)).max(MIN_ELEMENT_WIDTH);
 
     let pixel_width = candle_width * 400.0;
-    assert!(pixel_width > 2.0, "Width in pixels should exceed 2.0, got {:.6}", pixel_width);
+    assert!(pixel_width > 2.0, "Width in pixels should exceed 2.0, got {pixel_width:.6}");
 }

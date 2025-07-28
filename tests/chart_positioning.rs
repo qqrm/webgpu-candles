@@ -17,9 +17,7 @@ fn chart_positioning_edge_cases() {
         let width = (step * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
         assert!(
             (last_x + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
-            "Last candle should touch right edge for visible_len={}, got x={:.10}",
-            visible_len,
-            last_x
+            "Last candle should touch right edge for visible_len={visible_len}, got x={last_x:.10}"
         );
 
         // Ensure the first candle is in the correct position
@@ -28,10 +26,7 @@ fn chart_positioning_edge_cases() {
             1.0 - (visible_len as f32 - 1.0) * (2.0 / visible_len as f32) - width / 2.0 - EDGE_GAP;
         assert!(
             (first_x - expected_first).abs() < f32::EPSILON,
-            "First candle position mismatch for visible_len={}: expected {:.6}, got {:.6}",
-            visible_len,
-            expected_first,
-            first_x
+            "First candle position mismatch for visible_len={visible_len}: expected {expected_first:.6}, got {first_x:.6}"
         );
 
         // Ensure all positions are within the correct range
@@ -39,10 +34,7 @@ fn chart_positioning_edge_cases() {
             let x = candle_x_position(i, visible_len);
             assert!(
                 (-1.0..=1.0).contains(&x),
-                "Position out of bounds for visible_len={}, index={}: x={:.6}",
-                visible_len,
-                i,
-                x
+                "Position out of bounds for visible_len={visible_len}, index={i}: x={x:.6}"
             );
         }
     }
@@ -62,9 +54,7 @@ fn right_edge_alignment() {
         // The last candle must touch the right edge
         assert!(
             (last_position + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
-            "Last candle must touch right edge for visible_len={}, got x={:.15}",
-            visible_len,
-            last_position
+            "Last candle must touch right edge for visible_len={visible_len}, got x={last_position:.15}"
         );
 
         // If there is a penultimate candle, it should be to the left
@@ -72,9 +62,7 @@ fn right_edge_alignment() {
             let second_last = candle_x_position(visible_len - 2, visible_len);
             assert!(
                 second_last < 1.0,
-                "Second-to-last candle should be < 1.0 for visible_len={}, got x={:.6}",
-                visible_len,
-                second_last
+                "Second-to-last candle should be < 1.0 for visible_len={visible_len}, got x={second_last:.6}"
             );
         }
     }

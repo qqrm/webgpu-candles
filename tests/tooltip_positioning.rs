@@ -25,8 +25,7 @@ fn tooltip_reverse_positioning() {
         // Verify we obtained the same index
         assert_eq!(
             rounded_index, expected_index,
-            "For index {}, x={:.6}, calculated_index={:.6}, rounded={}",
-            expected_index, x, calculated_index, rounded_index
+            "For index {expected_index}, x={x:.6}, calculated_index={calculated_index:.6}, rounded={rounded_index}"
         );
     }
 }
@@ -46,7 +45,7 @@ fn tooltip_mouse_boundaries() {
     let left_boundary = -1.0;
     let left_index =
         visible_len as f64 - 1.0 - (1.0 - EDGE_GAP as f64 - half_width - left_boundary) / step_size;
-    assert!(left_index <= 0.0, "Left boundary should give index <= 0, got {}", left_index);
+    assert!(left_index <= 0.0, "Left boundary should give index <= 0, got {left_index}");
 
     // Right boundary should return the last index or higher
     let right_boundary = 1.0;
@@ -88,22 +87,15 @@ fn tooltip_positioning_consistency() {
             // Ensure index is within bounds and correct
             assert!(
                 calculated_index >= 0,
-                "Index should be non-negative for visible_len={}, expected_index={}, got {}",
-                visible_len,
-                expected_index,
-                calculated_index
+                "Index should be non-negative for visible_len={visible_len}, expected_index={expected_index}, got {calculated_index}"
             );
             assert!(
                 (calculated_index as usize) < visible_len,
-                "Index should be less than visible_len for visible_len={}, expected_index={}, got {}",
-                visible_len,
-                expected_index,
-                calculated_index
+                "Index should be less than visible_len for visible_len={visible_len}, expected_index={expected_index}, got {calculated_index}"
             );
             assert_eq!(
                 calculated_index as usize, expected_index,
-                "Should find correct index for visible_len={}, expected_index={}, got {}",
-                visible_len, expected_index, calculated_index
+                "Should find correct index for visible_len={visible_len}, expected_index={expected_index}, got {calculated_index}"
             );
         }
     }

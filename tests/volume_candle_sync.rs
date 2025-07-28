@@ -45,8 +45,7 @@ fn volume_candle_position_sync() {
 
         assert_eq!(
             candle_x, volume_x,
-            "Volume bar and candle {} must share the same x position: candle={:.6}, volume={:.6}",
-            i, candle_x, volume_x
+            "Volume bar and candle {i} must share the same x position: candle={candle_x:.6}, volume={volume_x:.6}"
         );
     }
 
@@ -57,8 +56,7 @@ fn volume_candle_position_sync() {
     let width = (step_size * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
     assert!(
         (last_x + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
-        "Last element must align with right edge: x={:.6}",
-        last_x
+        "Last element must align with right edge: x={last_x:.6}"
     );
 }
 
@@ -117,10 +115,7 @@ fn debug_positioning_logic() {
     {
         assert!(
             (candle_x - volume_x).abs() < f32::EPSILON,
-            "Position {} mismatch: candle={:.6}, volume={:.6}",
-            i,
-            candle_x,
-            volume_x
+            "Position {i} mismatch: candle={candle_x:.6}, volume={volume_x:.6}"
         );
     }
 
@@ -132,14 +127,12 @@ fn debug_positioning_logic() {
         let width = (step_size * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
         assert!(
             (last_candle + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
-            "Last candle should touch right edge: x={:.6}",
-            last_candle
+            "Last candle should touch right edge: x={last_candle:.6}"
         );
         let last_volume = *volume_positions.last().unwrap();
         assert!(
             (last_volume + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON,
-            "Last volume bar should touch right edge: x={:.6}",
-            last_volume
+            "Last volume bar should touch right edge: x={last_volume:.6}"
         );
     }
 
