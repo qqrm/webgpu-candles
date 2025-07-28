@@ -2,7 +2,7 @@ use price_chart_wasm::domain::market_data::services::MarketAnalysisService;
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use price_chart_wasm::infrastructure::rendering::gpu_structures::{CandleGeometry, IndicatorType};
 use wasm_bindgen_test::*;
-
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 #[wasm_bindgen_test]
 fn current_price_line_vertices() {
     let verts = CandleGeometry::create_current_price_line(0.5, 0.2);

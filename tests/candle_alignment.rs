@@ -3,6 +3,7 @@ use price_chart_wasm::infrastructure::rendering::renderer::{
 };
 use wasm_bindgen_test::*;
 
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 #[wasm_bindgen_test]
 fn right_edge_alignment_basic() {
     for &visible_len in &[3usize, 10usize] {

@@ -40,3 +40,8 @@ serde_json = "1.0"
 [features]
 parallel = ["rayon"]
 
+[profile.dev]
+panic = "unwind"  # Preserves stack traces
+[profile.release]
+debug = 1  # Keep debug symbols even in release mode
+panic = "unwind"  # Preserve stack traces

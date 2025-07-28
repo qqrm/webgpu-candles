@@ -1,6 +1,7 @@
 use price_chart_wasm::infrastructure::rendering::renderer::{MIN_ELEMENT_WIDTH, SPACING_RATIO};
 use wasm_bindgen_test::*;
 
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 #[wasm_bindgen_test]
 fn candle_width_at_max_zoom() {
     let max_zoom: f64 = 32.0;

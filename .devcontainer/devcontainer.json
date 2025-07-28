@@ -1,0 +1,19 @@
+{
+  "name": "Rust WASM Dev Container",
+  "image": "rustlang/rust:nightly",  // Official Rust image (nightly for WASM)
+  "features": {
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "latest"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "wasm-tool.wasm-pack"
+      ]
+    }
+  },
+  "runArgs": ["--privileged"],  // Needed for some WASM tools
+  "postCreateCommand": "rustup target add wasm32-unknown-unknown && cargo install wasm-pack"
+}

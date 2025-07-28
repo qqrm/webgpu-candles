@@ -3,6 +3,7 @@ use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Symbol, Timest
 use price_chart_wasm::ecs::components::ChartComponent;
 use price_chart_wasm::global_state::{ecs_world, ensure_chart, push_realtime_candle};
 
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 #[test]
 fn ensure_chart_spawns_entity() {
     ecs_world().lock().unwrap().world = hecs::World::new();

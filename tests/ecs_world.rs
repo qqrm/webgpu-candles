@@ -5,6 +5,7 @@ use price_chart_wasm::ecs::EcsWorld;
 use price_chart_wasm::ecs::components::CandleComponent;
 use price_chart_wasm::ecs::components::{ChartComponent, ViewportComponent};
 
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 #[test]
 fn world_starts_empty() {
     let world = EcsWorld::new();
