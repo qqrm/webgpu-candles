@@ -3,6 +3,8 @@ use price_chart_wasm::domain::chart::value_objects::ChartType;
 use price_chart_wasm::domain::chart::value_objects::Viewport;
 use wasm_bindgen_test::*;
 
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
 #[wasm_bindgen_test]
 fn horizontal_pan_moves_viewport() {
     let mut chart = Chart {

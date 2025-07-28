@@ -4,6 +4,8 @@ use price_chart_wasm::domain::market_data::{
 };
 use wasm_bindgen_test::*;
 
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
 fn minute_candle(timestamp: u64, open: f64) -> Candle {
     Candle::new(
         Timestamp::from_millis(timestamp),

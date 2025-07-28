@@ -145,6 +145,11 @@ them with:
 
 ```bash
 wasm-pack test --chrome --headless
+
+```
+or
+```bash
+wasm-pack test --chrome
 ```
 
 Alternatively install Node dependencies and run:
@@ -173,6 +178,10 @@ docker run --rm -p 8080:80 webgpu-candles
 ```
 (the container uses nginx, so port 80 is mapped to host 8080).
 
+## Debug
+```bash
+npx wscat -c wss://stream.binance.com:9443/ws/btcusdt@kline_1m
+```
 
 ## License
 This project is distributed under the [MIT License](LICENSE).
