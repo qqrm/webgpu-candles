@@ -2,6 +2,44 @@ use insta::assert_json_snapshot;
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use price_chart_wasm::infrastructure::rendering::gpu_structures::CandleGeometry;
 use wasm_bindgen_test::*;
+use serde_json::Value;
+
+const EXPECTED_VERTICES_JSON: &str = include_str!("fixtures/candle_vertices.snap");
+
+// Helper: assert two f32 arrays are approximately equal
+fn assert_vec4_approx_eq(actual: &[[f32; 4]], expected: &[[f32; 4]], epsilon: f32) {
+    assert_eq!(actual.len(), expected.len(), "Vertex count mismatch");
+
+    for i in 0..actual.len() {
+        for j in 0..4 {
+            let a = actual[i][j];
+            let e = expected[i][j];
+            if (a - e).abs() > epsilon {
+                panic!(
+                    "Mismatch at vertex {}, component {}: expected {}, got {} (diff = {})",
+                    i,
+                    j,
+                    e,
+                    a,
+                    (a - e).abs()
+                );
+            }
+        }
+    }
+}
+
+//Deserialize JSON to Vec<[f32; 4]>
+fn parse_vertices(json: &str) -> Vec<[f32; 4]> {
+    let parsed: Vec<Vec<f32>> = serde_json::from_str(json).expect("Failed to parse JSON");
+
+    parsed
+        .into_iter()
+        .map(|v| {
+            assert_eq!(v.len(), 4, "Each vertex must have 4 components");
+            [v[0], v[1], v[2], v[3]]
+        })
+        .collect()
+}
 
 fn sample_candles() -> Vec<Candle> {
     vec![
@@ -58,13 +96,12 @@ fn candle_geometry_snapshot() {
             verts.into_iter().map(|v| [v.position_x, v.position_y, v.element_type, v.color_type]),
         );
     }
-    let mut settings = insta::Settings::clone_current();
-    //settings.set_allow_cargo_metadata(false);
-    settings.set_snapshot_path(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures"));
-    assert_json_snapshot!("candle_vertices", result);
-    //with_settings!({snapshot_path => concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures")}, {
-    //assert_json_snapshot!("candle_vertices", result);
-    //});
+
+    //Load expected data
+    let expected: Vec<[f32; 4]> = parse_vertices(EXPECTED_VERTICES_JSON);
+
+    //Compare with tolerance
+    assert_vec4_approx_eq(&result, &expected, 1e-5);
 }
 
 #[wasm_bindgen_test]
