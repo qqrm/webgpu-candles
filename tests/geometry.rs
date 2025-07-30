@@ -1,8 +1,6 @@
-use insta::assert_json_snapshot;
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use price_chart_wasm::infrastructure::rendering::gpu_structures::CandleGeometry;
 use wasm_bindgen_test::*;
-use serde_json::Value;
 
 const EXPECTED_VERTICES_JSON: &str = include_str!("fixtures/candle_vertices.snap");
 
