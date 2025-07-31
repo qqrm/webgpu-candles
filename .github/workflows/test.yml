@@ -6,6 +6,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  security-check:
+    runs-on: ubuntu-latest
+    outputs:
+      allowed: ${{ steps.verify.outputs.allowed }}
+    steps:
+      - id: verify
+        run: |
+          if [ "${{ github.event.pull_request.user.login }}" = "qqrm" ]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+          fi
   test:
     if: ${{ github.actor == 'qqrm' }}
     runs-on: ubuntu-latest
