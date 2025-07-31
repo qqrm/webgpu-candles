@@ -19,8 +19,7 @@ jobs:
             echo "allowed=false" >> "$GITHUB_OUTPUT"
           fi
   test:
-    needs: security-check
-    if: needs.security-check.outputs.allowed == 'true'
+    if: ${{ github.actor == 'qqrm' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

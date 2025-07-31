@@ -1,0 +1,32 @@
+name: authorize-pull-request
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const allowed = ['qqrm'];
+            const actor = context.payload.pull_request.user.login.toLowerCase();
+            if (!allowed.includes(actor)) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `PR from user ${actor} is not allowed. Closing.`
+              });
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                state: 'closed'
+              });
+              core.setFailed(`Unauthorized user: ${actor}`);
+            } else {
+              console.log(`Authorized user: ${actor}`);
+            }
+
