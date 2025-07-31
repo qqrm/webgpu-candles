@@ -10,6 +10,7 @@ concurrency:
 
 jobs:
   bench:
+    if: ${{ github.actor == 'qqrm' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
