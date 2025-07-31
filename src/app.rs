@@ -229,7 +229,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
 
                 set_status.set(format!("📈 Loaded {} older candles", new_candles.len()));
             }
-            Err(e) => set_status.set(format!("❌ Failed to load more data: {}", e)),
+            Err(e) => set_status.set(format!("❌ Failed to load more data: {e}")),
         }
 
         loading_more().set(false);
@@ -414,14 +414,28 @@ fn header() -> impl IntoView {
     let candle_count = global_candle_count();
     let is_streaming = global_is_streaming();
     let max_volume = global_max_volume();
+
     let zoom_level = move || {
-        let chart = get_chart_signal(&current_symbol().get_untracked()).unwrap();
+        let chart = ensure_chart(&current_symbol().get_untracked());
+        //let chart = get_chart_signal(ch).unwrap();
         chart.with(|c| {
             let interval = current_interval().get_untracked();
             let series = c.get_series(interval).unwrap();
             viewport_zoom_pan(series.get_candles(), &c.viewport).0
         })
     };
+    /*
+    let zoom_level = move || {
+        match get_chart_signal(&current_symbol().get_untracked()) {
+            Some(signal) => signal.with(|c| {
+                let interval = current_interval().get_untracked();
+                let series = c.get_series(interval).unwrap();
+                viewport_zoom_pan(series.get_candles(), &c.viewport).0
+            }),
+            None => { return (0.0, 0.0).0 }
+        }
+    };
+     */
 
     view! {
         <div class="header">
@@ -477,7 +491,7 @@ fn PriceAxisLeft(chart: RwSignal<Chart>) -> impl IntoView {
                 each=labels
                 key=|v| (*v * 100.0) as i64
                 children=|v| view! {
-                    <div style="font-size: 12px; color: #fff;">{format!("{:.2}", v)}</div>
+                    <div style="font-size: 12px; color: #fff;">{format!("{v:.2}")}</div>
                 }
             />
         </div>
@@ -775,9 +789,7 @@ fn ChartContainer() -> impl IntoView {
             });
             let symbol = current_symbol().get_untracked();
             chart_signal().with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
-            web_sys::console::log_1(
-                &format!("🔍 Zoom: {:.2}x -> {:.2}x", old_zoom, new_zoom).into(),
-            );
+            web_sys::console::log_1(&format!("🔍 Zoom: {old_zoom:.2}x -> {new_zoom:.2}x").into());
 
             // Apply zoom immediately without effects
             chart_signal().with_untracked(|ch| {
@@ -790,7 +802,7 @@ fn ChartContainer() -> impl IntoView {
                         let _ = r.render(ch);
                         get_logger().info(
                             LogComponent::Infrastructure("ZoomWheel"),
-                            &format!("✅ Applied zoom {:.2}x to WebGPU renderer", new_zoom),
+                            &format!("✅ Applied zoom {new_zoom:.2}x to WebGPU renderer"),
                         );
                     })
                     .is_none()
@@ -800,7 +812,7 @@ fn ChartContainer() -> impl IntoView {
             });
             get_logger().info(
                 LogComponent::Presentation("ChartZoom"),
-                &format!("🔍 Zoom level: {:.2}x", new_zoom),
+                &format!("🔍 Zoom level: {new_zoom:.2}x"),
             );
             let need_history = chart_signal().with_untracked(|c| {
                 let interval = current_interval().get_untracked();
@@ -887,8 +899,7 @@ fn ChartContainer() -> impl IntoView {
                             get_logger().info(
                                 LogComponent::Infrastructure("KeyboardZoom"),
                                 &format!(
-                                    "⌨️ Applied keyboard zoom {:.2}x to WebGPU renderer",
-                                    new_zoom
+                                    "⌨️ Applied keyboard zoom {new_zoom:.2}x to WebGPU renderer"
                                 ),
                             );
                         })
@@ -899,7 +910,7 @@ fn ChartContainer() -> impl IntoView {
                 });
                 get_logger().info(
                     LogComponent::Presentation("KeyboardZoom"),
-                    &format!("⌨️ Zoom level: {:.2}x", new_zoom),
+                    &format!("⌨️ Zoom level: {new_zoom:.2}x"),
                 );
                 let need_history = chart_signal().with_untracked(|c| {
                     let interval = current_interval().get_untracked();
@@ -1009,7 +1020,7 @@ fn PriceScale(chart: RwSignal<Chart>) -> impl IntoView {
                         class="price-level"
                         style=format!("position: absolute; top: {}%; right: 5px; transform: translateY(-50%); font-size: 11px; color: #888; background: rgba(0,0,0,0.7); padding: 2px 4px; border-radius: 2px;", position)
                     >
-                        {format!("{:.2}", price)}
+                        {format!("{price:.2}")}
                     </div>
                 }
             />
@@ -1277,7 +1288,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
         Err(e) => {
             get_logger().error(
                 LogComponent::Presentation("WebSocketStream"),
-                &format!("❌ Failed to load historical data: {}", e),
+                &format!("❌ Failed to load historical data: {e}"),
             );
             set_status.set("⚠️ Historical data failed. Starting real-time only...".to_string());
         }
@@ -1375,7 +1386,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                 if handle_check.is_aborted() {
                     return;
                 }
-                set_status.set(format!("❌ WebSocket error: {}", e));
+                set_status.set(format!("❌ WebSocket error: {e}"));
                 global_is_streaming().set(false);
             }
         },
