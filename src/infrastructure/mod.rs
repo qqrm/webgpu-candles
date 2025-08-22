@@ -3,6 +3,7 @@
 //! This module houses rendering and WebSocket communication layers along with
 //! helper utilities such as logging and time providers.
 
+pub mod http;
 pub mod rendering;
 pub mod websocket;
 
@@ -116,6 +117,7 @@ pub mod services {
     }
 }
 
+pub use http::*;
 pub use rendering::*;
 pub use services::*;
 pub use websocket::*;

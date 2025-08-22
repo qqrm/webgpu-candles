@@ -10,6 +10,7 @@
 - ✅ Solid line for the current price
 - ✅ Interactive tooltip
 - ✅ Professional look similar to TradingView
+- ✅ Historical data backfill via REST when panning left
 See [PIPELINES.md](../.github/workflows/PIPELINES.md) for optimization details.
 
 ## 🗂️ File Structure

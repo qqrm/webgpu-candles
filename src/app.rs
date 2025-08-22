@@ -33,7 +33,10 @@ use crate::{
         EDGE_GAP, LineVisibility, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, enqueue_render_task,
         init_render_queue, set_global_renderer, spacing_ratio_for, with_global_renderer,
     },
-    infrastructure::{rendering::WebGpuRenderer, websocket::BinanceWebSocketClient},
+    infrastructure::{
+        http::binance_rest_client::BinanceRestClient, rendering::WebGpuRenderer,
+        websocket::BinanceWebSocketClient,
+    },
     time_utils::format_time_label,
 };
 use gloo_timers::future::sleep;
@@ -175,15 +178,8 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
     let symbol = current_symbol().get_untracked();
     let _ = spawn_local_with_current_owner(async move {
         let interval = current_interval().get_untracked();
-        let client_arc =
-            Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
-        let result = {
-            let client = client_arc.lock().await;
-            match client.fetch_historical_ui_klines_before(end_time, HISTORY_FETCH_LIMIT).await {
-                Ok(c) => Ok(c),
-                Err(_) => client.fetch_historical_data_before(end_time, HISTORY_FETCH_LIMIT).await,
-            }
-        };
+        let client = BinanceRestClient::new(symbol.clone(), interval);
+        let result = client.fetch_historical_before(end_time, HISTORY_FETCH_LIMIT).await;
         match result {
             Ok(mut new_candles) => {
                 new_candles.sort_by_key(|c| c.timestamp.value());
