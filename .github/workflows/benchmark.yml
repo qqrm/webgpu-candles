@@ -37,6 +37,8 @@ jobs:
       - name: Install wasm-pack
         run: cargo install wasm-pack --version 0.13.1
       - name: Run benchmarks
+        env:
+          WASM_BINDGEN_TEST_BROWSER_ARGS: "--no-sandbox --enable-unsafe-webgpu"
         run: |
           set -o pipefail
           wasm-pack test --chrome --headless | tee perf.log
