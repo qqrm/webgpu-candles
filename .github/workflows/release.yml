@@ -49,16 +49,14 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: scripts/send_to_bot.sh dist.tar.gz "Release build"
-      - name: Copy dist to docs
+      - name: Copy assets
         run: |
-          cp -r dist/* docs/
-          rm -rf docs/res
-          mkdir -p docs/res
-          cp -r res/* docs/res/
-      - name: Commit release build
-        run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add docs
-          git commit -m "Update release build" || echo "No changes"
-          git push origin HEAD:refs/heads/main
+          rm -rf dist/res
+          mkdir -p dist/res
+          cp -r res/* dist/res/
+      - name: Deploy release to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: dist
