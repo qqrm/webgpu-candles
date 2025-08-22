@@ -13,6 +13,7 @@ pub mod global_state;
 pub mod infrastructure;
 pub mod macros;
 pub mod time_utils;
+pub mod view_state;
 
 // === WASM EXPORTS ===
 use futures::lock::Mutex;
