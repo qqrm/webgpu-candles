@@ -767,27 +767,30 @@ fn ChartContainer() -> impl IntoView {
             let delta_y = event.delta_y();
             let delta_ppc = if delta_y < 0.0 { -1.0 } else { 1.0 };
             let cursor_ratio = event.offset_x() as f32 / 800.0;
+            let old_ppc = view_state().with(|v| v.pixels_per_candle);
             view_state().update(|v| v.zoom_at(delta_ppc, cursor_ratio, 800.0));
+            let new_ppc = view_state().with(|v| v.pixels_per_candle);
+            let factor = new_ppc / old_ppc;
 
-            chart_signal().with_untracked(|ch| {
-                if ch.get_candle_count() > 0 {
-                    let len = ch.get_candle_count();
-                    view_state().with(|v| {
-                        let (start, vis) = v.visible_range(len, 800.0);
-                        let zoom = MAX_VISIBLE_CANDLES / vis as f64;
-                        let pan = start as f64 / len.max(1) as f64;
-                        with_global_renderer(|r| {
-                            r.set_zoom_params(zoom, pan);
-                            let _ = r.render(ch);
-                        });
+            chart_signal().update(|ch| ch.zoom(factor, cursor_ratio));
+            let symbol = current_symbol().get_untracked();
+            chart_signal().with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
+
+            let start_idx = chart_signal().with_untracked(|ch| {
+                let interval = current_interval().get_untracked();
+                if let Some(series) = ch.get_series(interval) {
+                    let candles = series.get_candles();
+                    let (zoom, pan) = viewport_zoom_pan(candles, &ch.viewport);
+                    with_global_renderer(|r| {
+                        r.set_zoom_params(zoom, pan);
+                        let _ = r.render(ch);
                     });
+                    visible_range(candles.len(), zoom, pan).0
+                } else {
+                    0
                 }
             });
-            let need_history = chart_signal().with_untracked(|ch| {
-                let len = ch.get_candle_count();
-                view_state().with(|v| v.visible_range(len, 800.0).0)
-            });
-            if should_fetch_history(need_history) {
+            if should_fetch_history(start_idx) {
                 fetch_more_history(status_clone);
             }
             get_logger().info(LogComponent::Presentation("ChartZoom"), "🔍 Zoom applied");
