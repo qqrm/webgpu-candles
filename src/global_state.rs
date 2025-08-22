@@ -6,15 +6,18 @@
 
 use crate::app::TooltipData;
 use crate::domain::{
+    DomainState,
     chart::{Chart, value_objects::ChartType},
     market_data::{Candle, Symbol, TimeInterval},
 };
 use crate::ecs::{EcsWorld, components::ChartComponent};
+use crate::view_state::ViewState;
 use futures::future::AbortHandle;
 use leptos::*;
 use once_cell::sync::OnceCell;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 pub struct Globals {
     pub current_price: RwSignal<f64>,
@@ -30,6 +33,8 @@ pub struct Globals {
     pub current_symbol: RwSignal<Symbol>,
     pub stream_abort_handles: RwSignal<HashMap<Symbol, AbortHandle>>,
     pub line_visibility: RwSignal<crate::infrastructure::rendering::renderer::LineVisibility>,
+    pub domain_state: RwSignal<DomainState>,
+    pub view_state: RwSignal<ViewState>,
 }
 
 // The `OnceCell` ensures this state is created at most once on demand.
@@ -53,6 +58,11 @@ pub fn globals() -> &'static Globals {
         line_visibility: create_rw_signal(
             crate::infrastructure::rendering::renderer::LineVisibility::default(),
         ),
+        domain_state: create_rw_signal(DomainState::new(
+            Duration::from_secs(1),
+            Arc::new(Vec::new()),
+        )),
+        view_state: create_rw_signal(ViewState::new(5.0, 1.0, 20.0)),
     })
 }
 
@@ -83,6 +93,14 @@ pub fn ensure_chart(symbol: &Symbol) -> RwSignal<Chart> {
 
 pub fn stream_abort_handles() -> RwSignal<HashMap<Symbol, AbortHandle>> {
     globals().stream_abort_handles
+}
+
+pub fn domain_state() -> RwSignal<DomainState> {
+    globals().domain_state
+}
+
+pub fn view_state() -> RwSignal<ViewState> {
+    globals().view_state
 }
 
 /// Add a candle to the ECS world and process systems.
