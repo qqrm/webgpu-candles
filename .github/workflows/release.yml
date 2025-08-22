@@ -35,7 +35,7 @@ jobs:
       - name: Clean dist
         run: rm -rf dist
       - name: Build
-        run: trunk build --release --dist dist --public-url /webgpu-candles/
+        run: trunk build --release --dist dist --public-url /
       - name: Save version
         run: echo ${{ github.sha }} > dist/version
       - name: Archive dist

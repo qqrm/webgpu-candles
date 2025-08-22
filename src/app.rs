@@ -15,8 +15,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use wasm_bindgen::JsCast;
 
-use std::time::Duration;
-
 use crate::event_utils::{EventOptions, wheel_event_options, window_event_listener_with_options};
 use crate::global_signals;
 use crate::global_state::{
