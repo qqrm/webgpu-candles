@@ -17,6 +17,21 @@ fn zoom_changes_time_range() {
 }
 
 #[wasm_bindgen_test]
+fn zoom_preserves_cursor_anchor() {
+    let mut vp = Viewport {
+        start_time: 0.0,
+        end_time: 100.0,
+        min_price: 0.0,
+        max_price: 100.0,
+        width: 800,
+        height: 600,
+    };
+    vp.zoom(2.0, 0.8);
+    assert!((vp.start_time - 40.0).abs() < 1e-6);
+    assert!((vp.end_time - 90.0).abs() < 1e-6);
+}
+
+#[wasm_bindgen_test]
 fn pan_moves_viewport() {
     let mut vp = Viewport {
         start_time: 0.0,
