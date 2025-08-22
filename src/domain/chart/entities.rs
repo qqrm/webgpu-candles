@@ -1,6 +1,6 @@
 use super::value_objects::{ChartType, Viewport};
 use crate::domain::market_data::services::{Aggregator, IchimokuData};
-use crate::domain::market_data::{Candle, CandleSeries, TimeInterval, Volume};
+use crate::domain::market_data::{Candle, CandleSeries, MovingAverageEngine, TimeInterval, Volume};
 use std::collections::HashMap;
 
 /// Domain entity - Chart
@@ -12,6 +12,7 @@ pub struct Chart {
     pub viewport: Viewport,
     pub indicators: Vec<Indicator>,
     pub ichimoku: IchimokuData,
+    pub ma_engines: HashMap<TimeInterval, MovingAverageEngine>,
 }
 
 impl Chart {
@@ -26,6 +27,16 @@ impl Chart {
         series.insert(TimeInterval::OneWeek, CandleSeries::new(max_candles));
         series.insert(TimeInterval::OneMonth, CandleSeries::new(max_candles));
 
+        let mut ma_engines = HashMap::new();
+        ma_engines.insert(TimeInterval::TwoSeconds, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::OneMinute, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::FiveMinutes, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::FifteenMinutes, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::OneHour, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::OneDay, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::OneWeek, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::OneMonth, MovingAverageEngine::new());
+
         Self {
             id,
             chart_type,
@@ -33,12 +44,19 @@ impl Chart {
             viewport: Viewport::default(),
             indicators: Vec::new(),
             ichimoku: IchimokuData::default(),
+            ma_engines,
         }
     }
 
     pub fn add_candle(&mut self, candle: Candle) {
         if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
+            let prev = base.count();
             base.add_candle(candle.clone());
+            if base.count() > prev
+                && let Some(engine) = self.ma_engines.get_mut(&TimeInterval::TwoSeconds)
+            {
+                engine.update_on_close(candle.ohlcv.close.value());
+            }
         }
         self.update_aggregates(candle);
     }
@@ -57,10 +75,16 @@ impl Chart {
         for s in self.series.values_mut() {
             *s = CandleSeries::new(limit);
         }
+        for e in self.ma_engines.values_mut() {
+            *e = MovingAverageEngine::new();
+        }
 
         for candle in candles {
             if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
                 base.add_candle(candle.clone());
+                if let Some(engine) = self.ma_engines.get_mut(&TimeInterval::TwoSeconds) {
+                    engine.update_on_close(candle.ohlcv.close.value());
+                }
             }
             self.update_aggregates(candle);
         }
@@ -73,7 +97,13 @@ impl Chart {
         let is_empty = self.get_candle_count() == 0;
 
         if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
+            let prev = base.count();
             base.add_candle(candle.clone());
+            if base.count() > prev
+                && let Some(engine) = self.ma_engines.get_mut(&TimeInterval::TwoSeconds)
+            {
+                engine.update_on_close(candle.ohlcv.close.value());
+            }
         }
         self.update_aggregates(candle);
 
@@ -102,35 +132,35 @@ impl Chart {
 
     /// Update the viewport based on candle data
     pub fn update_viewport_for_data(&mut self) {
-        if let Some(base) = self.series.get(&TimeInterval::TwoSeconds) {
-            if let Some((min_price, max_price)) = base.price_range() {
-                // Add padding for better visualization (5% top and bottom)
-                let mut min_v = min_price.value() as f32;
-                let mut max_v = max_price.value() as f32;
-                let price_range = (max_v - min_v).abs().max(1e-6);
-                let padding = price_range * 0.05;
-                min_v -= padding;
-                max_v += padding;
+        if let Some(base) = self.series.get(&TimeInterval::TwoSeconds)
+            && let Some((min_price, max_price)) = base.price_range()
+        {
+            // Add padding for better visualization (5% top and bottom)
+            let mut min_v = min_price.value() as f32;
+            let mut max_v = max_price.value() as f32;
+            let price_range = (max_v - min_v).abs().max(1e-6);
+            let padding = price_range * 0.05;
+            min_v -= padding;
+            max_v += padding;
 
-                self.viewport.min_price = min_v.max(0.1); // Minimum $0.1
-                self.viewport.max_price = max_v;
+            self.viewport.min_price = min_v.max(0.1); // Minimum $0.1
+            self.viewport.max_price = max_v;
 
-                // Update the time range
-                let candles = base.get_candles();
-                if !candles.is_empty() {
-                    self.viewport.start_time = candles.front().unwrap().timestamp.value() as f64;
-                    self.viewport.end_time = candles.back().unwrap().timestamp.value() as f64;
-                }
+            // Update the time range
+            let candles = base.get_candles();
+            if !candles.is_empty() {
+                self.viewport.start_time = candles.front().unwrap().timestamp.value() as f64;
+                self.viewport.end_time = candles.back().unwrap().timestamp.value() as f64;
             }
         }
     }
 
     pub fn zoom(&mut self, factor: f32, center_x: f32) {
         self.viewport.zoom(factor, center_x);
-        if let Some(series) = self.series.get(&TimeInterval::TwoSeconds) {
-            if let Some((first, last)) = series.time_bounds() {
-                self.viewport.clamp_to_data(first, last);
-            }
+        if let Some(series) = self.series.get(&TimeInterval::TwoSeconds)
+            && let Some((first, last)) = series.time_bounds()
+        {
+            self.viewport.clamp_to_data(first, last);
         }
     }
 
@@ -141,10 +171,10 @@ impl Chart {
 
     pub fn pan(&mut self, delta_x: f32, delta_y: f32) {
         self.viewport.pan(delta_x, delta_y);
-        if let Some(series) = self.series.get(&TimeInterval::TwoSeconds) {
-            if let Some((first, last)) = series.time_bounds() {
-                self.viewport.clamp_to_data(first, last);
-            }
+        if let Some(series) = self.series.get(&TimeInterval::TwoSeconds)
+            && let Some((first, last)) = series.time_bounds()
+        {
+            self.viewport.clamp_to_data(first, last);
         }
     }
 
@@ -168,24 +198,30 @@ impl Chart {
                 let bucket_start =
                     candle.timestamp.value() / interval.duration_ms() * interval.duration_ms();
 
-                if let Some(last) = series.latest_mut() {
-                    if last.timestamp.value() == bucket_start {
-                        if candle.ohlcv.high > last.ohlcv.high {
-                            last.ohlcv.high = candle.ohlcv.high;
-                        }
-                        if candle.ohlcv.low < last.ohlcv.low {
-                            last.ohlcv.low = candle.ohlcv.low;
-                        }
-                        last.ohlcv.close = candle.ohlcv.close;
-                        last.ohlcv.volume =
-                            Volume::from(last.ohlcv.volume.value() + candle.ohlcv.volume.value());
-                        continue;
+                if let Some(last) = series.latest_mut()
+                    && last.timestamp.value() == bucket_start
+                {
+                    if candle.ohlcv.high > last.ohlcv.high {
+                        last.ohlcv.high = candle.ohlcv.high;
                     }
+                    if candle.ohlcv.low < last.ohlcv.low {
+                        last.ohlcv.low = candle.ohlcv.low;
+                    }
+                    last.ohlcv.close = candle.ohlcv.close;
+                    last.ohlcv.volume =
+                        Volume::from(last.ohlcv.volume.value() + candle.ohlcv.volume.value());
+                    continue;
                 }
 
-                let new_candle = Aggregator::aggregate(&[candle.clone()], *interval)
+                let new_candle = Aggregator::aggregate(std::slice::from_ref(&candle), *interval)
                     .unwrap_or_else(|| candle.clone());
-                series.add_candle(new_candle);
+                let prev = series.count();
+                series.add_candle(new_candle.clone());
+                if series.count() > prev
+                    && let Some(engine) = self.ma_engines.get_mut(interval)
+                {
+                    engine.update_on_close(new_candle.ohlcv.close.value());
+                }
             }
         }
     }

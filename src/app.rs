@@ -835,10 +835,10 @@ fn ChartContainer() -> impl IntoView {
             last_mouse_x().set(event.offset_x() as f64);
 
             // Give the canvas focus for keyboard events
-            if let Some(target) = event.target() {
-                if let Ok(canvas) = target.dyn_into::<web_sys::HtmlCanvasElement>() {
-                    let _ = canvas.focus();
-                }
+            if let Some(target) = event.target()
+                && let Ok(canvas) = target.dyn_into::<web_sys::HtmlCanvasElement>()
+            {
+                let _ = canvas.focus();
             }
         }
     };

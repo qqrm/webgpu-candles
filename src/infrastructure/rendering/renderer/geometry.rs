@@ -1,6 +1,5 @@
 use super::*;
 use crate::domain::logging::{LogComponent, get_logger};
-use crate::domain::market_data::services::MarketAnalysisService;
 use crate::domain::market_data::{Price, TimeInterval};
 use crate::infrastructure::rendering::gpu_structures::{
     CandleGeometry, CandleInstance, IndicatorType,
@@ -76,9 +75,13 @@ impl WebGpuRenderer {
 
         let mut vertices = Vec::with_capacity(visible_candles.len() * 24);
 
-        // Calculate moving averages for indicator lines using the full data set
-        let analysis = MarketAnalysisService::new();
-        let mas = analysis.calculate_multiple_mas(&candle_vec);
+        // Moving averages precomputed in chart's indicator engines
+        let engine = chart
+            .ma_engines
+            .get(&interval)
+            .or_else(|| chart.ma_engines.get(&TimeInterval::TwoSeconds))
+            .expect("engine not found");
+        let mas = engine.data();
 
         // Scale candles based on currently visible data and indicator values
         let mut min_price = f32::INFINITY;
@@ -577,8 +580,8 @@ mod tests {
         let price_norm =
             |p: f64| -> f32 { ((p as f32 - min_price) / (max_price - min_price)) * 2.0 - 1.0 };
 
-        let analysis = MarketAnalysisService::new();
-        let mas = analysis.calculate_multiple_mas(&candles);
+        let engine = chart.ma_engines.get(&TimeInterval::TwoSeconds).unwrap();
+        let mas = engine.data();
 
         let to_points = |vals: &[Price], period: usize| -> Vec<(f32, f32)> {
             vals.iter()
