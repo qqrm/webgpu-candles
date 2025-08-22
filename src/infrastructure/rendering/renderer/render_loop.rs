@@ -89,21 +89,21 @@ impl WebGpuRenderer {
 
     pub fn render(&mut self, chart: &Chart) -> Result<(), JsValue> {
         // ⏱️ Measure frame time
-        if let Some(window) = web_sys::window() {
-            if let Some(perf) = window.performance() {
-                let now = perf.now();
-                if self.last_frame_time > 0.0 {
-                    let delta = now - self.last_frame_time;
-                    if delta > 0.0 {
-                        let fps = 1000.0 / delta;
-                        self.fps_log.push_back(fps);
-                        if self.fps_log.len() > 60 {
-                            self.fps_log.pop_front();
-                        }
+        if let Some(window) = web_sys::window()
+            && let Some(perf) = window.performance()
+        {
+            let now = perf.now();
+            if self.last_frame_time > 0.0 {
+                let delta = now - self.last_frame_time;
+                if delta > 0.0 {
+                    let fps = 1000.0 / delta;
+                    self.fps_log.push_back(fps);
+                    if self.fps_log.len() > 60 {
+                        self.fps_log.pop_front();
                     }
                 }
-                self.last_frame_time = now;
             }
+            self.last_frame_time = now;
         }
 
         use crate::app::current_interval;
@@ -199,18 +199,17 @@ impl WebGpuRenderer {
 
         self.queue.submit(std::iter::once(encoder.finish()));
 
-        if let Some(start) = start_pass {
-            if let Some(window) = web_sys::window() {
-                if let Some(perf) = window.performance() {
-                    let end = perf.now();
-                    let duration = end - start;
-                    log_info!(
-                        LogComponent::Infrastructure("WebGpuRenderer"),
-                        "\u{23f1}\u{fe0f} Render pass took {:.2} ms",
-                        duration
-                    );
-                }
-            }
+        if let Some(start) = start_pass
+            && let Some(window) = web_sys::window()
+            && let Some(perf) = window.performance()
+        {
+            let end = perf.now();
+            let duration = end - start;
+            log_info!(
+                LogComponent::Infrastructure("WebGpuRenderer"),
+                "\u{23f1}\u{fe0f} Render pass took {:.2} ms",
+                duration
+            );
         }
 
         output.present();

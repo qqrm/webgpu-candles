@@ -16,7 +16,7 @@ use wasm_bindgen::JsCast;
 
 use crate::event_utils::{EventOptions, wheel_event_options, window_event_listener_with_options};
 use crate::global_signals;
-use crate::global_state::{ensure_chart, get_chart_signal, set_chart_in_ecs};
+use crate::global_state::{ensure_chart, get_chart_signal, set_chart_in_ecs, view_state};
 use crate::{
     domain::{
         chart::Chart,
@@ -670,7 +670,6 @@ fn ChartContainer() -> impl IntoView {
     // 🎯 Mouse events for the tooltip
     let handle_mouse_move = {
         let chart_signal = chart;
-        let status_clone = set_status;
         move |event: web_sys::MouseEvent| {
             let mouse_x = event.offset_x() as f64;
             let mouse_y = event.offset_y() as f64;
@@ -680,34 +679,25 @@ fn ChartContainer() -> impl IntoView {
             if dragging {
                 let last_x = last_mouse_x().get_untracked();
                 let delta_x = mouse_x - last_x;
-                chart_signal().update(|ch| {
-                    let factor_x = -(delta_x as f32) / ch.viewport.width as f32;
-                    ch.pan(factor_x, 0.0);
-                });
-                let symbol = current_symbol().get_untracked();
-                chart_signal().with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
+                view_state().update(|v| v.pan(delta_x as f32));
                 last_mouse_x().set(mouse_x);
-                let need_history = chart_signal().with_untracked(|c| {
-                    let interval = current_interval().get_untracked();
-                    let series = c.get_series(interval).unwrap();
-                    let (_, pan) = viewport_zoom_pan(series.get_candles(), &c.viewport);
-                    should_fetch_history(pan)
-                });
-                if need_history {
-                    fetch_more_history(status_clone);
-                }
 
                 enqueue_render_task(Box::new(|r| {
-                    let chart_signal = get_chart_signal(&current_symbol().get_untracked()).unwrap();
-                    chart_signal.with_untracked(|ch| {
-                        if ch.get_candle_count() > 0 {
-                            let interval = current_interval().get_untracked();
-                            let series = ch.get_series(interval).unwrap();
-                            let (zoom, pan) = viewport_zoom_pan(series.get_candles(), &ch.viewport);
-                            r.set_zoom_params(zoom, pan);
-                            let _ = r.render(ch);
-                        }
-                    });
+                    if let Some(chart_signal) = get_chart_signal(&current_symbol().get_untracked())
+                    {
+                        chart_signal.with_untracked(|ch| {
+                            if ch.get_candle_count() > 0 {
+                                let len = ch.get_candle_count();
+                                view_state().with(|v| {
+                                    let (start, vis) = v.visible_range(len, 800.0);
+                                    let zoom = MAX_VISIBLE_CANDLES / vis as f64;
+                                    let pan = start as f64 / len.max(1) as f64;
+                                    r.set_zoom_params(zoom, pan);
+                                    let _ = r.render(ch);
+                                });
+                            }
+                        });
+                    }
                 }));
             } else {
                 // Convert to NDC coordinates (assuming an 800x500 canvas)
@@ -763,7 +753,6 @@ fn ChartContainer() -> impl IntoView {
     // 🔍 Mouse wheel zoom - simplified without effects
     let handle_wheel = {
         let chart_signal = chart;
-        let status_clone = set_status;
         move |event: web_sys::WheelEvent| {
             if chart_signal().try_get_untracked().is_none() {
                 return;
@@ -772,57 +761,25 @@ fn ChartContainer() -> impl IntoView {
             event.prevent_default();
 
             let delta_y = event.delta_y();
-            let delta_zoom = if delta_y < 0.0 { 0.2 } else { -0.2 }; // constant step
+            let delta_ppc = if delta_y < 0.0 { -1.0 } else { 1.0 };
+            let cursor_ratio = event.offset_x() as f32 / 800.0;
+            view_state().update(|v| v.zoom_at(delta_ppc, cursor_ratio, 800.0));
 
-            let (old_zoom, _) = chart_signal().with_untracked(|c| {
-                let interval = current_interval().get_untracked();
-                let candles = c.get_series(interval).unwrap().get_candles();
-                viewport_zoom_pan(candles, &c.viewport)
-            });
-            let new_zoom = (old_zoom + delta_zoom).clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL);
-            let applied_factor = (new_zoom / old_zoom) as f32;
-            let center_x = event.offset_x() as f32 / 800.0;
-            let pan_diff = center_x - 0.5;
-            chart_signal().update(|ch| {
-                ch.zoom(applied_factor, center_x);
-                ch.pan(pan_diff, 0.0);
-            });
-            let symbol = current_symbol().get_untracked();
-            chart_signal().with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
-            web_sys::console::log_1(&format!("🔍 Zoom: {old_zoom:.2}x -> {new_zoom:.2}x").into());
-
-            // Apply zoom immediately without effects
             chart_signal().with_untracked(|ch| {
-                if ch.get_candle_count() > 0
-                    && with_global_renderer(|r| {
-                        let interval = current_interval().get_untracked();
-                        let series = ch.get_series(interval).unwrap();
-                        let (_, pan) = viewport_zoom_pan(series.get_candles(), &ch.viewport);
-                        r.set_zoom_params(new_zoom, pan);
-                        let _ = r.render(ch);
-                        get_logger().info(
-                            LogComponent::Infrastructure("ZoomWheel"),
-                            &format!("✅ Applied zoom {new_zoom:.2}x to WebGPU renderer"),
-                        );
-                    })
-                    .is_none()
-                {
-                    // renderer not available
+                if ch.get_candle_count() > 0 {
+                    let len = ch.get_candle_count();
+                    view_state().with(|v| {
+                        let (start, vis) = v.visible_range(len, 800.0);
+                        let zoom = MAX_VISIBLE_CANDLES / vis as f64;
+                        let pan = start as f64 / len.max(1) as f64;
+                        with_global_renderer(|r| {
+                            r.set_zoom_params(zoom, pan);
+                            let _ = r.render(ch);
+                        });
+                    });
                 }
             });
-            get_logger().info(
-                LogComponent::Presentation("ChartZoom"),
-                &format!("🔍 Zoom level: {new_zoom:.2}x"),
-            );
-            let need_history = chart_signal().with_untracked(|c| {
-                let interval = current_interval().get_untracked();
-                let series = c.get_series(interval).unwrap();
-                let (_, pan) = viewport_zoom_pan(series.get_candles(), &c.viewport);
-                should_fetch_history(pan)
-            });
-            if need_history {
-                fetch_more_history(status_clone);
-            }
+            get_logger().info(LogComponent::Presentation("ChartZoom"), "🔍 Zoom applied");
         }
     };
 
@@ -835,10 +792,10 @@ fn ChartContainer() -> impl IntoView {
             last_mouse_x().set(event.offset_x() as f64);
 
             // Give the canvas focus for keyboard events
-            if let Some(target) = event.target() {
-                if let Ok(canvas) = target.dyn_into::<web_sys::HtmlCanvasElement>() {
-                    let _ = canvas.focus();
-                }
+            if let Some(target) = event.target()
+                && let Ok(canvas) = target.dyn_into::<web_sys::HtmlCanvasElement>()
+            {
+                let _ = canvas.focus();
             }
         }
     };
