@@ -673,6 +673,7 @@ fn ChartContainer() -> impl IntoView {
                 let delta_x = mouse_x - last_x;
                 view_state().update(|v| v.pan(delta_x as f32));
                 last_mouse_x().set(mouse_x);
+
                 let need_history = chart_signal().with_untracked(|c| {
                     let interval = current_interval().get_untracked();
                     let series = c.get_series(interval).unwrap();
