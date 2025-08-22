@@ -120,6 +120,11 @@ impl CandleSeries {
         self.max_size
     }
 
+    /// Remove all candles from the series
+    pub fn clear(&mut self) {
+        self.candles.clear();
+    }
+
     /// Get the last closing price
     pub fn get_latest_price(&self) -> Option<&Price> {
         self.candles.back().map(|candle| &candle.ohlcv.close)

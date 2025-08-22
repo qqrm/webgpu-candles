@@ -48,12 +48,11 @@ pub fn start_app() {
     web_sys::console::log_1(&"🎯 Mounting Leptos app...".into());
 
     // Hide the loading screen first
-    if let Some(window) = web_sys::window() {
-        if let Some(document) = window.document() {
-            if let Some(loading_div) = document.get_element_by_id("loading") {
-                let _ = loading_div.set_attribute("style", "display: none;");
-            }
-        }
+    if let Some(window) = web_sys::window()
+        && let Some(document) = window.document()
+        && let Some(loading_div) = document.get_element_by_id("loading")
+    {
+        let _ = loading_div.set_attribute("style", "display: none;");
     }
 
     leptos::mount_to_body(|| view! { <crate::app::App/> });

@@ -6,7 +6,10 @@
 
 use crate::app::TooltipData;
 use crate::domain::{
-    chart::{Chart, value_objects::ChartType},
+    chart::{
+        Chart,
+        value_objects::{ChartType, Viewport},
+    },
     market_data::{Candle, Symbol, TimeInterval},
 };
 use crate::ecs::{EcsWorld, components::ChartComponent};
@@ -30,6 +33,8 @@ pub struct Globals {
     pub current_symbol: RwSignal<Symbol>,
     pub stream_abort_handles: RwSignal<HashMap<Symbol, AbortHandle>>,
     pub line_visibility: RwSignal<crate::infrastructure::rendering::renderer::LineVisibility>,
+    pub shared_viewport: RwSignal<Viewport>,
+    pub connection_id: RwSignal<u64>,
 }
 
 // The `OnceCell` ensures this state is created at most once on demand.
@@ -53,6 +58,8 @@ pub fn globals() -> &'static Globals {
         line_visibility: create_rw_signal(
             crate::infrastructure::rendering::renderer::LineVisibility::default(),
         ),
+        shared_viewport: create_rw_signal(Viewport::default()),
+        connection_id: create_rw_signal(0),
     })
 }
 

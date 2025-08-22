@@ -19,7 +19,7 @@ use crate::global_signals;
 use crate::global_state::{ensure_chart, get_chart_signal, set_chart_in_ecs};
 use crate::{
     domain::{
-        chart::Chart,
+        chart::{Chart, value_objects::Viewport},
         logging::{LogComponent, get_logger},
         market_data::{
             Candle, TimeInterval,
@@ -152,6 +152,8 @@ global_signals! {
     pub current_symbol => current_symbol: Symbol,
     pub stream_abort_handles => stream_abort_handles: HashMap<Symbol, futures::future::AbortHandle>,
     pub global_line_visibility => line_visibility: LineVisibility,
+    pub shared_viewport => shared_viewport: Viewport,
+    pub connection_id => connection_id: u64,
 }
 
 /// 📈 Fetch additional history and prepend it to the list
@@ -835,10 +837,10 @@ fn ChartContainer() -> impl IntoView {
             last_mouse_x().set(event.offset_x() as f64);
 
             // Give the canvas focus for keyboard events
-            if let Some(target) = event.target() {
-                if let Ok(canvas) = target.dyn_into::<web_sys::HtmlCanvasElement>() {
-                    let _ = canvas.focus();
-                }
+            if let Some(target) = event.target()
+                && let Ok(canvas) = target.dyn_into::<web_sys::HtmlCanvasElement>()
+            {
+                let _ = canvas.focus();
             }
         }
     };
@@ -1187,6 +1189,12 @@ fn AssetSelector(set_status: WriteSignal<String>) -> impl IntoView {
                         <button
                             style="padding:4px 6px;border:none;border-radius:4px;background:#2a5298;color:white;"
                             on:click=move |_| {
+                                if let Some(vp) =
+                                    get_chart_signal(&current_symbol().get_untracked())
+                                        .map(|c| c.with(|ch| ch.viewport.clone()))
+                                {
+                                    shared_viewport().set(vp);
+                                }
                                 current_symbol().set(sym.clone());
                                 let _ = spawn_local_with_current_owner(async move {
                                     start_websocket_stream(status_cloned).await;
@@ -1208,6 +1216,9 @@ pub fn abort_other_streams(symbol: &Symbol) {
         m.retain(|sym, handle| {
             if sym != symbol {
                 handle.abort();
+                if let Some(chart) = get_chart_signal(sym) {
+                    chart.update(|c| c.clear_data());
+                }
                 false
             } else {
                 true
@@ -1222,6 +1233,13 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
     abort_other_streams(&symbol);
     ensure_chart(&symbol);
     let chart = get_chart_signal(&symbol).unwrap();
+    let vp_init = shared_viewport().get_untracked();
+    chart.update(|c| {
+        c.clear_data();
+        c.viewport = vp_init.clone();
+    });
+    let conn_id = connection_id().get_untracked() + 1;
+    connection_id().set(conn_id);
 
     if let Some(_handle) = stream_abort_handles().with(|m| m.get(&symbol).cloned()) {
         // Already streaming for this symbol
@@ -1242,7 +1260,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
 
     let hist_res = {
         let client = rest_client_arc.lock().await;
-        client.fetch_historical_data(500).await
+        client.fetch_historical_data(1000).await
     };
     match hist_res {
         Ok(historical_candles) => {
@@ -1251,7 +1269,11 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                 &format!("✅ Loaded {} historical candles", historical_candles.len()),
             );
 
-            chart.update(|ch| ch.set_historical_data(historical_candles.clone()));
+            let vp = shared_viewport().get_untracked();
+            chart.update(|ch| {
+                ch.set_historical_data(historical_candles.clone());
+                ch.viewport = vp.clone();
+            });
             chart.with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
             chart.with_untracked(|c| {
                 if c.get_candle_count() > 0
@@ -1320,11 +1342,13 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
         }
     });
     let handle_check = abort_handle.clone();
+    let conn_id_check = conn_id;
     let fut = futures::future::Abortable::new(
         async move {
             let handler_handle = handle_check.clone();
+            let conn_signal = connection_id();
             let handler = move |candle: Candle| {
-                if handler_handle.is_aborted() {
+                if handler_handle.is_aborted() || conn_signal.get_untracked() != conn_id_check {
                     return;
                 }
                 global_current_price().set(candle.ohlcv.close.value());
