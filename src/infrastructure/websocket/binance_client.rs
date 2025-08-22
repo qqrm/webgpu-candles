@@ -331,6 +331,66 @@ impl BinanceWebSocketClient {
 
         Ok(candles)
     }
+
+    /// 📈 Load uiKlines up to the specified time
+    pub async fn fetch_historical_ui_klines_before(
+        &self,
+        end_time: u64,
+        limit: u32,
+    ) -> Result<Vec<Candle>, String> {
+        let symbol_upper = self.symbol.value().to_uppercase();
+        let interval_str = self.interval.to_binance_str();
+
+        let url = format!(
+            "https://api.binance.com/api/v3/uiKlines?symbol={symbol_upper}&interval={interval_str}&endTime={end_time}&limit={limit}"
+        );
+
+        get_logger().info(
+            LogComponent::Infrastructure("BinanceAPI"),
+            &format!("📈 Fetching {limit} uiKlines before {end_time} from: {url}"),
+        );
+
+        let response = Request::get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Failed to fetch historical data: {e:?}"))?;
+
+        if !response.ok() {
+            return Err(format!("HTTP error: {}", response.status()));
+        }
+
+        let klines: Vec<BinanceHistoricalKline> =
+            response.json().await.map_err(|e| format!("Failed to parse JSON: {e:?}"))?;
+
+        let mut candles = Vec::new();
+
+        for kline in klines {
+            let open = kline.1.parse::<f64>().map_err(|_| "Invalid open price")?;
+            let high = kline.2.parse::<f64>().map_err(|_| "Invalid high price")?;
+            let low = kline.3.parse::<f64>().map_err(|_| "Invalid low price")?;
+            let close = kline.4.parse::<f64>().map_err(|_| "Invalid close price")?;
+            let volume = kline.5.parse::<f64>().map_err(|_| "Invalid volume")?;
+
+            let ohlcv = OHLCV::new(
+                Price::new(open),
+                Price::new(high),
+                Price::new(low),
+                Price::new(close),
+                Volume::new(volume),
+            );
+
+            let candle = Candle::new(Timestamp::new(kline.0), ohlcv);
+
+            candles.push(candle);
+        }
+
+        get_logger().info(
+            LogComponent::Infrastructure("BinanceAPI"),
+            &format!("✅ Loaded {} uiKlines", candles.len()),
+        );
+
+        Ok(candles)
+    }
 }
 
 /// Simple helper to create a WebSocket connection
