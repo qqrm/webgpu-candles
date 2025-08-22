@@ -1,4 +1,4 @@
 [build]
 filehash = false
 dist = "dist-local"
-public_url = "/webgpu-candles/"
+public_url = "/"

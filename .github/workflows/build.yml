@@ -35,7 +35,7 @@ jobs:
       - name: Clean dist
         run: rm -rf dist
       - name: Build
-        run: trunk build --release --dist dist --public-url /webgpu-candles/dev/
+        run: trunk build --release --dist dist --public-url /dev/
       - name: Save version
         run: echo ${{ github.sha }} > dist/version
       - name: Archive dist
@@ -49,8 +49,9 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: scripts/send_to_bot.sh dist.tar.gz "Development build"
-      - name: Copy dist to docs/dev
+      - name: Reset docs/dev and copy dist
         run: |
+          rm -rf docs/dev
           mkdir -p docs/dev
           cp -r dist/* docs/dev/
       - name: Commit dist
