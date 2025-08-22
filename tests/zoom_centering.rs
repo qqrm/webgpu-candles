@@ -15,6 +15,6 @@ fn zoom_pan_moves_toward_center() {
     vp.zoom(2.0, 0.25);
     vp.pan(-0.25, 0.0);
 
-    assert!((vp.start_time + 12.5).abs() < 1e-6);
-    assert!((vp.end_time - 37.5).abs() < 1e-6);
+    assert!((vp.start_time - 0.0).abs() < 1e-6);
+    assert!((vp.end_time - 50.0).abs() < 1e-6);
 }

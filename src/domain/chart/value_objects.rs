@@ -67,10 +67,10 @@ impl Viewport {
     pub fn zoom(&mut self, factor: f32, center_x: f32) {
         let current_range = self.time_range();
         let new_range = current_range / factor as f64;
-        let center_time = self.start_time + current_range * center_x as f64;
+        let anchor_time = self.start_time + current_range * center_x as f64;
 
-        self.start_time = center_time - new_range / 2.0;
-        self.end_time = center_time + new_range / 2.0;
+        self.start_time = anchor_time - new_range * center_x as f64;
+        self.end_time = self.start_time + new_range;
     }
 
     /// Scale prices vertically
