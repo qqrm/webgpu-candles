@@ -15,9 +15,13 @@ use std::sync::Arc;
 use std::time::Duration;
 use wasm_bindgen::JsCast;
 
+use std::time::Duration;
+
 use crate::event_utils::{EventOptions, wheel_event_options, window_event_listener_with_options};
 use crate::global_signals;
-use crate::global_state::{ensure_chart, get_chart_signal, set_chart_in_ecs, view_state};
+use crate::global_state::{
+    connection_id, domain_state, ensure_chart, get_chart_signal, set_chart_in_ecs, view_state,
+};
 use crate::{
     domain::{
         chart::Chart,
@@ -1202,6 +1206,13 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
     }
 
     let interval = current_interval().get_untracked();
+    let conn_id = connection_id().get_untracked() + 1;
+    connection_id().set(conn_id);
+    domain_state().update(|ds| {
+        ds.timeframe = Duration::from_millis(interval.duration_ms());
+        ds.candles = Arc::new(Vec::new());
+        ds.indicators = Arc::new(Vec::new());
+    });
 
     let rest_client_arc =
         Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
@@ -1214,8 +1225,11 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
 
     let hist_res = {
         let client = rest_client_arc.lock().await;
-        client.fetch_historical_data(500).await
+        client.fetch_historical_data(1000).await
     };
+    if conn_id != connection_id().get_untracked() {
+        return;
+    }
     match hist_res {
         Ok(historical_candles) => {
             get_logger().info(
@@ -1225,6 +1239,10 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
 
             chart.update(|ch| ch.set_historical_data(historical_candles.clone()));
             chart.with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
+            domain_state().update(|ds| {
+                ds.candles = Arc::new(historical_candles.clone());
+                ds.indicators = Arc::new(Vec::new());
+            });
             chart.with_untracked(|c| {
                 if c.get_candle_count() > 0
                     && with_global_renderer(|r| {
@@ -1295,8 +1313,11 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
     let fut = futures::future::Abortable::new(
         async move {
             let handler_handle = handle_check.clone();
+            let connection_guard = conn_id;
             let handler = move |candle: Candle| {
-                if handler_handle.is_aborted() {
+                if handler_handle.is_aborted()
+                    || connection_guard != connection_id().get_untracked()
+                {
                     return;
                 }
                 global_current_price().set(candle.ohlcv.close.value());
@@ -1313,6 +1334,11 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                 });
                 chart.with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
                 crate::global_state::push_realtime_candle(candle.clone());
+                domain_state().update(|ds| {
+                    let mut v = (*ds.candles).clone();
+                    v.push(candle.clone());
+                    ds.candles = Arc::new(v);
+                });
 
                 let count = chart.with(|c| c.get_candle_count());
                 global_candle_count().set(count);

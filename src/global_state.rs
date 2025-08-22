@@ -35,6 +35,7 @@ pub struct Globals {
     pub line_visibility: RwSignal<crate::infrastructure::rendering::renderer::LineVisibility>,
     pub domain_state: RwSignal<DomainState>,
     pub view_state: RwSignal<ViewState>,
+    pub connection_id: RwSignal<u64>,
 }
 
 // The `OnceCell` ensures this state is created at most once on demand.
@@ -63,6 +64,7 @@ pub fn globals() -> &'static Globals {
             Arc::new(Vec::new()),
         )),
         view_state: create_rw_signal(ViewState::new(5.0, 1.0, 20.0)),
+        connection_id: create_rw_signal(0),
     })
 }
 
@@ -101,6 +103,10 @@ pub fn domain_state() -> RwSignal<DomainState> {
 
 pub fn view_state() -> RwSignal<ViewState> {
     globals().view_state
+}
+
+pub fn connection_id() -> RwSignal<u64> {
+    globals().connection_id
 }
 
 /// Add a candle to the ECS world and process systems.
