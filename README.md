@@ -8,9 +8,9 @@ The chart supports zoom levels from roughly `0.2x` up to `32x` with a minimum of
 
 ## Demo
 
-The development version is available at <https://qqrm.github.io/webgpu-candles/dev/>. Release builds are
-published at <https://qqrm.github.io/webgpu-candles/>. The files are
-stored in the [`docs/`](docs/) directory.
+The development version is available at <https://qqrm.github.io/webgpu-candles/dev/>, and release builds
+are published at <https://qqrm.github.io/webgpu-candles/>. GitHub Pages publishes these files from the
+`gh-pages` branch, keeping build artifacts out of `main`.
 
 The project requires the `wasm32-unknown-unknown` target, which the build script verifies is installed. Install it with:
 `rustup target add wasm32-unknown-unknown`.
@@ -43,13 +43,12 @@ trunk build --dist dist-local
 ```
 
 Local builds are saved to `dist-local`. In GitHub Actions the `dist` path is
-used and the files are copied to [`docs/`](docs/) to publish the demo.
-The `dist/` directory is not stored in the repository, only the contents of
-`docs/` are committed. The `docs/version` file stores the SHA of the last
-commit.
+uploaded to the `gh-pages` branch to publish the demo. The `dist/` directory is
+not stored in the repository; the `gh-pages` branch contains the `version`
+file with the SHA of the last commit.
 
-Both release and development builds are copied into `docs/` by default. To use a different folder, adjust the copy steps in the workflow files:
-`.github/workflows/build.yml` lines **51–54** and `.github/workflows/release.yml` lines **51–56**.
+Both release and development builds are deployed to `gh-pages`. To use a different location, adjust the deployment steps in the workflow files:
+`.github/workflows/build.yml` and `.github/workflows/release.yml`.
 
 When using Trunk, open **`index.html`** (served automatically when using `trunk serve`). The file contains a Trunk hook so the WASM is loaded for you:
 

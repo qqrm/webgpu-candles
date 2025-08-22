@@ -49,16 +49,11 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: scripts/send_to_bot.sh dist.tar.gz "Development build"
-      - name: Reset docs/dev and copy dist
-        run: |
-          rm -rf docs/dev
-          mkdir -p docs/dev
-          cp -r dist/* docs/dev/
-      - name: Commit dist
-        run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add -f dist docs
-          git commit -m "Update dist" || echo "No changes"
-          git push
+      - name: Deploy dev build to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: dist
+          destination_dir: dev
 

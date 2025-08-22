@@ -31,7 +31,7 @@ ehthumbs.db
 /dist
 /dist-local
 /public
-/docs/dev
+/docs
 
 # Test and benchmark results
 criterion/
