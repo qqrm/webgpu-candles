@@ -58,7 +58,7 @@ impl WebGpuRenderer {
         }
 
         // ⚡ Performance: log less frequently
-        if candles.len() % 100 == 0 {
+        if candles.len().is_multiple_of(100) {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
                 &format!("🔧 Creating optimized geometry for {} candles", candles.len()),
@@ -140,7 +140,7 @@ impl WebGpuRenderer {
         }
 
         // Log less often for performance
-        if visible_candles.len() % 50 == 0 {
+        if visible_candles.len().is_multiple_of(50) {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
                 &format!(

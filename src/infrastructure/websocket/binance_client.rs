@@ -218,19 +218,25 @@ impl BinanceWebSocketClient {
         let symbol_upper = self.symbol.value().to_uppercase();
         let interval_str = self.interval.to_binance_str();
 
-        let url = format!(
-            "https://api.binance.com/api/v3/klines?symbol={symbol_upper}&interval={interval_str}&limit={limit}"
-        );
+        let base = "https://api.binance.com/api/v3";
+        let url_ui =
+            format!("{base}/uiKlines?symbol={symbol_upper}&interval={interval_str}&limit={limit}");
+        let url_fallback =
+            format!("{base}/klines?symbol={symbol_upper}&interval={interval_str}&limit={limit}");
 
         get_logger().info(
             LogComponent::Infrastructure("BinanceAPI"),
-            &format!("📈 Fetching {limit} historical candles from: {url}"),
+            &format!("📈 Fetching {limit} historical candles"),
         );
 
-        let response = Request::get(&url)
-            .send()
-            .await
-            .map_err(|e| format!("Failed to fetch historical data: {e:?}"))?;
+        let response = Request::get(&url_ui).send().await.ok();
+        let response = match response {
+            Some(resp) if resp.ok() => resp,
+            _ => Request::get(&url_fallback)
+                .send()
+                .await
+                .map_err(|e| format!("Failed to fetch historical data: {e:?}"))?,
+        };
 
         if !response.ok() {
             return Err(format!("HTTP error: {}", response.status()));
@@ -281,19 +287,27 @@ impl BinanceWebSocketClient {
         let symbol_upper = self.symbol.value().to_uppercase();
         let interval_str = self.interval.to_binance_str();
 
-        let url = format!(
-            "https://api.binance.com/api/v3/klines?symbol={symbol_upper}&interval={interval_str}&endTime={end_time}&limit={limit}"
+        let base = "https://api.binance.com/api/v3";
+        let url_ui = format!(
+            "{base}/uiKlines?symbol={symbol_upper}&interval={interval_str}&endTime={end_time}&limit={limit}"
+        );
+        let url_fallback = format!(
+            "{base}/klines?symbol={symbol_upper}&interval={interval_str}&endTime={end_time}&limit={limit}"
         );
 
         get_logger().info(
             LogComponent::Infrastructure("BinanceAPI"),
-            &format!("📈 Fetching {limit} candles before {end_time} from: {url}"),
+            &format!("📈 Fetching {limit} candles before {end_time}"),
         );
 
-        let response = Request::get(&url)
-            .send()
-            .await
-            .map_err(|e| format!("Failed to fetch historical data: {e:?}"))?;
+        let response = Request::get(&url_ui).send().await.ok();
+        let response = match response {
+            Some(resp) if resp.ok() => resp,
+            _ => Request::get(&url_fallback)
+                .send()
+                .await
+                .map_err(|e| format!("Failed to fetch historical data: {e:?}"))?,
+        };
 
         if !response.ok() {
             return Err(format!("HTTP error: {}", response.status()));

@@ -16,7 +16,7 @@ use wasm_bindgen::JsCast;
 
 use crate::event_utils::{EventOptions, wheel_event_options, window_event_listener_with_options};
 use crate::global_signals;
-use crate::global_state::{ensure_chart, get_chart_signal, set_chart_in_ecs};
+use crate::global_state::{ensure_chart, get_chart_signal, set_chart_in_ecs, view_state};
 use crate::{
     domain::{
         chart::Chart,
@@ -50,15 +50,12 @@ const MIN_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / 300.0;
 /// Maximum allowed zoom level
 const MAX_ZOOM_LEVEL: f64 = 32.0;
 
-/// Pan offset required to trigger history loading
-pub const HISTORY_FETCH_THRESHOLD: f64 = -50.0;
-
-/// Number of candles kept in memory beyond the visible range
-const HISTORY_BUFFER_SIZE: usize = 150;
+/// Index threshold to trigger history loading
+pub const HISTORY_PRELOAD_THRESHOLD: usize = 50;
 
 /// Check if more historical data should be fetched
-pub fn should_fetch_history(pan: f64) -> bool {
-    pan <= HISTORY_FETCH_THRESHOLD
+pub fn should_fetch_history(start_index: usize) -> bool {
+    start_index < HISTORY_PRELOAD_THRESHOLD
 }
 
 /// Calculate visible range based on zoom level and pan offset
@@ -179,14 +176,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
         let interval = current_interval().get_untracked();
         let client_arc =
             Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
-        let visible = chart.with(|c| {
-            let interval = current_interval().get_untracked();
-            let series = c.get_series(interval).unwrap();
-            let (zoom, pan) = viewport_zoom_pan(series.get_candles(), &c.viewport);
-            let len = c.get_candle_count();
-            visible_range(len, zoom, pan).1
-        });
-        let limit = (visible + HISTORY_BUFFER_SIZE) as u32;
+        let limit = 1000u32;
         let result = {
             let client = client_arc.lock().await;
             client.fetch_historical_data_before(end_time, limit).await
@@ -194,6 +184,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
         match result {
             Ok(mut new_candles) => {
                 new_candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
+                new_candles.dedup_by_key(|c| c.timestamp.value());
                 chart.update(|ch| {
                     for candle in new_candles.iter() {
                         ch.add_candle(candle.clone());
@@ -668,9 +659,9 @@ fn ChartContainer() -> impl IntoView {
     });
 
     // 🎯 Mouse events for the tooltip
+    let status_clone = set_status;
     let handle_mouse_move = {
         let chart_signal = chart;
-        let status_clone = set_status;
         move |event: web_sys::MouseEvent| {
             let mouse_x = event.offset_x() as f64;
             let mouse_y = event.offset_y() as f64;
@@ -680,34 +671,36 @@ fn ChartContainer() -> impl IntoView {
             if dragging {
                 let last_x = last_mouse_x().get_untracked();
                 let delta_x = mouse_x - last_x;
-                chart_signal().update(|ch| {
-                    let factor_x = -(delta_x as f32) / ch.viewport.width as f32;
-                    ch.pan(factor_x, 0.0);
-                });
-                let symbol = current_symbol().get_untracked();
-                chart_signal().with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
+                view_state().update(|v| v.pan(delta_x as f32));
                 last_mouse_x().set(mouse_x);
                 let need_history = chart_signal().with_untracked(|c| {
                     let interval = current_interval().get_untracked();
                     let series = c.get_series(interval).unwrap();
-                    let (_, pan) = viewport_zoom_pan(series.get_candles(), &c.viewport);
-                    should_fetch_history(pan)
+                    let (zoom, pan) = viewport_zoom_pan(series.get_candles(), &c.viewport);
+                    let len = c.get_candle_count();
+                    let (start, _) = visible_range(len, zoom, pan);
+                    should_fetch_history(start)
                 });
                 if need_history {
                     fetch_more_history(status_clone);
                 }
 
                 enqueue_render_task(Box::new(|r| {
-                    let chart_signal = get_chart_signal(&current_symbol().get_untracked()).unwrap();
-                    chart_signal.with_untracked(|ch| {
-                        if ch.get_candle_count() > 0 {
-                            let interval = current_interval().get_untracked();
-                            let series = ch.get_series(interval).unwrap();
-                            let (zoom, pan) = viewport_zoom_pan(series.get_candles(), &ch.viewport);
-                            r.set_zoom_params(zoom, pan);
-                            let _ = r.render(ch);
-                        }
-                    });
+                    if let Some(chart_signal) = get_chart_signal(&current_symbol().get_untracked())
+                    {
+                        chart_signal.with_untracked(|ch| {
+                            if ch.get_candle_count() > 0 {
+                                let len = ch.get_candle_count();
+                                view_state().with(|v| {
+                                    let (start, vis) = v.visible_range(len, 800.0);
+                                    let zoom = MAX_VISIBLE_CANDLES / vis as f64;
+                                    let pan = start as f64 / len.max(1) as f64;
+                                    r.set_zoom_params(zoom, pan);
+                                    let _ = r.render(ch);
+                                });
+                            }
+                        });
+                    }
                 }));
             } else {
                 // Convert to NDC coordinates (assuming an 800x500 canvas)
@@ -763,7 +756,6 @@ fn ChartContainer() -> impl IntoView {
     // 🔍 Mouse wheel zoom - simplified without effects
     let handle_wheel = {
         let chart_signal = chart;
-        let status_clone = set_status;
         move |event: web_sys::WheelEvent| {
             if chart_signal().try_get_untracked().is_none() {
                 return;
@@ -772,53 +764,32 @@ fn ChartContainer() -> impl IntoView {
             event.prevent_default();
 
             let delta_y = event.delta_y();
-            let delta_zoom = if delta_y < 0.0 { 0.2 } else { -0.2 }; // constant step
+            let delta_ppc = if delta_y < 0.0 { -1.0 } else { 1.0 };
+            let cursor_ratio = event.offset_x() as f32 / 800.0;
+            view_state().update(|v| v.zoom_at(delta_ppc, cursor_ratio, 800.0));
 
-            let (old_zoom, _) = chart_signal().with_untracked(|c| {
-                let interval = current_interval().get_untracked();
-                let candles = c.get_series(interval).unwrap().get_candles();
-                viewport_zoom_pan(candles, &c.viewport)
-            });
-            let new_zoom = (old_zoom + delta_zoom).clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL);
-            let applied_factor = (new_zoom / old_zoom) as f32;
-            let center_x = event.offset_x() as f32 / 800.0;
-            let pan_diff = center_x - 0.5;
-            chart_signal().update(|ch| {
-                ch.zoom(applied_factor, center_x);
-                ch.pan(pan_diff, 0.0);
-            });
-            let symbol = current_symbol().get_untracked();
-            chart_signal().with_untracked(|c| set_chart_in_ecs(&symbol, c.clone()));
-            web_sys::console::log_1(&format!("🔍 Zoom: {old_zoom:.2}x -> {new_zoom:.2}x").into());
-
-            // Apply zoom immediately without effects
             chart_signal().with_untracked(|ch| {
-                if ch.get_candle_count() > 0
-                    && with_global_renderer(|r| {
-                        let interval = current_interval().get_untracked();
-                        let series = ch.get_series(interval).unwrap();
-                        let (_, pan) = viewport_zoom_pan(series.get_candles(), &ch.viewport);
-                        r.set_zoom_params(new_zoom, pan);
-                        let _ = r.render(ch);
-                        get_logger().info(
-                            LogComponent::Infrastructure("ZoomWheel"),
-                            &format!("✅ Applied zoom {new_zoom:.2}x to WebGPU renderer"),
-                        );
-                    })
-                    .is_none()
-                {
-                    // renderer not available
+                if ch.get_candle_count() > 0 {
+                    let len = ch.get_candle_count();
+                    view_state().with(|v| {
+                        let (start, vis) = v.visible_range(len, 800.0);
+                        let zoom = MAX_VISIBLE_CANDLES / vis as f64;
+                        let pan = start as f64 / len.max(1) as f64;
+                        with_global_renderer(|r| {
+                            r.set_zoom_params(zoom, pan);
+                            let _ = r.render(ch);
+                        });
+                    });
                 }
             });
-            get_logger().info(
-                LogComponent::Presentation("ChartZoom"),
-                &format!("🔍 Zoom level: {new_zoom:.2}x"),
-            );
+            get_logger().info(LogComponent::Presentation("ChartZoom"), "🔍 Zoom applied");
             let need_history = chart_signal().with_untracked(|c| {
                 let interval = current_interval().get_untracked();
                 let series = c.get_series(interval).unwrap();
-                let (_, pan) = viewport_zoom_pan(series.get_candles(), &c.viewport);
-                should_fetch_history(pan)
+                let (zoom, pan) = viewport_zoom_pan(series.get_candles(), &c.viewport);
+                let len = c.get_candle_count();
+                let (start, _) = visible_range(len, zoom, pan);
+                should_fetch_history(start)
             });
             if need_history {
                 fetch_more_history(status_clone);
@@ -835,10 +806,10 @@ fn ChartContainer() -> impl IntoView {
             last_mouse_x().set(event.offset_x() as f64);
 
             // Give the canvas focus for keyboard events
-            if let Some(target) = event.target() {
-                if let Ok(canvas) = target.dyn_into::<web_sys::HtmlCanvasElement>() {
-                    let _ = canvas.focus();
-                }
+            if let Some(target) = event.target()
+                && let Ok(canvas) = target.dyn_into::<web_sys::HtmlCanvasElement>()
+            {
+                let _ = canvas.focus();
             }
         }
     };
@@ -915,8 +886,10 @@ fn ChartContainer() -> impl IntoView {
                 let need_history = chart_signal().with_untracked(|c| {
                     let interval = current_interval().get_untracked();
                     let series = c.get_series(interval).unwrap();
-                    let (_, pan) = viewport_zoom_pan(series.get_candles(), &c.viewport);
-                    should_fetch_history(pan)
+                    let (zoom, pan) = viewport_zoom_pan(series.get_candles(), &c.viewport);
+                    let len = c.get_candle_count();
+                    let (start, _) = visible_range(len, zoom, pan);
+                    should_fetch_history(start)
                 });
                 if need_history {
                     fetch_more_history(status_clone);
