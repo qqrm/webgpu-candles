@@ -1,6 +1,6 @@
 use super::value_objects::{ChartType, Viewport};
 use crate::domain::market_data::services::{Aggregator, IchimokuData};
-use crate::domain::market_data::{Candle, CandleSeries, TimeInterval, Volume};
+use crate::domain::market_data::{Candle, CandleSeries, MovingAverageEngine, TimeInterval, Volume};
 use std::collections::HashMap;
 
 /// Domain entity - Chart
@@ -12,6 +12,7 @@ pub struct Chart {
     pub viewport: Viewport,
     pub indicators: Vec<Indicator>,
     pub ichimoku: IchimokuData,
+    pub ma_engines: HashMap<TimeInterval, MovingAverageEngine>,
 }
 
 impl Chart {
@@ -26,6 +27,16 @@ impl Chart {
         series.insert(TimeInterval::OneWeek, CandleSeries::new(max_candles));
         series.insert(TimeInterval::OneMonth, CandleSeries::new(max_candles));
 
+        let mut ma_engines = HashMap::new();
+        ma_engines.insert(TimeInterval::TwoSeconds, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::OneMinute, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::FiveMinutes, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::FifteenMinutes, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::OneHour, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::OneDay, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::OneWeek, MovingAverageEngine::new());
+        ma_engines.insert(TimeInterval::OneMonth, MovingAverageEngine::new());
+
         Self {
             id,
             chart_type,
@@ -33,12 +44,19 @@ impl Chart {
             viewport: Viewport::default(),
             indicators: Vec::new(),
             ichimoku: IchimokuData::default(),
+            ma_engines,
         }
     }
 
     pub fn add_candle(&mut self, candle: Candle) {
         if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
+            let prev = base.count();
             base.add_candle(candle.clone());
+            if base.count() > prev
+                && let Some(engine) = self.ma_engines.get_mut(&TimeInterval::TwoSeconds)
+            {
+                engine.update_on_close(candle.ohlcv.close.value());
+            }
         }
         self.update_aggregates(candle);
     }
@@ -57,10 +75,16 @@ impl Chart {
         for s in self.series.values_mut() {
             *s = CandleSeries::new(limit);
         }
+        for e in self.ma_engines.values_mut() {
+            *e = MovingAverageEngine::new();
+        }
 
         for candle in candles {
             if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
                 base.add_candle(candle.clone());
+                if let Some(engine) = self.ma_engines.get_mut(&TimeInterval::TwoSeconds) {
+                    engine.update_on_close(candle.ohlcv.close.value());
+                }
             }
             self.update_aggregates(candle);
         }
@@ -73,7 +97,13 @@ impl Chart {
         let is_empty = self.get_candle_count() == 0;
 
         if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
+            let prev = base.count();
             base.add_candle(candle.clone());
+            if base.count() > prev
+                && let Some(engine) = self.ma_engines.get_mut(&TimeInterval::TwoSeconds)
+            {
+                engine.update_on_close(candle.ohlcv.close.value());
+            }
         }
         self.update_aggregates(candle);
 
@@ -185,7 +215,13 @@ impl Chart {
 
                 let new_candle = Aggregator::aggregate(std::slice::from_ref(&candle), *interval)
                     .unwrap_or_else(|| candle.clone());
-                series.add_candle(new_candle);
+                let prev = series.count();
+                series.add_candle(new_candle.clone());
+                if series.count() > prev
+                    && let Some(engine) = self.ma_engines.get_mut(interval)
+                {
+                    engine.update_on_close(new_candle.ohlcv.close.value());
+                }
             }
         }
     }

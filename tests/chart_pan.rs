@@ -7,20 +7,14 @@ wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test]
 fn horizontal_pan_moves_viewport() {
-    let mut chart = Chart {
-        id: "test".to_string(),
-        chart_type: ChartType::Candlestick,
-        series: Default::default(),
-        viewport: Viewport {
-            start_time: 0.0,
-            end_time: 100.0,
-            min_price: 0.0,
-            max_price: 100.0,
-            width: 800,
-            height: 600,
-        },
-        indicators: Vec::new(),
-        ichimoku: Default::default(),
+    let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 100);
+    chart.viewport = Viewport {
+        start_time: 0.0,
+        end_time: 100.0,
+        min_price: 0.0,
+        max_price: 100.0,
+        width: 800,
+        height: 600,
     };
     chart.pan(0.1, 0.0);
     assert!((chart.viewport.start_time - 10.0).abs() < 1e-6);

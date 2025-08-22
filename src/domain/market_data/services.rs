@@ -1,14 +1,6 @@
-use crate::domain::market_data::{Candle, OHLCV, Price, TimeInterval, Timestamp, Volume};
-
-/// Data structure for moving averages
-#[derive(Debug, Clone)]
-pub struct MovingAveragesData {
-    pub sma_20: Vec<Price>,
-    pub sma_50: Vec<Price>,
-    pub sma_200: Vec<Price>,
-    pub ema_12: Vec<Price>,
-    pub ema_26: Vec<Price>,
-}
+use crate::domain::market_data::{
+    Candle, OHLCV, Price, TimeInterval, Timestamp, Volume, indicator_engine::MovingAveragesData,
+};
 
 /// Ichimoku indicator components
 #[derive(Debug, Clone, Default)]
