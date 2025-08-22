@@ -33,6 +33,18 @@
             animation: spin 1s linear infinite;
             margin-right: 15px;
         }
+
+        #build-info {
+            position: fixed;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #34495e;
+            color: #4ade80;
+            padding: 4px 8px;
+            z-index: 1000;
+            font-size: 14px;
+        }
         
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -41,6 +53,7 @@
     </style>
 </head>
 <body>
+    <div id="build-info"></div>
     <!-- Loading screen -->
     <div id="loading">
         <div class="spinner"></div>
@@ -52,5 +65,21 @@
 
     <!-- Trunk will attach the WASM here automatically -->
     <link data-trunk rel="rust" data-wasm-opt="z" />
+    <script>
+        async function loadBuildInfo() {
+            try {
+                const [commitRes, timeRes] = await Promise.all([
+                    fetch('version'),
+                    fetch('build_time'),
+                ]);
+                const commit = (await commitRes.text()).trim();
+                const time = (await timeRes.text()).trim();
+                document.getElementById('build-info').textContent = `Build: ${commit} (${time})`;
+            } catch (e) {
+                console.error('Failed to load build info', e);
+            }
+        }
+        loadBuildInfo();
+    </script>
 </body>
-</html> 
+</html>

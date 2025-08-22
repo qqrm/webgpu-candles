@@ -9,7 +9,8 @@ COPY . .
 
 # Build the project with Trunk for production (Docker settings overridden)
 RUN trunk build --release --dist dist --public-url / && \
-    git rev-parse HEAD > dist/version
+    git rev-parse --short HEAD > dist/version && \
+    TZ=Europe/Moscow date '+%Y-%m-%d %H:%M:%S %Z' > dist/build_time
 
 FROM nginx:alpine
 WORKDIR /usr/share/nginx/html
