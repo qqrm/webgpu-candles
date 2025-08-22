@@ -8,6 +8,7 @@ pub mod chart;
 /// Follows the principles of DOCS/ARCHITECTURE.md v3.0
 // === CORE AGGREGATES ===
 pub mod market_data; // Aggregate: market data and charts
+pub mod state;
 
 // === DOMAIN INFRASTRUCTURE ===
 pub mod errors;
@@ -16,3 +17,4 @@ pub mod logging; // ðŸ†• Logging abstractions (Logger, TimeProvider traits) // ð
 // === CLEAN EXPORTS ===
 pub use errors::*;
 pub use logging::*;
+pub use state::DomainState;

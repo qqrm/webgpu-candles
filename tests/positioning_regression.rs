@@ -3,7 +3,7 @@ use price_chart_wasm::infrastructure::rendering::renderer::{
 };
 use wasm_bindgen_test::*;
 
-/// Regression test: ensure new logic didn't break basics
+// Regression test: ensure new logic didn't break basics
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 #[wasm_bindgen_test]
