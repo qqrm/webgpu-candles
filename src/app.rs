@@ -12,6 +12,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Duration;
 use wasm_bindgen::JsCast;
 
 use crate::event_utils::{EventOptions, wheel_event_options, window_event_listener_with_options};
@@ -33,32 +34,27 @@ use crate::{
     infrastructure::{rendering::WebGpuRenderer, websocket::BinanceWebSocketClient},
     time_utils::format_time_label,
 };
+use gloo_timers::future::sleep;
 
 /// Maximum number of candles visible at 1x zoom
 const MAX_VISIBLE_CANDLES: f64 = 32.0;
 /// Minimum number of candles that must remain visible
 const MIN_VISIBLE_CANDLES: f64 = 1.0;
 
-/// Default canvas width
-const CHART_WIDTH: f64 = 800.0;
-
-/// Base factor for converting mouse movement to candle offset
-pub const PAN_SENSITIVITY_BASE: f64 = MAX_VISIBLE_CANDLES / CHART_WIDTH;
-
 /// Minimum allowed zoom level
 const MIN_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / 300.0;
 /// Maximum allowed zoom level
 const MAX_ZOOM_LEVEL: f64 = 32.0;
 
-/// Pan offset required to trigger history loading
-pub const HISTORY_FETCH_THRESHOLD: f64 = -50.0;
+/// Index threshold to trigger history backfill
+pub const HISTORY_PRELOAD_THRESHOLD: usize = 200;
 
-/// Number of candles kept in memory beyond the visible range
-const HISTORY_BUFFER_SIZE: usize = 150;
+/// Maximum candles per backfill request
+const HISTORY_FETCH_LIMIT: u32 = 1000;
 
 /// Check if more historical data should be fetched
-pub fn should_fetch_history(pan: f64) -> bool {
-    pan <= HISTORY_FETCH_THRESHOLD
+pub fn should_fetch_history(left_index: usize) -> bool {
+    left_index < HISTORY_PRELOAD_THRESHOLD
 }
 
 /// Calculate visible range based on zoom level and pan offset
@@ -179,21 +175,17 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
         let interval = current_interval().get_untracked();
         let client_arc =
             Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
-        let visible = chart.with(|c| {
-            let interval = current_interval().get_untracked();
-            let series = c.get_series(interval).unwrap();
-            let (zoom, pan) = viewport_zoom_pan(series.get_candles(), &c.viewport);
-            let len = c.get_candle_count();
-            visible_range(len, zoom, pan).1
-        });
-        let limit = (visible + HISTORY_BUFFER_SIZE) as u32;
         let result = {
             let client = client_arc.lock().await;
-            client.fetch_historical_data_before(end_time, limit).await
+            match client.fetch_historical_ui_klines_before(end_time, HISTORY_FETCH_LIMIT).await {
+                Ok(c) => Ok(c),
+                Err(_) => client.fetch_historical_data_before(end_time, HISTORY_FETCH_LIMIT).await,
+            }
         };
         match result {
             Ok(mut new_candles) => {
-                new_candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
+                new_candles.sort_by_key(|c| c.timestamp.value());
+                new_candles.dedup_by_key(|c| c.timestamp.value());
                 chart.update(|ch| {
                     for candle in new_candles.iter() {
                         ch.add_candle(candle.clone());
@@ -232,6 +224,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
             Err(e) => set_status.set(format!("❌ Failed to load more data: {e}")),
         }
 
+        sleep(Duration::from_millis(500)).await;
         loading_more().set(false);
     });
 }
@@ -670,6 +663,7 @@ fn ChartContainer() -> impl IntoView {
     // 🎯 Mouse events for the tooltip
     let handle_mouse_move = {
         let chart_signal = chart;
+        let status_clone = set_status;
         move |event: web_sys::MouseEvent| {
             let mouse_x = event.offset_x() as f64;
             let mouse_y = event.offset_y() as f64;
@@ -699,6 +693,13 @@ fn ChartContainer() -> impl IntoView {
                         });
                     }
                 }));
+                let need_history = chart_signal().with_untracked(|ch| {
+                    let len = ch.get_candle_count();
+                    view_state().with(|v| v.visible_range(len, 800.0).0)
+                });
+                if should_fetch_history(need_history) {
+                    fetch_more_history(status_clone);
+                }
             } else {
                 // Convert to NDC coordinates (assuming an 800x500 canvas)
                 let canvas_width = 800.0;
@@ -753,6 +754,7 @@ fn ChartContainer() -> impl IntoView {
     // 🔍 Mouse wheel zoom - simplified without effects
     let handle_wheel = {
         let chart_signal = chart;
+        let status_clone = set_status;
         move |event: web_sys::WheelEvent| {
             if chart_signal().try_get_untracked().is_none() {
                 return;
@@ -779,6 +781,13 @@ fn ChartContainer() -> impl IntoView {
                     });
                 }
             });
+            let need_history = chart_signal().with_untracked(|ch| {
+                let len = ch.get_candle_count();
+                view_state().with(|v| v.visible_range(len, 800.0).0)
+            });
+            if should_fetch_history(need_history) {
+                fetch_more_history(status_clone);
+            }
             get_logger().info(LogComponent::Presentation("ChartZoom"), "🔍 Zoom applied");
         }
     };
@@ -872,8 +881,11 @@ fn ChartContainer() -> impl IntoView {
                 let need_history = chart_signal().with_untracked(|c| {
                     let interval = current_interval().get_untracked();
                     let series = c.get_series(interval).unwrap();
-                    let (_, pan) = viewport_zoom_pan(series.get_candles(), &c.viewport);
-                    should_fetch_history(pan)
+                    view_state().with(|v| {
+                        let len = series.get_candles().len();
+                        let (start, _) = v.visible_range(len, 800.0);
+                        should_fetch_history(start)
+                    })
                 });
                 if need_history {
                     fetch_more_history(status_clone);
@@ -911,6 +923,9 @@ fn ChartContainer() -> impl IntoView {
             <div style="display: flex; flex-direction: row; align-items: flex-start;">
                 <PriceAxisLeft chart=chart() />
                 <div style="position: relative;">
+                    <Show when=move || loading_more().get()>
+                        <div style="position:absolute;top:4px;left:4px;font-size:12px;color:#888;">Loading...</div>
+                    </Show>
                     <canvas
                         id="chart-canvas"
                         node_ref=canvas_ref
