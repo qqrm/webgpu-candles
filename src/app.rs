@@ -917,7 +917,7 @@ fn ChartContainer() -> impl IntoView {
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;width:800px;">
                 <AssetSelector set_status=set_status />
                 <div style="display:flex;gap:6px;">
-                    <TimeframeSelector chart=chart() />
+                    <TimeframeSelector chart=chart() set_status=set_status />
                 </div>
             </div>
 
@@ -1049,7 +1049,7 @@ fn ChartTooltip() -> impl IntoView {
 }
 
 #[component]
-fn TimeframeSelector(chart: RwSignal<Chart>) -> impl IntoView {
+fn TimeframeSelector(chart: RwSignal<Chart>, set_status: WriteSignal<String>) -> impl IntoView {
     let options = vec![
         TimeInterval::TwoSeconds,
         TimeInterval::OneMinute,
@@ -1066,11 +1066,24 @@ fn TimeframeSelector(chart: RwSignal<Chart>) -> impl IntoView {
                 children=move |interval| {
                     let label = interval.as_ref().to_string();
                     let chart_signal = chart;
+                    let status_signal = set_status;
                     view! {
                         <button
                             style="padding:4px 6px;border:none;border-radius:4px;background:#74c787;color:black;"
                             on:click=move |_| {
                                 current_interval().set(interval);
+                                if let Some(handle) = stream_abort_handles()
+                                    .with(|m| m.get(&current_symbol().get_untracked()).cloned())
+                                {
+                                    handle.abort();
+                                    stream_abort_handles().update(|m| {
+                                        m.remove(&current_symbol().get_untracked());
+                                    });
+                                }
+                                let status = status_signal;
+                                let _ = spawn_local_with_current_owner(async move {
+                                    start_websocket_stream(status).await;
+                                });
                                 chart_signal.update(|c| c.update_viewport_for_data());
                                 chart_signal.with_untracked(|c| {
                                     if c.get_candle_count() > 0 && with_global_renderer(|r| {
@@ -1196,10 +1209,12 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
     ensure_chart(&symbol);
     let chart = get_chart_signal(&symbol).unwrap();
 
-    if let Some(_handle) = stream_abort_handles().with(|m| m.get(&symbol).cloned()) {
-        // Already streaming for this symbol
-        set_status.set("🔄 Using existing stream".to_string());
-        return;
+    if let Some(handle) = stream_abort_handles().with(|m| m.get(&symbol).cloned()) {
+        handle.abort();
+        stream_abort_handles().update(|m| {
+            m.remove(&symbol);
+        });
+        set_status.set("🔄 Restarting stream".to_string());
     }
 
     let interval = current_interval().get_untracked();
@@ -1441,26 +1456,41 @@ mod tests {
             .map_err(|_| format!("element with id {id} is not an HtmlInputElement"))
     }
 
-    #[wasm_bindgen_test]
-    fn timeframe_buttons_update_interval() {
+    #[wasm_bindgen_test(async)]
+    async fn timeframe_buttons_update_interval() {
+        use gloo_timers::future::sleep;
+        use std::time::Duration;
+
         let container = setup_container();
         let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 100));
-        leptos::mount_to(container.clone(), move || view! { <TimeframeSelector chart=chart /> });
+        let (_, set_status) = create_signal(String::new());
+        leptos::mount_to(
+            container.clone(),
+            move || view! { <TimeframeSelector chart=chart set_status=set_status /> },
+        );
 
         let two_sec = find_button(&container, "2s").expect("2s button not found");
         two_sec.click();
+        sleep(Duration::from_millis(10)).await;
+        abort_other_streams(&current_symbol().get_untracked());
         assert_eq!(current_interval().get(), TimeInterval::TwoSeconds);
 
         let five = find_button(&container, "5m").expect("5m button not found");
         five.click();
+        sleep(Duration::from_millis(10)).await;
+        abort_other_streams(&current_symbol().get_untracked());
         assert_eq!(current_interval().get(), TimeInterval::FiveMinutes);
 
         let fifteen = find_button(&container, "15m").expect("15m button not found");
         fifteen.click();
+        sleep(Duration::from_millis(10)).await;
+        abort_other_streams(&current_symbol().get_untracked());
         assert_eq!(current_interval().get(), TimeInterval::FifteenMinutes);
 
         let one_hour = find_button(&container, "1h").expect("1h button not found");
         one_hour.click();
+        sleep(Duration::from_millis(10)).await;
+        abort_other_streams(&current_symbol().get_untracked());
         assert_eq!(current_interval().get(), TimeInterval::OneHour);
     }
 
