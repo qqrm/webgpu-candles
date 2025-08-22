@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -12,5 +13,6 @@ def test_no_fps_in_log(tmp_path):
          str(log), str(output)],
         capture_output=True, text=True
     )
-    assert result.returncode == 1
+    assert result.returncode == 0
+    assert json.loads(output.read_text()) == {"fps": 0.0}
     assert "No FPS data found in log" in result.stdout
