@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use gloo_timers::future::sleep;
 use leptos::*;
 use price_chart_wasm::app::{

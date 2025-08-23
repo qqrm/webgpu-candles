@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use futures::future::select;
 use gloo_timers::future::sleep;
 use price_chart_wasm::domain::market_data::{Symbol, TimeInterval};

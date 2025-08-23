@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use js_sys::Date;
 use price_chart_wasm::time_utils::format_time_label;
 use wasm_bindgen::JsValue;

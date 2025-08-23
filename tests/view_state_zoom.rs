@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::view_state::ViewState;
 use quickcheck_macros::quickcheck;
 

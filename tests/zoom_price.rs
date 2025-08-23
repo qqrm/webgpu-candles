@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::domain::chart::value_objects::Viewport;
 use wasm_bindgen_test::*;
 

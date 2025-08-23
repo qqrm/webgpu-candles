@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::domain::chart::Chart;
 use price_chart_wasm::domain::chart::value_objects::ChartType;
 use price_chart_wasm::domain::chart::value_objects::Viewport;

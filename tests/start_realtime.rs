@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::app::{visible_range, visible_range_by_time};
 use price_chart_wasm::domain::chart::{Chart, value_objects::ChartType};
 use price_chart_wasm::domain::market_data::{

@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::infrastructure::rendering::renderer::candle_x_position;
 use wasm_bindgen_test::*;
 

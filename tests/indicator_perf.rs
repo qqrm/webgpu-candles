@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 #[cfg(not(target_arch = "wasm32"))]
 use price_chart_wasm::domain::market_data::{
     Candle, OHLCV, Price, Timestamp, Volume, indicator_engine::MovingAverageEngine,

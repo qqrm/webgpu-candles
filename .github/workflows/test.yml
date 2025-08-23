@@ -53,11 +53,11 @@ jobs:
         run: cargo check --all-targets --quiet
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --quiet -- -D warnings || echo 'Clippy warnings found'
-      - name: Run Node.js tests
+      - name: Run render tests
         env:
           INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
           CHROMIUM_FLAGS: --enable-unsafe-webgpu
-        run: wasm-pack test --chrome --headless
+        run: wasm-pack test --chrome --headless -- --features render
 
   node-test:
     if: ${{ github.actor == 'qqrm' }}
@@ -88,4 +88,4 @@ jobs:
       - name: Run logic-only tests
         env:
           INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
-        run: npm run test:node -- --features logic-only --test logic_only
+        run: npm run test:node -- --features logic-only

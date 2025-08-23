@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::domain::market_data::services::MarketAnalysisService;
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use price_chart_wasm::infrastructure::rendering::gpu_structures::{CandleGeometry, IndicatorType};

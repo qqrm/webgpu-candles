@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::infrastructure::rendering::gpu_structures::CandleGeometry;
 use wasm_bindgen_test::*;
 
