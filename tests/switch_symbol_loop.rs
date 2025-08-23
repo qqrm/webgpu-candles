@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use futures::future::AbortHandle;
 use leptos::*;
 use price_chart_wasm::app::{abort_other_streams, current_symbol, stream_abort_handles};

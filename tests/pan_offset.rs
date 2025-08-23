@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::app::{HISTORY_PRELOAD_THRESHOLD, should_fetch_history};
 
 #[test]

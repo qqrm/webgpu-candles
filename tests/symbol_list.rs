@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::domain::market_data::value_objects::{Symbol, default_symbols};
 use wasm_bindgen_test::*;
 

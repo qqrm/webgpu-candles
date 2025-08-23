@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use futures::future::{AbortHandle, Abortable};
 use gloo_timers::future::sleep;
 use leptos::*;

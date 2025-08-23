@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 use price_chart_wasm::infrastructure::rendering::renderer::{
     EDGE_GAP, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, SPACING_RATIO, candle_x_position,

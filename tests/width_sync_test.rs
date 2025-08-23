@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::infrastructure::rendering::renderer::{
     EDGE_GAP, MIN_ELEMENT_WIDTH, candle_x_position, spacing_ratio_for,
 };

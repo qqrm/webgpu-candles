@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::infrastructure::rendering::renderer::MSAA_SAMPLE_COUNT;
 use wasm_bindgen_test::*;
 

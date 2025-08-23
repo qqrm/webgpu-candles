@@ -43,6 +43,7 @@ quickcheck_macros = "1"
 [features]
 parallel = ["rayon"]
 logic-only = []
+render = []
 
 [profile.dev]
 panic = "unwind"  # Preserves stack traces

@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::app::visible_range_by_time;
 use price_chart_wasm::domain::chart::value_objects::Viewport;
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};

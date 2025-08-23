@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::infrastructure::rendering::renderer::{MIN_ELEMENT_WIDTH, SPACING_RATIO};
 use wasm_bindgen_test::*;
 

@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use leptos::*;
 use price_chart_wasm::domain::market_data::{Symbol, TimeInterval};
 use price_chart_wasm::global_state::{ecs_world, ensure_chart, push_realtime_candle};

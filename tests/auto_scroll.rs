@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::app::should_auto_scroll;
 
 #[test]

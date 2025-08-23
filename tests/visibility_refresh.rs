@@ -1,3 +1,4 @@
+#![cfg(feature = "render")]
 use price_chart_wasm::domain::{
     chart::{Chart, value_objects::ChartType},
     market_data::{Candle, OHLCV, Price, Timestamp, Volume},
