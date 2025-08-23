@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "test": "wasm-pack test --chrome --headless",
-    "test:node": "wasm-pack test --node"
+    "test:node": "wasm-pack test --node",
+    "test:firefox": "wasm-pack test --firefox --headless"
   },
   "devDependencies": {
     "wasm-pack": "^0.13.1"

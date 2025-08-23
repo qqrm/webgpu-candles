@@ -89,3 +89,44 @@ jobs:
         env:
           INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
         run: npm run test:node -- --features logic-only --test logic_only
+
+  firefox-test:
+    if: ${{ github.actor == 'qqrm' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: nightly
+          targets: wasm32-unknown-unknown
+          components: rust-src
+      - name: Cache cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --version 0.13.1 --quiet
+      - name: Install wasm-tools
+        run: cargo install wasm-tools --quiet
+      - name: Install Firefox
+        uses: browser-actions/setup-firefox@v1
+      - name: Install GeckoDriver
+        uses: browser-actions/setup-geckodriver@v1
+      - name: Update dependencies
+        run: cargo update --quiet
+      - name: Cargo check
+        run: cargo check --all-targets --quiet
+      - name: Cargo clippy
+        run: cargo clippy --all-targets --all-features --quiet -- -D warnings || echo 'Clippy warnings found'
+      - name: Run Firefox tests
+        env:
+          INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
+          MOZ_WEBGPU: 1
+        run: wasm-pack test --firefox --headless
