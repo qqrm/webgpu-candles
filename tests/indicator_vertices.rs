@@ -24,6 +24,22 @@ fn indicator_line_vertex_count() {
 }
 
 #[wasm_bindgen_test]
+fn indicator_line_segments_are_ccw() {
+    let points = [(-0.5, 0.0), (0.5, 0.0)];
+    let verts = CandleGeometry::create_indicator_line_vertices(&points, IndicatorType::SMA20, 0.1);
+
+    let orient_first = (verts[1].position_x - verts[0].position_x)
+        * (verts[2].position_y - verts[0].position_y)
+        - (verts[1].position_y - verts[0].position_y) * (verts[2].position_x - verts[0].position_x);
+    let orient_second = (verts[4].position_x - verts[3].position_x)
+        * (verts[5].position_y - verts[3].position_y)
+        - (verts[4].position_y - verts[3].position_y) * (verts[5].position_x - verts[3].position_x);
+
+    assert!(orient_first > 0.0);
+    assert!(orient_second > 0.0);
+}
+
+#[wasm_bindgen_test]
 fn indicator_line_color_types() {
     let pts = [(-1.0, 0.0), (1.0, 1.0)];
     let checks = [
