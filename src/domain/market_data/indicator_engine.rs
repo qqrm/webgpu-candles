@@ -89,6 +89,45 @@ impl MovingAverageEngine {
         out.push(Price::from(val));
     }
 
+    #[inline]
+    fn replace_sma(
+        win: &mut VecDeque<f64>,
+        sum: &mut f64,
+        period: usize,
+        close: f64,
+        out: &mut [Price],
+    ) {
+        if let Some(last) = win.back_mut() {
+            *sum += close - *last;
+            *last = close;
+            if win.len() >= period
+                && let Some(value) = out.last_mut()
+            {
+                *value = Price::from(*sum / period as f64);
+            }
+        }
+    }
+
+    #[inline]
+    fn replace_ema(last: &mut Option<f64>, alpha: f64, close: f64, out: &mut [Price]) {
+        if out.is_empty() {
+            *last = Some(close);
+            return;
+        }
+
+        let new_val = if out.len() >= 2 {
+            let prev = out[out.len() - 2].value();
+            alpha * close + (1.0 - alpha) * prev
+        } else {
+            close
+        };
+
+        if let Some(value) = out.last_mut() {
+            *value = Price::from(new_val);
+        }
+        *last = Some(new_val);
+    }
+
     /// Update indicators when a candle closes
     pub fn update_on_close(&mut self, close: f64) {
         Self::update_sma(
@@ -114,6 +153,33 @@ impl MovingAverageEngine {
         );
         Self::update_ema(&mut self.ema12_last, self.alpha12, close, &mut self.data.ema_12);
         Self::update_ema(&mut self.ema26_last, self.alpha26, close, &mut self.data.ema_26);
+    }
+
+    /// Replace indicators for the latest candle close
+    pub fn replace_last_close(&mut self, close: f64) {
+        Self::replace_sma(
+            &mut self.sma20_win,
+            &mut self.sma20_sum,
+            20,
+            close,
+            &mut self.data.sma_20,
+        );
+        Self::replace_sma(
+            &mut self.sma50_win,
+            &mut self.sma50_sum,
+            50,
+            close,
+            &mut self.data.sma_50,
+        );
+        Self::replace_sma(
+            &mut self.sma200_win,
+            &mut self.sma200_sum,
+            200,
+            close,
+            &mut self.data.sma_200,
+        );
+        Self::replace_ema(&mut self.ema12_last, self.alpha12, close, &mut self.data.ema_12);
+        Self::replace_ema(&mut self.ema26_last, self.alpha26, close, &mut self.data.ema_26);
     }
 
     /// Preview SMA for an in-progress candle
