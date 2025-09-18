@@ -80,6 +80,25 @@ impl MovingAverageEngine {
     }
 
     #[inline]
+    fn replace_sma(
+        win: &mut VecDeque<f64>,
+        sum: &mut f64,
+        period: usize,
+        close: f64,
+        out: &mut [Price],
+    ) {
+        if let Some(last_value) = win.back_mut() {
+            *sum += close - *last_value;
+            *last_value = close;
+            if win.len() == period
+                && let Some(last_price) = out.last_mut()
+            {
+                *last_price = Price::from(*sum / period as f64);
+            }
+        }
+    }
+
+    #[inline]
     fn update_ema(last: &mut Option<f64>, alpha: f64, close: f64, out: &mut Vec<Price>) {
         let val = match last {
             Some(prev) => alpha * close + (1.0 - alpha) * *prev,
@@ -87,6 +106,21 @@ impl MovingAverageEngine {
         };
         *last = Some(val);
         out.push(Price::from(val));
+    }
+
+    #[inline]
+    fn replace_ema(last: &mut Option<f64>, alpha: f64, close: f64, out: &mut [Price]) {
+        if out.is_empty() {
+            *last = Some(close);
+            return;
+        }
+
+        let prev = if out.len() >= 2 { out[out.len() - 2].value() } else { close };
+        let val = alpha * close + (1.0 - alpha) * prev;
+        *last = Some(val);
+        if let Some(last_price) = out.last_mut() {
+            *last_price = Price::from(val);
+        }
     }
 
     /// Update indicators when a candle closes
@@ -128,5 +162,42 @@ impl MovingAverageEngine {
 
     pub fn data(&self) -> &MovingAveragesData {
         &self.data
+    }
+
+    /// Replace the latest close value, adjusting SMA/EMA sequences
+    pub fn replace_last_close(&mut self, close: f64) {
+        Self::replace_sma(
+            &mut self.sma20_win,
+            &mut self.sma20_sum,
+            20,
+            close,
+            self.data.sma_20.as_mut_slice(),
+        );
+        Self::replace_sma(
+            &mut self.sma50_win,
+            &mut self.sma50_sum,
+            50,
+            close,
+            self.data.sma_50.as_mut_slice(),
+        );
+        Self::replace_sma(
+            &mut self.sma200_win,
+            &mut self.sma200_sum,
+            200,
+            close,
+            self.data.sma_200.as_mut_slice(),
+        );
+        Self::replace_ema(
+            &mut self.ema12_last,
+            self.alpha12,
+            close,
+            self.data.ema_12.as_mut_slice(),
+        );
+        Self::replace_ema(
+            &mut self.ema26_last,
+            self.alpha26,
+            close,
+            self.data.ema_26.as_mut_slice(),
+        );
     }
 }
