@@ -1,7 +1,7 @@
 use super::value_objects::{ChartType, Viewport};
 use crate::domain::market_data::services::{Aggregator, IchimokuData};
 use crate::domain::market_data::{Candle, CandleSeries, MovingAverageEngine, TimeInterval, Volume};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Domain entity - Chart
 #[derive(Debug, Clone)]
@@ -13,6 +13,7 @@ pub struct Chart {
     pub indicators: Vec<Indicator>,
     pub ichimoku: IchimokuData,
     pub ma_engines: HashMap<TimeInterval, MovingAverageEngine>,
+    open_buckets: HashSet<TimeInterval>,
 }
 
 impl Chart {
@@ -45,6 +46,7 @@ impl Chart {
             indicators: Vec::new(),
             ichimoku: IchimokuData::default(),
             ma_engines,
+            open_buckets: HashSet::new(),
         }
     }
 
@@ -79,6 +81,7 @@ impl Chart {
         for e in self.ma_engines.values_mut() {
             *e = MovingAverageEngine::new();
         }
+        self.open_buckets.clear();
 
         for candle in candles {
             if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
@@ -223,21 +226,30 @@ impl Chart {
                     {
                         engine.replace_last_close(close);
                     }
+                    self.open_buckets.insert(*interval);
                     continue;
                 }
 
                 let is_new_bucket = latest_ts.is_none_or(|ts| bucket_start > ts);
-                let was_full = series.count() == series.capacity();
-                let oldest_before = series.get_candles().front().map(|c| c.timestamp.value());
-                let new_candle = Aggregator::aggregate(std::slice::from_ref(&candle), *interval)
-                    .unwrap_or_else(|| candle.clone());
-                series.add_candle(new_candle.clone());
-                let oldest_after = series.get_candles().front().map(|c| c.timestamp.value());
-                let replaced_oldest = was_full && oldest_before != oldest_after;
-                if (is_new_bucket || replaced_oldest)
+                let previous_close = if is_new_bucket {
+                    series.latest().map(|c| c.ohlcv.close.value())
+                } else {
+                    None
+                };
+
+                if is_new_bucket
+                    && self.open_buckets.remove(interval)
+                    && let Some(close) = previous_close
                     && let Some(engine) = self.ma_engines.get_mut(interval)
                 {
-                    engine.update_on_close(new_candle.ohlcv.close.value());
+                    engine.update_on_close(close);
+                }
+
+                let new_candle = Aggregator::aggregate(std::slice::from_ref(&candle), *interval)
+                    .unwrap_or_else(|| candle.clone());
+                series.add_candle(new_candle);
+                if is_new_bucket {
+                    self.open_buckets.insert(*interval);
                 }
             }
         }
