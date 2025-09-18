@@ -510,14 +510,14 @@ impl CandleGeometry {
 
             // Create a rectangle as two triangles without gaps
             let segment_vertices = [
-                // First triangle
+                // First triangle (CCW)
                 CandleVertex::indicator_vertex(x1 - perp_x, y1 - perp_y, indicator_type),
+                CandleVertex::indicator_vertex(x2 - perp_x, y2 - perp_y, indicator_type),
+                CandleVertex::indicator_vertex(x1 + perp_x, y1 + perp_y, indicator_type),
+                // Second triangle (CCW)
                 CandleVertex::indicator_vertex(x1 + perp_x, y1 + perp_y, indicator_type),
                 CandleVertex::indicator_vertex(x2 - perp_x, y2 - perp_y, indicator_type),
-                // Second triangle
-                CandleVertex::indicator_vertex(x1 + perp_x, y1 + perp_y, indicator_type),
                 CandleVertex::indicator_vertex(x2 + perp_x, y2 + perp_y, indicator_type),
-                CandleVertex::indicator_vertex(x2 - perp_x, y2 - perp_y, indicator_type),
             ];
 
             vertices.extend_from_slice(&segment_vertices);
