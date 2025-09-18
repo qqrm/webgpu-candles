@@ -13,6 +13,7 @@ pub struct Chart {
     pub indicators: Vec<Indicator>,
     pub ichimoku: IchimokuData,
     pub ma_engines: HashMap<TimeInterval, MovingAverageEngine>,
+    aggregate_open: HashMap<TimeInterval, bool>,
 }
 
 impl Chart {
@@ -37,6 +38,15 @@ impl Chart {
         ma_engines.insert(TimeInterval::OneWeek, MovingAverageEngine::new());
         ma_engines.insert(TimeInterval::OneMonth, MovingAverageEngine::new());
 
+        let mut aggregate_open = HashMap::new();
+        aggregate_open.insert(TimeInterval::OneMinute, false);
+        aggregate_open.insert(TimeInterval::FiveMinutes, false);
+        aggregate_open.insert(TimeInterval::FifteenMinutes, false);
+        aggregate_open.insert(TimeInterval::OneHour, false);
+        aggregate_open.insert(TimeInterval::OneDay, false);
+        aggregate_open.insert(TimeInterval::OneWeek, false);
+        aggregate_open.insert(TimeInterval::OneMonth, false);
+
         Self {
             id,
             chart_type,
@@ -45,6 +55,7 @@ impl Chart {
             indicators: Vec::new(),
             ichimoku: IchimokuData::default(),
             ma_engines,
+            aggregate_open,
         }
     }
 
@@ -79,6 +90,10 @@ impl Chart {
             *e = MovingAverageEngine::new();
         }
 
+        for open in self.aggregate_open.values_mut() {
+            *open = false;
+        }
+
         for candle in candles {
             if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
                 base.add_candle(candle.clone());
@@ -91,6 +106,8 @@ impl Chart {
 
         // Update the viewport
         self.update_viewport_for_data();
+
+        self.finalize_open_aggregates();
     }
     /// Add a new candle in real time
     pub fn add_realtime_candle(&mut self, candle: Candle) {
@@ -198,30 +215,78 @@ impl Chart {
                 let bucket_start =
                     candle.timestamp.value() / interval.duration_ms() * interval.duration_ms();
 
-                if let Some(last) = series.latest_mut()
-                    && last.timestamp.value() == bucket_start
-                {
-                    if candle.ohlcv.high > last.ohlcv.high {
-                        last.ohlcv.high = candle.ohlcv.high;
+                let open_entry = self.aggregate_open.entry(*interval).or_insert(false);
+                let mut same_bucket = false;
+                let mut finalized_close = None;
+
+                if let Some(last) = series.latest() {
+                    same_bucket = last.timestamp.value() == bucket_start;
+                    if !same_bucket && *open_entry {
+                        finalized_close = Some(last.ohlcv.close.value());
                     }
-                    if candle.ohlcv.low < last.ohlcv.low {
-                        last.ohlcv.low = candle.ohlcv.low;
+                }
+
+                if let Some(close) = finalized_close {
+                    if let Some(engine) = self.ma_engines.get_mut(interval) {
+                        engine.update_on_close(close);
                     }
-                    last.ohlcv.close = candle.ohlcv.close;
-                    last.ohlcv.volume =
-                        Volume::from(last.ohlcv.volume.value() + candle.ohlcv.volume.value());
+                    *open_entry = false;
+                }
+
+                if same_bucket {
+                    if let Some(last) = series.latest_mut() {
+                        if candle.ohlcv.high > last.ohlcv.high {
+                            last.ohlcv.high = candle.ohlcv.high;
+                        }
+                        if candle.ohlcv.low < last.ohlcv.low {
+                            last.ohlcv.low = candle.ohlcv.low;
+                        }
+                        last.ohlcv.close = candle.ohlcv.close;
+                        last.ohlcv.volume =
+                            Volume::from(last.ohlcv.volume.value() + candle.ohlcv.volume.value());
+                    }
+                    *open_entry = true;
+                } else {
+                    let new_candle =
+                        Aggregator::aggregate(std::slice::from_ref(&candle), *interval)
+                            .unwrap_or_else(|| candle.clone());
+                    series.add_candle(new_candle);
+                    *open_entry = true;
+                }
+            }
+        }
+    }
+
+    fn finalize_open_aggregates(&mut self) {
+        let intervals = [
+            TimeInterval::OneMinute,
+            TimeInterval::FiveMinutes,
+            TimeInterval::FifteenMinutes,
+            TimeInterval::OneHour,
+            TimeInterval::OneDay,
+            TimeInterval::OneWeek,
+            TimeInterval::OneMonth,
+        ];
+
+        for interval in intervals.iter() {
+            if let Some(open) = self.aggregate_open.get_mut(interval) {
+                if !*open {
                     continue;
                 }
 
-                let new_candle = Aggregator::aggregate(std::slice::from_ref(&candle), *interval)
-                    .unwrap_or_else(|| candle.clone());
-                let prev = series.count();
-                series.add_candle(new_candle.clone());
-                if series.count() > prev
+                let close = self
+                    .series
+                    .get(interval)
+                    .and_then(|s| s.latest())
+                    .map(|c| c.ohlcv.close.value());
+
+                if let Some(close) = close
                     && let Some(engine) = self.ma_engines.get_mut(interval)
                 {
-                    engine.update_on_close(new_candle.ohlcv.close.value());
+                    engine.update_on_close(close);
                 }
+
+                *open = false;
             }
         }
     }
