@@ -99,12 +99,15 @@ impl Chart {
 
         if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
             let latest_ts = base.latest().map(|c| c.timestamp.value());
+            let is_update = latest_ts == Some(candle.timestamp.value());
             let is_new_candle = latest_ts.is_none_or(|ts| candle.timestamp.value() > ts);
             base.add_candle(candle.clone());
-            if is_new_candle
-                && let Some(engine) = self.ma_engines.get_mut(&TimeInterval::TwoSeconds)
-            {
-                engine.update_on_close(candle.ohlcv.close.value());
+            if let Some(engine) = self.ma_engines.get_mut(&TimeInterval::TwoSeconds) {
+                if is_new_candle {
+                    engine.update_on_close(candle.ohlcv.close.value());
+                } else if is_update {
+                    engine.replace_last_close(candle.ohlcv.close.value());
+                }
             }
         }
         self.update_aggregates(candle);
@@ -202,6 +205,7 @@ impl Chart {
 
                 let latest_ts = series.latest().map(|c| c.timestamp.value());
                 if latest_ts == Some(bucket_start) {
+                    let mut new_close = None;
                     if let Some(last) = series.latest_mut() {
                         if candle.ohlcv.high > last.ohlcv.high {
                             last.ohlcv.high = candle.ohlcv.high;
@@ -212,6 +216,12 @@ impl Chart {
                         last.ohlcv.close = candle.ohlcv.close;
                         last.ohlcv.volume =
                             Volume::from(last.ohlcv.volume.value() + candle.ohlcv.volume.value());
+                        new_close = Some(last.ohlcv.close.value());
+                    }
+                    if let Some(close) = new_close
+                        && let Some(engine) = self.ma_engines.get_mut(interval)
+                    {
+                        engine.replace_last_close(close);
                     }
                     continue;
                 }
