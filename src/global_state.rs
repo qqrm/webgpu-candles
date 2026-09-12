@@ -37,6 +37,7 @@ pub struct Globals {
     pub domain_state: RwSignal<DomainState>,
     pub view_state: RwSignal<ViewState>,
     pub connection_id: RwSignal<u64>,
+    pub chart_view_revision: RwSignal<u64>,
 }
 
 // The `OnceCell` ensures this state is created at most once on demand.
@@ -67,6 +68,7 @@ pub fn globals() -> &'static Globals {
         )),
         view_state: create_rw_signal(ViewState::new(5.0, 1.0, 20.0)),
         connection_id: create_rw_signal(0),
+        chart_view_revision: create_rw_signal(0),
     })
 }
 
@@ -112,6 +114,10 @@ pub fn view_state() -> RwSignal<ViewState> {
 
 pub fn connection_id() -> RwSignal<u64> {
     globals().connection_id
+}
+
+pub fn chart_view_revision() -> RwSignal<u64> {
+    globals().chart_view_revision
 }
 
 /// Add a candle to the ECS world and process systems.

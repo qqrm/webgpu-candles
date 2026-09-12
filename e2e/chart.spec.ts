@@ -82,20 +82,23 @@ async function mockMarket(page: Page): Promise<MarketRequests> {
     const interval = url.pathname.split('kline_')[1] ?? '1m';
     const duration = intervalDuration(interval);
     const timestamp = Math.floor(Date.now() / duration) * duration;
-    setTimeout(() => {
+    const sendCandle = (index: number) => {
+      const nextPrice = price + index;
       socket.send(
         JSON.stringify({
           k: {
-            t: timestamp,
-            o: price.toFixed(2),
-            h: (price + 2).toFixed(2),
-            l: (price - 2).toFixed(2),
-            c: (price + 1).toFixed(2),
+            t: timestamp + index * duration,
+            o: nextPrice.toFixed(2),
+            h: (nextPrice + 2).toFixed(2),
+            l: (nextPrice - 2).toFixed(2),
+            c: (nextPrice + 1).toFixed(2),
             v: '2.5000',
           },
         }),
       );
-    }, 50);
+    };
+    setTimeout(() => sendCandle(0), 50);
+    setTimeout(() => sendCandle(1), 250);
   });
 
   return requests;
@@ -139,6 +142,7 @@ test('loads WebGPU chart and keeps controls internally consistent', async ({ pag
   await expect(page.getByText('Real-time updates')).toHaveCount(0);
   await expect(page.getByText('WebSocket LIVE')).toHaveCount(0);
 
+  await page.waitForTimeout(400);
   const scaleBefore = await page.locator('.price-level').allTextContents();
   await page.getByRole('checkbox', { name: 'SMA20', exact: true }).uncheck();
   await expect(page.getByRole('checkbox', { name: 'SMA20', exact: true })).not.toBeChecked();
@@ -186,6 +190,34 @@ test('keeps all three market streams hot and switches the rendered chart instant
   await expect(page.locator('.market-symbol')).toHaveText('BTCUSDT · SPOT');
   await expect(page.locator('.market-price')).toHaveText(/^\$5\d{4}$/);
   expect(market.webSocketUrls).toHaveLength(socketsBeforeSwitch);
+  expect(errors).toEqual([]);
+});
+
+test('stays interactive after live ticks and changes the active timeframe', async ({ page }) => {
+  const market = await mockMarket(page);
+  const errors = captureRuntimeErrors(page);
+  await openReadyChart(page);
+  await page.getByRole('button', { name: 'SOLUSDT', exact: true }).click();
+  await expect(page.locator('.connection-pill')).toHaveText(/LIVE/);
+
+  await page.waitForTimeout(400);
+  const oneMinuteRange = await page.locator('.time-scale').innerText();
+  await page.getByRole('button', { name: '5m', exact: true }).click();
+  await expect
+    .poll(() =>
+      market.urls.some(url => url.includes('symbol=SOLUSDT') && url.includes('interval=5m')),
+    )
+    .toBe(true);
+  await expect(page.locator('.connection-pill')).toHaveText(/LIVE/);
+  await expect.poll(() => page.locator('.time-scale').innerText()).not.toBe(oneMinuteRange);
+
+  const beforePan = await page.locator('.time-scale').innerText();
+  await dragRight(page, 1);
+  await expect.poll(() => page.locator('.time-scale').innerText()).not.toBe(beforePan);
+
+  const zoomBefore = await page.locator('.metric-value').last().innerText();
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await expect.poll(() => page.locator('.metric-value').last().innerText()).not.toBe(zoomBefore);
   expect(errors).toEqual([]);
 });
 

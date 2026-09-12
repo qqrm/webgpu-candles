@@ -18,7 +18,7 @@ use wasm_bindgen::JsCast;
 use crate::event_utils::{EventOptions, window_event_listener_with_options};
 use crate::global_signals;
 use crate::global_state::{
-    connection_id, ensure_chart, get_chart_signal, globals, streaming_symbols,
+    chart_view_revision, connection_id, ensure_chart, get_chart_signal, globals, streaming_symbols,
 };
 use crate::{
     domain::{
@@ -254,7 +254,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
     let interval = current_interval().get_untracked();
     let request_connection_id = connection_id().get_untracked();
     let chart = get_chart_signal(&symbol).unwrap();
-    let oldest_ts = chart.with(|c| {
+    let oldest_ts = chart.with_untracked(|c| {
         c.get_series(interval).and_then(|s| s.get_candles().front()).map(|c| c.timestamp.value())
     });
     let end_time = match oldest_ts {
@@ -277,7 +277,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
         match result {
             Ok(new_candles) => {
                 let mut added = 0;
-                chart.update(|ch| {
+                chart.update_untracked(|ch| {
                     added = ch.prepend_historical_data(new_candles);
                 });
                 if added == 0 {
@@ -300,7 +300,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
                     }
                 });
 
-                let new_count = chart.with(|c| c.get_candle_count());
+                let new_count = chart.with_untracked(|c| c.get_candle_count());
                 global_candle_count().set(new_count);
 
                 set_status.set(format!("Loaded {added} older candles"));
@@ -900,11 +900,12 @@ fn header() -> impl IntoView {
     };
 
     let zoom_level = move || {
+        let _ = chart_view_revision().get();
         let symbol = current_symbol().get();
         let interval = current_interval().get();
         get_chart_signal(&symbol)
             .and_then(|chart| {
-                chart.try_with(|c| {
+                chart.try_with_untracked(|c| {
                     let series = c.get_series(interval)?;
                     Some(viewport_zoom_pan(series.get_candles(), &c.viewport).0)
                 })
@@ -965,9 +966,10 @@ fn header() -> impl IntoView {
 #[component]
 fn TimeScale() -> impl IntoView {
     let time_labels = move || {
+        let _ = chart_view_revision().get();
         let symbol = current_symbol().get();
         let chart = get_chart_signal(&symbol).unwrap_or_else(|| ensure_chart(&symbol));
-        chart.with(|current| {
+        chart.with_untracked(|current| {
             let interval = current_interval().get_untracked();
             let Some(series) = current.get_series(interval) else {
                 return Vec::new();
@@ -1016,7 +1018,7 @@ fn TimeScale() -> impl IntoView {
 }
 
 fn sync_chart_view(chart: RwSignal<Chart>) -> usize {
-    chart.with_untracked(|current| {
+    let start = chart.with_untracked(|current| {
         let Some(series) = current.get_series(current_interval().get_untracked()) else {
             return 0;
         };
@@ -1030,11 +1032,13 @@ fn sync_chart_view(chart: RwSignal<Chart>) -> usize {
         });
 
         start
-    })
+    });
+    chart_view_revision().update(|revision| *revision = revision.wrapping_add(1));
+    start
 }
 
 fn zoom_chart(chart: RwSignal<Chart>, factor: f64, center_x: f32) -> usize {
-    chart.update(|current| {
+    chart.update_untracked(|current| {
         let Some(series) = current.get_series(current_interval().get_untracked()) else {
             return;
         };
@@ -1072,7 +1076,7 @@ fn pan_chart(
 ) -> usize {
     let mut resulting_start = 0;
     let mut moved = false;
-    chart.update(|current| {
+    chart.update_untracked(|current| {
         let Some(series) = current.get_series(current_interval().get_untracked()) else {
             return;
         };
@@ -1107,7 +1111,7 @@ fn pan_chart(
 }
 
 fn reset_chart_viewport(chart: RwSignal<Chart>) {
-    chart.update(|current| {
+    chart.update_untracked(|current| {
         current.update_viewport_for_data();
         let interval = current_interval().get_untracked();
         let Some(series) = current.get_series(interval) else {
@@ -1262,7 +1266,7 @@ fn ChartContainer() -> impl IntoView {
                             test_candles.push(candle);
                         }
 
-                        chart().update(|ch| ch.set_historical_data(test_candles));
+                        chart().update_untracked(|ch| ch.set_historical_data(test_candles));
                         set_status.set(format!(
                             "🎯 Demo mode: Using test data (WebSocket disabled)\nReason: {msg}",
                         ));
@@ -1548,9 +1552,10 @@ fn PriceScale() -> impl IntoView {
     let current_price = global_current_price();
 
     let price_levels = move || {
+        let _ = chart_view_revision().get();
         let symbol = current_symbol().get();
         let chart = get_chart_signal(&symbol).unwrap_or_else(|| ensure_chart(&symbol));
-        let Some((min_price, max_price)) = chart.with(visible_price_bounds) else {
+        let Some((min_price, max_price)) = chart.with_untracked(visible_price_bounds) else {
             return Vec::new();
         };
         let step = 100.0 / 8.0;
@@ -1563,9 +1568,10 @@ fn PriceScale() -> impl IntoView {
             .collect::<Vec<_>>()
     };
     let current_price_position = move || {
+        let _ = chart_view_revision().get();
         let symbol = current_symbol().get();
         let chart = get_chart_signal(&symbol).unwrap_or_else(|| ensure_chart(&symbol));
-        chart.with(|current| {
+        chart.with_untracked(|current| {
             let Some((min_price, max_price)) = visible_price_bounds(current) else {
                 return 50.0;
             };
@@ -1830,7 +1836,7 @@ async fn start_market_stream(
                 &format!("✅ Loaded {} historical candles", historical_candles.len()),
             );
 
-            chart.update(|ch| ch.set_historical_data(historical_candles.clone()));
+            chart.update_untracked(|ch| ch.set_historical_data(historical_candles.clone()));
             reset_chart_viewport(chart);
             if current_symbol().get_untracked() == symbol {
                 refresh_active_market_view();
@@ -1894,7 +1900,7 @@ async fn start_market_stream(
                     });
                 }
 
-                chart.update(|ch| {
+                chart.update_untracked(|ch| {
                     let (was_at_live_edge, visible_before) = ch
                         .get_series(interval)
                         .map(|series| {
@@ -1923,7 +1929,8 @@ async fn start_market_stream(
                 {
                     global_is_streaming().set(true);
                     global_current_price().set(candle.ohlcv.close.value());
-                    global_candle_count().set(chart.with(|c| c.get_candle_count()));
+                    chart_view_revision().update(|revision| *revision = revision.wrapping_add(1));
+                    global_candle_count().set(chart.with_untracked(|c| c.get_candle_count()));
 
                     let sym_for_queue = handler_symbol.clone();
                     enqueue_render_task(Box::new(move |r| {

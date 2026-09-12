@@ -19,6 +19,7 @@ Playwright scenarios in `e2e/chart.spec.ts` build and serve the release bundle, 
 - WebGPU chart startup without browser errors;
 - the single connection status, price formatting, indicator toggles, zoom, and pan;
 - concurrent BTC, ETH, and SOL streams plus instant market switching without reconnects;
+- continued timeframe, pan, and zoom interaction after subsequent live ticks;
 - native `1s` source aggregation into `2s` candles and zero-volume bucket removal;
 - history backfill only after the viewport reaches the left edge.
 
