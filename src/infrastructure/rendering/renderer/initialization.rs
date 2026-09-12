@@ -267,6 +267,13 @@ impl WebGpuRenderer {
 
     pub fn resize(&mut self, new_width: u32, new_height: u32) {
         if new_width > 0 && new_height > 0 {
+            if let Some(canvas) = document()
+                .get_element_by_id(&self._canvas_id)
+                .and_then(|element| element.dyn_into::<HtmlCanvasElement>().ok())
+            {
+                canvas.set_width(new_width);
+                canvas.set_height(new_height);
+            }
             self.width = new_width;
             self.height = new_height;
             self.config.width = new_width;

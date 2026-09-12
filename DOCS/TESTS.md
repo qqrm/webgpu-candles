@@ -22,6 +22,8 @@ Playwright scenarios in `e2e/chart.spec.ts` build and serve the release bundle, 
 - continued timeframe, pan, and zoom interaction after subsequent live ticks;
 - native `1s` source aggregation into `2s` candles and zero-volume bucket removal;
 - history backfill only after the viewport reaches the left edge.
+- responsive large-chart layout and the one-million-candle LOD stress mode;
+- zoom, pan, and live-mode recovery after the stress data set is loaded.
 
 Install Chromium once and run the suite with:
 

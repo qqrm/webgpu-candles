@@ -136,6 +136,13 @@ FPS is printed to the console and the `perf.yml` workflow saves the log as an
 artifact. Current metric values are stored in [PIPELINES.md](.github/workflows/PIPELINES.md).
 `tests/performance_limit.rs` logs when FPS drops below 30 for large charts.
 
+The `1M stress` control also provides an in-browser benchmark: it generates and
+bulk-loads one million deterministic two-second candles, reports generation,
+load, and first-render time, and keeps the full source series resident. Rendering
+uses viewport-aware OHLCV level-of-detail aggregation capped at 4,096 GPU bars,
+so the complete data set can be inspected without creating one draw item per
+source candle.
+
 
 ## Tests
 
@@ -184,4 +191,3 @@ npx wscat -c wss://stream.binance.com:9443/ws/btcusdt@kline_1m
 
 ## License
 This project is distributed under the [MIT License](LICENSE).
-

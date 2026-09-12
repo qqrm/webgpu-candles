@@ -1,6 +1,6 @@
 use super::*;
 use crate::domain::logging::{LogComponent, get_logger};
-use crate::domain::market_data::{Price, TimeInterval};
+use crate::domain::market_data::{Candle, OHLCV, Price, TimeInterval, Timestamp, Volume};
 use crate::infrastructure::rendering::gpu_structures::{
     CURRENT_PRICE_COLOR, CandleGeometry, CandleInstance, EMA12_COLOR, EMA26_COLOR, IndicatorType,
     SMA20_COLOR, SMA50_COLOR, SMA200_COLOR,
@@ -8,7 +8,7 @@ use crate::infrastructure::rendering::gpu_structures::{
 use leptos::SignalGetUntracked;
 
 /// Minimum element width (candle or volume bar)
-pub const MIN_ELEMENT_WIDTH: f32 = 0.002;
+pub const MIN_ELEMENT_WIDTH: f32 = 0.0001;
 /// Maximum element width (candle or volume bar)
 pub const MAX_ELEMENT_WIDTH: f32 = 0.24;
 /// Minimum visible candle body height in physical canvas pixels.
@@ -17,6 +17,78 @@ pub const MIN_CANDLE_BODY_PX: f32 = 2.0;
 pub const SPACING_RATIO: f32 = 0.2;
 /// Gap between the right edge and the last element
 pub const EDGE_GAP: f32 = 0.003;
+/// Keep overview geometry near one logical bar per two physical pixels.
+pub const PIXELS_PER_RENDERED_CANDLE: usize = 2;
+
+#[derive(Debug, Clone)]
+struct RenderCandle {
+    candle: Candle,
+    source_index: usize,
+}
+
+/// Number of candles sent to the GPU after level-of-detail aggregation.
+pub fn lod_candle_count(visible_count: usize, canvas_width: u32) -> usize {
+    let pixel_budget = (canvas_width as usize / PIXELS_PER_RENDERED_CANDLE).clamp(128, 4096);
+    visible_count.min(pixel_budget)
+}
+
+fn build_render_candles(
+    candles: &std::collections::VecDeque<Candle>,
+    start_index: usize,
+    visible_count: usize,
+    canvas_width: u32,
+) -> Vec<RenderCandle> {
+    let target = lod_candle_count(visible_count, canvas_width);
+    if target == 0 {
+        return Vec::new();
+    }
+    if target == visible_count {
+        return candles
+            .iter()
+            .skip(start_index)
+            .take(visible_count)
+            .enumerate()
+            .map(|(offset, candle)| RenderCandle {
+                candle: candle.clone(),
+                source_index: start_index + offset,
+            })
+            .collect();
+    }
+
+    let end_index = (start_index + visible_count).min(candles.len());
+    let mut result = Vec::with_capacity(target);
+    for bucket in 0..target {
+        let bucket_start = start_index + bucket * visible_count / target;
+        let bucket_end = (start_index + (bucket + 1) * visible_count / target).min(end_index);
+        if bucket_start >= bucket_end {
+            continue;
+        }
+        let first = &candles[bucket_start];
+        let last = &candles[bucket_end - 1];
+        let mut high = first.ohlcv.high.value();
+        let mut low = first.ohlcv.low.value();
+        let mut volume = 0.0;
+        for candle in candles.iter().skip(bucket_start).take(bucket_end - bucket_start) {
+            high = high.max(candle.ohlcv.high.value());
+            low = low.min(candle.ohlcv.low.value());
+            volume += candle.ohlcv.volume.value();
+        }
+        result.push(RenderCandle {
+            candle: Candle::new(
+                Timestamp::from_millis(first.timestamp.value()),
+                OHLCV::new(
+                    first.ohlcv.open,
+                    Price::from(high),
+                    Price::from(low),
+                    last.ohlcv.close,
+                    Volume::from(volume),
+                ),
+            ),
+            source_index: bucket_end - 1,
+        });
+    }
+    result
+}
 
 /// Dynamic spacing based on number of visible candles
 pub fn spacing_ratio_for(visible_len: usize) -> f32 {
@@ -61,8 +133,7 @@ impl WebGpuRenderer {
         // 🔍 Apply zoom - show fewer candles when zooming in
         let (start_index, visible_count) =
             crate::app::visible_range_by_time_deque(candles, &chart.viewport, self.zoom_level);
-        let visible_candles: Vec<&Candle> =
-            candles.iter().skip(start_index).take(visible_count).collect();
+        let visible_candles = build_render_candles(candles, start_index, visible_count, self.width);
 
         let mut vertices = Vec::with_capacity(visible_candles.len() * 24);
 
@@ -77,9 +148,9 @@ impl WebGpuRenderer {
         // Scale candles based on currently visible data and indicator values
         let mut min_price = f32::INFINITY;
         let mut max_price = f32::NEG_INFINITY;
-        for candle in &visible_candles {
-            min_price = min_price.min(candle.ohlcv.low.value() as f32);
-            max_price = max_price.max(candle.ohlcv.high.value() as f32);
+        for item in &visible_candles {
+            min_price = min_price.min(item.candle.ohlcv.low.value() as f32);
+            max_price = max_price.max(item.candle.ohlcv.high.value() as f32);
         }
 
         // Flat and near-flat 2s windows are valid market states. Expand only the
@@ -87,7 +158,7 @@ impl WebGpuRenderer {
         let price_mid = (max_price + min_price) * 0.5;
         let minimum_range = (price_mid.abs() * 1e-6).max(1e-6);
         let display_range = (max_price - min_price).abs().max(minimum_range) * 1.1;
-        min_price = price_mid - display_range * 0.5;
+        min_price = (price_mid - display_range * 0.5).max(0.0);
         max_price = price_mid + display_range * 0.5;
 
         // Create instance data for each visible candle
@@ -104,14 +175,15 @@ impl WebGpuRenderer {
         };
 
         let mut max_volume = 0.0f32;
-        for c in &visible_candles {
-            max_volume = max_volume.max(c.ohlcv.volume.value() as f32);
+        for item in &visible_candles {
+            max_volume = max_volume.max(item.candle.ohlcv.volume.value() as f32);
         }
         if max_volume <= 0.0 {
             max_volume = 1.0;
         }
 
-        for (i, candle) in visible_candles.iter().enumerate() {
+        for (i, item) in visible_candles.iter().enumerate() {
+            let candle = &item.candle;
             let x = candle_x_position(i, visible_candles.len());
 
             let open_y = price_norm(candle.ohlcv.open.value());
@@ -164,16 +236,13 @@ impl WebGpuRenderer {
         }
 
         let to_points = |values: &[Price], period: usize| -> Vec<(f32, f32)> {
-            values
+            visible_candles
                 .iter()
                 .enumerate()
-                .filter_map(|(idx, val)| {
-                    let candle_idx = idx + period - 1;
-                    if candle_idx < start_index || candle_idx >= start_index + visible_candles.len()
-                    {
-                        return None;
-                    }
-                    let x = candle_x_position(candle_idx - start_index, visible_candles.len());
+                .filter_map(|(display_index, item)| {
+                    let value_index = item.source_index.checked_sub(period - 1)?;
+                    let val = values.get(value_index)?;
+                    let x = candle_x_position(display_index, visible_candles.len());
                     let y = price_norm(val.value());
                     Some((x, y))
                 })
@@ -644,6 +713,21 @@ mod tests {
 
         assert_eq!(instances.len(), crate::app::MIN_VISIBLE_CANDLES as usize);
         assert!(instances.iter().all(|instance| instance.width >= 0.2));
+    }
+
+    #[test]
+    fn lod_caps_geometry_and_preserves_bucket_extremes() {
+        let mut candles: VecDeque<Candle> = (0..10_000).map(make_candle).collect();
+        candles[4_999].ohlcv.high = Price::from(50_000.0);
+        candles[5_000].ohlcv.low = Price::from(1.0);
+
+        let rendered = build_render_candles(&candles, 0, candles.len(), 1600);
+
+        assert_eq!(rendered.len(), 800);
+        assert_eq!(rendered.first().unwrap().candle.ohlcv.open, candles[0].ohlcv.open);
+        assert_eq!(rendered.last().unwrap().candle.ohlcv.close, candles[9_999].ohlcv.close);
+        assert!(rendered.iter().any(|item| item.candle.ohlcv.high.value() == 50_000.0));
+        assert!(rendered.iter().any(|item| item.candle.ohlcv.low.value() == 1.0));
     }
 
     #[test]

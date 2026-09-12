@@ -9,7 +9,7 @@ use leptos::html::Canvas;
 use leptos::spawn_local_with_current_owner;
 use leptos::*;
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,11 +18,12 @@ use wasm_bindgen::JsCast;
 use crate::event_utils::{EventOptions, window_event_listener_with_options};
 use crate::global_signals;
 use crate::global_state::{
-    chart_view_revision, connection_id, ensure_chart, get_chart_signal, globals, streaming_symbols,
+    LIVE_CHART_CAPACITY, StressBenchmark, chart_view_revision, connection_id, ensure_chart,
+    get_chart_signal, globals, streaming_symbols, stress_mode, stress_result, stress_running,
 };
 use crate::{
     domain::{
-        chart::Chart,
+        chart::{Chart, value_objects::ChartType},
         logging::{LogComponent, get_logger},
         market_data::{
             Candle, TimeInterval,
@@ -31,7 +32,8 @@ use crate::{
     },
     infrastructure::rendering::renderer::{
         EDGE_GAP, LineVisibility, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, enqueue_render_task,
-        init_render_queue, set_global_renderer, spacing_ratio_for, with_global_renderer,
+        init_render_queue, lod_candle_count, set_global_renderer, spacing_ratio_for,
+        with_global_renderer,
     },
     infrastructure::{
         http::binance_rest_client::BinanceRestClient, rendering::WebGpuRenderer,
@@ -46,15 +48,70 @@ const MAX_VISIBLE_CANDLES: f64 = 32.0;
 /// Minimum number of candles that must remain visible
 pub(crate) const MIN_VISIBLE_CANDLES: f64 = 8.0;
 
-/// Minimum allowed zoom level
-const MIN_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / 300.0;
+const STRESS_CANDLE_COUNT: usize = 1_000_000;
+/// Minimum allowed zoom level: the complete synthetic stress series fits.
+const MIN_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / STRESS_CANDLE_COUNT as f64;
 /// Maximum allowed zoom level
 pub(crate) const MAX_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / MIN_VISIBLE_CANDLES;
 
 const CHART_WIDTH_PX: f64 = 800.0;
-const CHART_HEIGHT_PX: f64 = 500.0;
 const ZOOM_STEP: f64 = 1.2;
 const DEFAULT_VISIBLE_CANDLES: usize = 96;
+
+fn format_zoom_level(zoom: f64) -> String {
+    if zoom >= 0.1 {
+        format!("{zoom:.1}×")
+    } else if zoom >= 0.001 {
+        format!("{zoom:.3}×")
+    } else {
+        format!("{zoom:.5}×")
+    }
+}
+
+fn performance_now() -> f64 {
+    web_sys::window()
+        .and_then(|window| window.performance())
+        .map(|performance| performance.now())
+        .unwrap_or_else(js_sys::Date::now)
+}
+
+fn canvas_pixel_size(canvas: &web_sys::HtmlCanvasElement) -> (u32, u32) {
+    let scale = web_sys::window().map(|window| window.device_pixel_ratio()).unwrap_or(1.0).min(2.0);
+    let width = (canvas.client_width().max(1) as f64 * scale).round() as u32;
+    let height = (canvas.client_height().max(1) as f64 * scale).round() as u32;
+    (width.max(1), height.max(1))
+}
+
+fn synthetic_candles(count: usize) -> Vec<Candle> {
+    use crate::domain::market_data::{OHLCV, Price, Timestamp, Volume};
+
+    let mut candles = Vec::with_capacity(count);
+    let start = (js_sys::Date::now() as u64).saturating_sub(count as u64 * 2_000);
+    let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+    let mut price = 100.0_f64;
+    for index in 0..count {
+        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+        let noise = ((state >> 32) as f64 / u32::MAX as f64) - 0.5;
+        let open = price;
+        let close = (open + noise * 0.9).max(1.0);
+        let wick = 0.08 + noise.abs() * 0.35;
+        let high = open.max(close) + wick;
+        let low = (open.min(close) - wick).max(0.01);
+        let volume = 10.0 + ((state >> 16) & 0x3ff) as f64;
+        candles.push(Candle::new(
+            Timestamp::from_millis(start + index as u64 * 2_000),
+            OHLCV::new(
+                Price::from(open),
+                Price::from(high),
+                Price::from(low),
+                Price::from(close),
+                Volume::from(volume),
+            ),
+        ));
+        price = close;
+    }
+    candles
+}
 
 /// Index threshold to trigger history backfill
 pub const HISTORY_PRELOAD_THRESHOLD: usize = 64;
@@ -412,7 +469,7 @@ pub fn app() -> impl IntoView {
 
             .bitcoin-chart-app {
                 min-height: 100dvh;
-                padding: clamp(12px, 2.5vw, 32px);
+                padding: clamp(10px, 1.4vw, 24px);
                 color: var(--text);
                 background:
                     radial-gradient(circle at 15% -20%, rgba(78, 111, 168, 0.18), transparent 38rem),
@@ -422,7 +479,7 @@ pub fn app() -> impl IntoView {
             }
 
             .app-shell {
-                width: min(1180px, 100%);
+                width: min(1760px, 100%);
                 margin: 0 auto;
             }
 
@@ -612,6 +669,12 @@ pub fn app() -> impl IntoView {
                 background: var(--surface-hover);
             }
 
+            .selector-button:disabled,
+            .chart-action:disabled {
+                cursor: wait;
+                opacity: 0.48;
+            }
+
             .selector-button.active {
                 border-color: var(--border-strong);
                 color: var(--text);
@@ -631,6 +694,41 @@ pub fn app() -> impl IntoView {
                 color: #bcd3ff;
             }
 
+            .chart-action.stress {
+                min-width: auto;
+                border-color: rgba(141, 180, 255, 0.42);
+                color: #c8d9ff;
+                background: rgba(53, 82, 128, 0.24);
+            }
+
+            .benchmark-strip {
+                display: grid;
+                width: 100%;
+                grid-template-columns: minmax(170px, 1.25fr) repeat(4, minmax(120px, 1fr));
+                gap: 1px;
+                border-bottom: 1px solid var(--border);
+                background: var(--border);
+            }
+
+            .benchmark-cell {
+                min-width: 0;
+                padding: 10px 14px;
+                background: #111824;
+            }
+
+            .benchmark-value {
+                color: #dce7ff;
+                font: 680 13px/1.2 ui-monospace, "SFMono-Regular", Consolas, monospace;
+            }
+
+            .benchmark-label {
+                margin-top: 4px;
+                color: var(--text-subtle);
+                font-size: 9px;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+            }
+
             .chart-workspace {
                 width: 100%;
                 padding: clamp(10px, 2vw, 20px);
@@ -639,9 +737,9 @@ pub fn app() -> impl IntoView {
 
             .chart-viewport {
                 position: relative;
-                width: min(100%, 960px);
+                width: 100%;
+                height: clamp(520px, 68dvh, 900px);
                 margin: 0 auto;
-                aspect-ratio: 8 / 5;
             }
 
             #chart-canvas {
@@ -727,7 +825,7 @@ pub fn app() -> impl IntoView {
 
             .time-scale {
                 display: flex;
-                width: min(100%, 960px);
+                width: 100%;
                 height: 28px;
                 align-items: center;
                 justify-content: space-between;
@@ -850,6 +948,18 @@ pub fn app() -> impl IntoView {
                 .control-hints {
                     text-align: left;
                 }
+
+                .benchmark-strip {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+
+                .benchmark-cell:first-child {
+                    grid-column: 1 / -1;
+                }
+
+                .chart-viewport {
+                    height: clamp(420px, 62dvh, 620px);
+                }
             }
 
             @media (max-width: 460px) {
@@ -894,6 +1004,7 @@ fn header() -> impl IntoView {
     let current_price = global_current_price();
     let candle_count = global_candle_count();
     let render_time_ms = global_render_time_ms();
+    let is_stress = stress_mode();
     let is_active_streaming = move || {
         let symbol = current_symbol().get();
         streaming_symbols().with(|symbols| symbols.contains(&symbol))
@@ -926,18 +1037,30 @@ fn header() -> impl IntoView {
                 </div>
                 <div
                     class="connection-pill"
-                    class:live=is_active_streaming
+                    class:live=move || is_stress.get() || is_active_streaming()
                     role="status"
                 >
                     <span class="connection-dot"></span>
-                    {move || if is_active_streaming() { "LIVE" } else { "CONNECTING" }}
+                    {move || {
+                        if is_stress.get() {
+                            "STRESS 1M"
+                        } else if is_active_streaming() {
+                            "LIVE"
+                        } else {
+                            "CONNECTING"
+                        }
+                    }}
                 </div>
             </div>
 
             <div class="market-summary">
                 <div class="market-primary">
                     <div class="market-symbol">
-                        {move || format!("{} · SPOT", current_symbol().get().value())}
+                        {move || if is_stress.get() {
+                            "SYNTHETIC · 2S".to_string()
+                        } else {
+                            format!("{} · SPOT", current_symbol().get().value())
+                        }}
                     </div>
                     <div class="market-price">
                         {move || format!("${}", format_axis_price(current_price.get()))}
@@ -954,7 +1077,7 @@ fn header() -> impl IntoView {
                     <div class="metric-label">"Render submit"</div>
                 </div>
                 <div class="metric">
-                    <div class="metric-value">{move || format!("{:.1}×", zoom_level())}</div>
+                    <div class="metric-value">{move || format_zoom_level(zoom_level())}</div>
                     <div class="metric-label">"Viewport zoom"</div>
                 </div>
             </div>
@@ -1156,6 +1279,104 @@ fn refresh_active_market_view() {
     let _ = sync_chart_view(chart);
 }
 
+async fn activate_stress_mode(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
+    if stress_running().get_untracked() {
+        return;
+    }
+    stress_running().set(true);
+    stress_mode().set(true);
+    stress_result().set(None);
+    connection_id().update(|generation| *generation = generation.wrapping_add(1));
+    abort_all_streams();
+    streaming_symbols().set(HashSet::new());
+    global_is_streaming().set(false);
+    set_status.set("Generating 1,000,000 deterministic candles…".to_string());
+
+    // Let the loading state paint before the intentionally heavy allocation.
+    sleep(Duration::from_millis(1)).await;
+    let generate_start = performance_now();
+    let candles = synthetic_candles(STRESS_CANDLE_COUNT);
+    let generated_ms = performance_now() - generate_start;
+
+    let load_start = performance_now();
+    let latest_price = candles.last().map(|candle| candle.ohlcv.close.value()).unwrap_or_default();
+    let symbol = current_symbol().get_untracked();
+    let mut stress_chart =
+        Chart::new(symbol.value().to_string(), ChartType::Candlestick, STRESS_CANDLE_COUNT);
+    stress_chart.set_base_series(candles);
+    chart.set_untracked(stress_chart);
+    current_interval().set(TimeInterval::TwoSeconds);
+    global_current_price().set(latest_price);
+    let source_candles = chart.with_untracked(Chart::get_candle_count);
+    global_candle_count().set(source_candles);
+    let loaded_ms = performance_now() - load_start;
+
+    let render_start = performance_now();
+    let _ = sync_chart_view(chart);
+    let first_render_ms = performance_now() - render_start;
+    let render_width =
+        with_global_renderer(|renderer| renderer.render_width()).unwrap_or(CHART_WIDTH_PX as u32);
+    let rendered_candles = lod_candle_count(source_candles, render_width);
+    stress_result().set(Some(StressBenchmark {
+        generated_ms,
+        loaded_ms,
+        first_render_ms,
+        source_candles,
+        rendered_candles,
+    }));
+    stress_running().set(false);
+    set_status.set(format!(
+        "1M overview ready · {:.1} ms generation · {:.1} ms first render",
+        generated_ms, first_render_ms
+    ));
+}
+
+async fn restore_live_mode(chart: RwSignal<Chart>, set_status: WriteSignal<String>) {
+    stress_running().set(true);
+    stress_mode().set(false);
+    set_status.set("Restoring live markets…".to_string());
+    let symbol = current_symbol().get_untracked();
+    chart.set_untracked(Chart::new(
+        symbol.value().to_string(),
+        ChartType::Candlestick,
+        LIVE_CHART_CAPACITY,
+    ));
+    start_all_websocket_streams(set_status).await;
+    stress_running().set(false);
+}
+
+#[component]
+fn BenchmarkStrip() -> impl IntoView {
+    view! {
+        <Show when=move || stress_result().get().is_some()>
+            {move || stress_result().get().map(|result| view! {
+                <div class="benchmark-strip" data-testid="benchmark-strip">
+                    <div class="benchmark-cell">
+                        <div class="benchmark-value">"1,000,000 → "{result.rendered_candles}</div>
+                        <div class="benchmark-label">"Raw candles → GPU LOD bars"</div>
+                    </div>
+                    <div class="benchmark-cell">
+                        <div class="benchmark-value">{format!("{:.1} ms", result.generated_ms)}</div>
+                        <div class="benchmark-label">"Generate"</div>
+                    </div>
+                    <div class="benchmark-cell">
+                        <div class="benchmark-value">{format!("{:.1} ms", result.loaded_ms)}</div>
+                        <div class="benchmark-label">"Bulk load"</div>
+                    </div>
+                    <div class="benchmark-cell">
+                        <div class="benchmark-value">{format!("{:.1} ms", result.first_render_ms)}</div>
+                        <div class="benchmark-label">"First render"</div>
+                    </div>
+                    <div class="benchmark-cell">
+                        <div class="benchmark-value">{result.source_candles}</div>
+                        <div class="benchmark-label">"Resident candles"</div>
+                    </div>
+                </div>
+            })}
+        </Show>
+    }
+}
+
 /// 🎨 Container for the WebGPU chart
 #[component]
 fn ChartContainer() -> impl IntoView {
@@ -1181,6 +1402,7 @@ fn ChartContainer() -> impl IntoView {
 
         if let Some(canvas) = canvas_ref.get() {
             let canvas_id = std::ops::Deref::deref(&canvas).id();
+            let (render_width, render_height) = canvas_pixel_size(std::ops::Deref::deref(&canvas));
             set_initialized.set(true);
             let _ = spawn_local_with_current_owner(async move {
                 web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
@@ -1195,13 +1417,7 @@ fn ChartContainer() -> impl IntoView {
 
                 web_sys::console::log_1(&"⚡ About to call WebGpuRenderer::new...".into());
 
-                match WebGpuRenderer::new(
-                    canvas_id.as_str(),
-                    CHART_WIDTH_PX as u32,
-                    CHART_HEIGHT_PX as u32,
-                )
-                .await
-                {
+                match WebGpuRenderer::new(canvas_id.as_str(), render_width, render_height).await {
                     Ok(webgpu_renderer) => {
                         get_logger().info(
                             LogComponent::Infrastructure("WebGPU"),
@@ -1448,6 +1664,25 @@ fn ChartContainer() -> impl IntoView {
         });
     on_cleanup(move || mouseup_listener.remove());
 
+    let resize_canvas_ref = canvas_ref;
+    let resize_chart_memo = chart_memo;
+    let resize_listener =
+        window_event_listener_with_options(ev::resize, &EventOptions::default(), move |_| {
+            let Some(canvas) = resize_canvas_ref.get() else {
+                return;
+            };
+            let (width, height) = canvas_pixel_size(std::ops::Deref::deref(&canvas));
+            let chart_signal = resize_chart_memo.get_untracked();
+            chart_signal.with_untracked(|current| {
+                let _ = with_global_renderer(|renderer| {
+                    renderer.resize(width, height);
+                    let _ = renderer.render(current);
+                });
+            });
+            chart_view_revision().update(|revision| *revision = revision.wrapping_add(1));
+        });
+    on_cleanup(move || resize_listener.remove());
+
     let handle_zoom_in = move |_| {
         let _ = zoom_chart(chart(), ZOOM_STEP, 0.5);
     };
@@ -1456,6 +1691,19 @@ fn ChartContainer() -> impl IntoView {
     };
     let handle_reset = move |_| reset_chart(chart());
     let handle_double_click = move |_| reset_chart(chart());
+    let handle_stress = move |_| {
+        if stress_running().get_untracked() {
+            return;
+        }
+        let chart_signal = chart();
+        let _ = spawn_local_with_current_owner(async move {
+            if stress_mode().get_untracked() {
+                restore_live_mode(chart_signal, set_status).await;
+            } else {
+                activate_stress_mode(chart_signal, set_status).await;
+            }
+        });
+    };
 
     view! {
         <div class="chart-container">
@@ -1471,6 +1719,25 @@ fn ChartContainer() -> impl IntoView {
                     </div>
                 </div>
                 <div class="chart-actions" aria-label="Chart controls">
+                    <button
+                        class="chart-action stress"
+                        aria-label=move || if stress_mode().get() {
+                            "Back to live"
+                        } else {
+                            "Run one million candle stress test"
+                        }
+                        title="Load and render 1,000,000 deterministic candles"
+                        disabled=move || stress_running().get()
+                        on:click=handle_stress
+                    >
+                        {move || if stress_running().get() {
+                            "Building 1M…"
+                        } else if stress_mode().get() {
+                            "Back to live"
+                        } else {
+                            "1M stress"
+                        }}
+                    </button>
                     <button
                         class="chart-action"
                         aria-label="Zoom out"
@@ -1490,6 +1757,8 @@ fn ChartContainer() -> impl IntoView {
                     >"Live view"</button>
                 </div>
             </div>
+
+            <BenchmarkStrip />
 
             <div class="chart-workspace">
                 <div class="chart-viewport">
@@ -1544,7 +1813,7 @@ fn visible_price_bounds(chart: &Chart) -> Option<(f64, f64)> {
         max_price = max_price.max(candle.ohlcv.high.value());
     }
     let padding = ((max_price - min_price).abs().max(1e-6)) * 0.05;
-    Some((min_price - padding, max_price + padding))
+    Some(((min_price - padding).max(0.0), max_price + padding))
 }
 
 #[component]
@@ -1676,6 +1945,7 @@ fn TimeframeSelector(set_status: WriteSignal<String>) -> impl IntoView {
                     let status_signal = set_status;
                     view! {
                         <button
+                            disabled=move || stress_mode().get()
                             class=move || if current_interval().get() == interval {
                                 "selector-button active"
                             } else {
@@ -1781,6 +2051,7 @@ fn AssetSelector(set_status: WriteSignal<String>) -> impl IntoView {
                     let click_symbol = sym.clone();
                     view! {
                         <button
+                            disabled=move || stress_mode().get()
                             class=move || if current_symbol().get() == selected_symbol {
                                 "selector-button active"
                             } else {
@@ -2151,10 +2422,28 @@ mod tests {
     #[test]
     fn zoom_limits_respected_by_visible_range() {
         let (_, visible_min_zoom) = visible_range(1000, MIN_ZOOM_LEVEL, 0.0);
-        assert!(visible_min_zoom <= 300);
+        assert_eq!(visible_min_zoom, 1000);
 
         let (_, visible_max_zoom) = visible_range(1000, MAX_ZOOM_LEVEL, 0.0);
         assert_eq!(visible_max_zoom as f64, MIN_VISIBLE_CANDLES);
+    }
+
+    #[test]
+    fn zoom_label_keeps_extreme_overview_precision() {
+        assert_eq!(format_zoom_level(0.000032), "0.00003×");
+        assert_eq!(format_zoom_level(0.26), "0.3×");
+    }
+
+    #[test]
+    fn synthetic_series_is_dense_and_deterministic_shape() {
+        let candles = synthetic_candles(1_000);
+        assert_eq!(candles.len(), 1_000);
+        assert!(candles.iter().all(|candle| !candle.is_empty()));
+        assert!(
+            candles
+                .windows(2)
+                .all(|pair| { pair[1].timestamp.value() - pair[0].timestamp.value() == 2_000 })
+        );
     }
 
     #[test]

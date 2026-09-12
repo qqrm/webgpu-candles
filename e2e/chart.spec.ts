@@ -256,3 +256,40 @@ test('loads older history only after reaching the left edge', async ({ page }) =
   await expect(page.getByText(/Failed to load/i)).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('renders a responsive million-candle overview with LOD and remains interactive', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await mockMarket(page);
+  const errors = captureRuntimeErrors(page);
+  await openReadyChart(page);
+
+  const canvas = await page.locator('#chart-canvas').boundingBox();
+  expect(canvas?.width).toBeGreaterThan(1_100);
+  expect(canvas?.height).toBeGreaterThan(500);
+
+  await page.getByRole('button', { name: 'Run one million candle stress test' }).click();
+  await expect(page.locator('.connection-pill')).toHaveText('STRESS 1M', { timeout: 30_000 });
+  await expect(page.locator('.metric-value').first()).toHaveText('1000000');
+  await expect(page.getByTestId('benchmark-strip')).toContainText('1,000,000');
+  await expect(page.getByTestId('benchmark-strip')).toContainText('First render');
+  await expect(page.getByRole('button', { name: '5m', exact: true })).toBeDisabled();
+
+  const overviewZoom = await page.locator('.metric-value').last().innerText();
+  expect(overviewZoom).toMatch(/^0\.0+/);
+  for (let index = 0; index < 4; index += 1) {
+    await page.getByRole('button', { name: 'Zoom in' }).click();
+  }
+  await expect.poll(() => page.locator('.metric-value').last().innerText()).not.toBe(overviewZoom);
+  const beforePan = await page.locator('.time-scale').innerText();
+  await dragRight(page, 1);
+  await expect.poll(() => page.locator('.time-scale').innerText()).not.toBe(beforePan);
+
+  await page.getByRole('button', { name: 'Back to live' }).click();
+  await expect(page.locator('.connection-pill')).toHaveText(/LIVE/);
+  await expect
+    .poll(async () => Number(await page.locator('.metric-value').first().innerText()))
+    .toBeGreaterThanOrEqual(450);
+  expect(errors).toEqual([]);
+});

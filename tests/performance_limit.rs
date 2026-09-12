@@ -23,18 +23,23 @@ fn setup_canvas(id: &str, width: u32, height: u32) {
 
 fn sample_chart(count: usize) -> Chart {
     let mut chart = Chart::new("perf".to_string(), ChartType::Candlestick, count + 10);
-    for i in 0..count {
-        let ts = Timestamp::from_millis(i as u64);
-        let base = 10000.0 + i as f64;
-        let ohlcv = OHLCV::new(
-            Price::from(base),
-            Price::from(base + 10.0),
-            Price::from(base - 10.0),
-            Price::from(base + 5.0),
-            Volume::from(1.0),
-        );
-        chart.add_candle(Candle::new(ts, ohlcv));
-    }
+    let candles = (0..count)
+        .map(|i| {
+            let ts = Timestamp::from_millis(i as u64);
+            let base = 10_000.0 + (i % 10_000) as f64;
+            Candle::new(
+                ts,
+                OHLCV::new(
+                    Price::from(base),
+                    Price::from(base + 10.0),
+                    Price::from(base - 10.0),
+                    Price::from(base + 5.0),
+                    Volume::from(1.0),
+                ),
+            )
+        })
+        .collect();
+    chart.set_base_series(candles);
     chart
 }
 
@@ -53,10 +58,17 @@ async fn fps_degradation_logging() {
         }
     };
 
-    let counts = [1000usize, 5000, 10000, 20000, 50000];
+    let performance = web_sys::window().unwrap().performance().unwrap();
+    let counts = [1_000usize, 50_000, 1_000_000];
     for &count in &counts {
         let chart = sample_chart(count);
+        let start = performance.now();
+        let _ = renderer.render(&chart);
+        let first_render_ms = performance.now() - start;
         let fps = renderer.measure_fps(&chart, 30);
+        web_sys::console::log_1(
+            &format!("{count} candles: {first_render_ms:.2} ms first render").into(),
+        );
         if fps < 30.0 {
             web_sys::console::log_1(&format!("⚠ {count} candles: {fps:.2} FPS").into());
         } else {

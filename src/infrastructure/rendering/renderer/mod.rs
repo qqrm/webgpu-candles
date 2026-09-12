@@ -3,7 +3,6 @@
 //! This module manages GPU buffers and performs the render loop. The renderer
 //! is kept behind a global handle to simplify access from the UI layer.
 
-use crate::domain::market_data::Candle;
 use crate::domain::{
     chart::Chart,
     logging::{LogComponent, get_logger},
@@ -115,7 +114,7 @@ impl Default for LineVisibility {
 mod geometry;
 pub use geometry::{
     EDGE_GAP, MAX_ELEMENT_WIDTH, MIN_ELEMENT_WIDTH, SPACING_RATIO, candle_x_position,
-    spacing_ratio_for,
+    lod_candle_count, spacing_ratio_for,
 };
 mod initialization;
 mod performance;

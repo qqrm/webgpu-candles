@@ -11,5 +11,7 @@ The project targets a fully interactive trading chart with the following capabil
 - Volume bar chart below the candles.
 - Drag and pan for navigation.
 - Button to jump back to the current time.
-
+- Full-width responsive chart workspace with an extended zoom-out range.
+- Interactive one-million-candle synthetic benchmark with visible timings and
+  viewport-aware OHLCV level-of-detail rendering.
 

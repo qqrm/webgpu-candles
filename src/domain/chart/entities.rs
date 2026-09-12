@@ -114,6 +114,30 @@ impl Chart {
         self.bump_revision();
     }
 
+    /// Install a pre-sorted base series without deriving every exchange
+    /// timeframe. This keeps the million-candle renderer stress test focused
+    /// on storage, viewport selection, LOD generation and GPU submission.
+    pub fn set_base_series(&mut self, mut candles: Vec<Candle>) {
+        candles.retain(|candle| !candle.is_empty());
+        let limit = self
+            .series
+            .get(&TimeInterval::TwoSeconds)
+            .map(CandleSeries::capacity)
+            .unwrap_or(candles.len());
+        for series in self.series.values_mut() {
+            *series = CandleSeries::new(limit);
+        }
+        for engine in self.ma_engines.values_mut() {
+            *engine = MovingAverageEngine::new();
+        }
+        self.open_buckets.clear();
+        if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
+            base.replace_all(candles);
+        }
+        self.update_viewport_for_data();
+        self.bump_revision();
+    }
+
     /// Prepend an ordered historical batch without disturbing the current viewport.
     ///
     /// The REST API returns candles older than the first loaded bar. Rebuilding the
@@ -426,5 +450,16 @@ mod tests {
         chart.add_realtime_candle(empty_candle(4));
         assert_eq!(chart.get_candle_count(), 2);
         assert_eq!(chart.revision(), revision);
+    }
+
+    #[test]
+    fn base_series_bulk_load_skips_derived_timeframes() {
+        let mut chart = Chart::new("stress".to_string(), ChartType::Candlestick, 10);
+        chart.set_base_series((0..10).map(candle).collect());
+
+        assert_eq!(chart.get_candle_count(), 10);
+        assert_eq!(chart.get_series(TimeInterval::OneMinute).unwrap().count(), 0);
+        assert_eq!(chart.viewport.start_time, candle(0).timestamp.value() as f64);
+        assert_eq!(chart.viewport.end_time, candle(9).timestamp.value() as f64);
     }
 }

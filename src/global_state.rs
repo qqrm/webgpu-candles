@@ -19,6 +19,17 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+pub const LIVE_CHART_CAPACITY: usize = 50_000;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StressBenchmark {
+    pub generated_ms: f64,
+    pub loaded_ms: f64,
+    pub first_render_ms: f64,
+    pub source_candles: usize,
+    pub rendered_candles: usize,
+}
+
 #[derive(Clone, Copy)]
 pub struct Globals {
     pub current_price: RwSignal<f64>,
@@ -39,6 +50,9 @@ pub struct Globals {
     pub view_state: RwSignal<ViewState>,
     pub connection_id: RwSignal<u64>,
     pub chart_view_revision: RwSignal<u64>,
+    pub stress_mode: RwSignal<bool>,
+    pub stress_running: RwSignal<bool>,
+    pub stress_result: RwSignal<Option<StressBenchmark>>,
 }
 
 // The production app has one Leptos runtime, so a OnceCell gives lock-free
@@ -76,6 +90,9 @@ fn create_globals() -> Globals {
         view_state: create_rw_signal(ViewState::new(5.0, 1.0, 20.0)),
         connection_id: create_rw_signal(0),
         chart_view_revision: create_rw_signal(0),
+        stress_mode: create_rw_signal(false),
+        stress_running: create_rw_signal(false),
+        stress_result: create_rw_signal(None),
     }
 }
 
@@ -116,7 +133,7 @@ pub fn ensure_chart(symbol: &Symbol) -> RwSignal<Chart> {
         return sig;
     }
     let mut world = ecs_world().lock().unwrap();
-    let chart = Chart::new(symbol.value().to_string(), ChartType::Candlestick, 50_000);
+    let chart = Chart::new(symbol.value().to_string(), ChartType::Candlestick, LIVE_CHART_CAPACITY);
     let entity = world.spawn_chart(chart);
     world.world.get::<&ChartComponent>(entity).map(|c| c.0).expect("chart just spawned")
 }
@@ -143,6 +160,18 @@ pub fn connection_id() -> RwSignal<u64> {
 
 pub fn chart_view_revision() -> RwSignal<u64> {
     globals().chart_view_revision
+}
+
+pub fn stress_mode() -> RwSignal<bool> {
+    globals().stress_mode
+}
+
+pub fn stress_running() -> RwSignal<bool> {
+    globals().stress_running
+}
+
+pub fn stress_result() -> RwSignal<Option<StressBenchmark>> {
+    globals().stress_result
 }
 
 /// Add a candle to the ECS world and process systems.

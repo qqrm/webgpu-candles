@@ -76,6 +76,18 @@ impl CandleSeries {
         }
     }
 
+    /// Replace the complete series in one allocation.
+    ///
+    /// This is used by large synthetic datasets where feeding candles through
+    /// the real-time aggregation path would add work that is unrelated to the
+    /// renderer benchmark.
+    pub fn replace_all(&mut self, mut candles: Vec<Candle>) {
+        if candles.len() > self.max_size {
+            candles.drain(..candles.len() - self.max_size);
+        }
+        self.candles = candles.into();
+    }
+
     /// Insert a candle while keeping time order
     fn insert_candle_sorted(&mut self, candle: Candle) {
         // Find the correct insertion position

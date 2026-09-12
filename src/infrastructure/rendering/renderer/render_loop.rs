@@ -30,8 +30,18 @@ impl WebGpuRenderer {
     }
 
     #[cfg(not(test))]
-    fn write_buffers(&self) {
+    fn write_buffers(&mut self) {
         let vertex_bytes = bytemuck::cast_slice(&self.cached_vertices);
+        let required_size = vertex_bytes.len() as u64;
+        if required_size > self.vertex_buffer.size() {
+            let new_size = required_size.next_power_of_two();
+            self.vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Resizable Vertex Buffer"),
+                size: new_size,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
         let uniform_copy = self.cached_uniforms;
         let uniform_bytes = bytemuck::bytes_of(&uniform_copy);
         self.queue.write_buffer(&self.vertex_buffer, 0, vertex_bytes);
@@ -46,6 +56,10 @@ impl WebGpuRenderer {
 
     pub fn cached_hash_for_test(&self) -> u64 {
         self.cached_hash
+    }
+
+    pub fn render_width(&self) -> u32 {
+        self.width
     }
 
     pub fn create_geometry_for_test(
