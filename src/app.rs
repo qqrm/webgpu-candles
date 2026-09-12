@@ -1652,6 +1652,9 @@ fn ChartTooltip() -> impl IntoView {
 
 #[component]
 fn TimeframeSelector(set_status: WriteSignal<String>) -> impl IntoView {
+    // These selectors are mounted independently by browser unit tests as well
+    // as under App, so initialize shared signals under this component owner.
+    globals();
     let options = vec![
         TimeInterval::TwoSeconds,
         TimeInterval::OneMinute,
@@ -1700,6 +1703,7 @@ fn TimeframeSelector(set_status: WriteSignal<String>) -> impl IntoView {
 
 #[component]
 fn LegendIndicatorToggle(name: &'static str) -> impl IntoView {
+    globals();
     let id = name;
     let label = name.to_uppercase();
     let checked = move || {
@@ -1762,6 +1766,7 @@ fn Legend() -> impl IntoView {
 
 #[component]
 fn AssetSelector(set_status: WriteSignal<String>) -> impl IntoView {
+    globals();
     let options = default_symbols();
 
     view! {
