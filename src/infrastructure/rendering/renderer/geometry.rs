@@ -2,7 +2,8 @@ use super::*;
 use crate::domain::logging::{LogComponent, get_logger};
 use crate::domain::market_data::{Price, TimeInterval};
 use crate::infrastructure::rendering::gpu_structures::{
-    CandleGeometry, CandleInstance, IndicatorType,
+    CURRENT_PRICE_COLOR, CandleGeometry, CandleInstance, EMA12_COLOR, EMA26_COLOR, IndicatorType,
+    SMA20_COLOR, SMA50_COLOR, SMA200_COLOR,
 };
 use crate::{log_info, log_warn};
 use leptos::SignalGetUntracked;
@@ -57,7 +58,7 @@ impl WebGpuRenderer {
         }
 
         // ⚡ Performance: log less frequently
-        if candles.len() % 100 == 0 {
+        if candles.len().is_multiple_of(100) {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
                 &format!("🔧 Creating optimized geometry for {} candles", candles.len()),
@@ -143,7 +144,7 @@ impl WebGpuRenderer {
         }
 
         // Log less often for performance
-        if visible_candles.len() % 50 == 0 {
+        if visible_candles.len().is_multiple_of(50) {
             get_logger().info(
                 LogComponent::Infrastructure("WebGpuRenderer"),
                 &format!(
@@ -420,12 +421,12 @@ impl WebGpuRenderer {
             bullish_color: [0.455, 0.780, 0.529, 1.0], // #74c787 - green
             bearish_color: [0.882, 0.424, 0.282, 1.0], // #e16c48 - red
             wick_color: [0.6, 0.6, 0.6, 0.9],          // light gray
-            sma20_color: [1.0, 1.0, 0.0, 0.9],         // yellow
-            sma50_color: [1.0, 1.0, 0.0, 0.9],         // yellow
-            sma200_color: [1.0, 1.0, 0.0, 0.9],        // yellow
-            ema12_color: [1.0, 1.0, 0.0, 0.9],         // yellow
-            ema26_color: [1.0, 1.0, 0.0, 0.9],         // yellow
-            current_price_color: [1.0, 1.0, 0.0, 0.8], // 💰 bright yellow
+            sma20_color: SMA20_COLOR,
+            sma50_color: SMA50_COLOR,
+            sma200_color: SMA200_COLOR,
+            ema12_color: EMA12_COLOR,
+            ema26_color: EMA26_COLOR,
+            current_price_color: CURRENT_PRICE_COLOR,
             render_params: [candle_width, spacing, line_width, 0.0],
         };
 

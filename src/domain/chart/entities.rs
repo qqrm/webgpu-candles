@@ -67,7 +67,7 @@ impl Chart {
     /// Add historical data, replacing existing values
     pub fn set_historical_data(&mut self, mut candles: Vec<Candle>) {
         // Sort by timestamp for stability
-        candles.sort_by(|a, b| a.timestamp.value().cmp(&b.timestamp.value()));
+        candles.sort_by_key(|a| a.timestamp.value());
 
         // Create a new series with the original limit
         let limit = self

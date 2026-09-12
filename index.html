@@ -3,47 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🦀 Crypto Chart - Leptos + WebGPU</title>
+    <meta name="theme-color" content="#080b11">
+    <meta name="description" content="A real-time WebGPU candlestick chart built with Rust and WebAssembly.">
+    <title>WebGPU Candles — Live Market Chart</title>
     <link rel="icon" type="image/svg+xml" href="res/favicon.svg">
-    <link rel="icon" type="image/png" href="res/favicon.png">
     <link data-trunk rel="copy-dir" href="res" />
     <style>
         body {
             margin: 0;
             padding: 0;
-            background: #283547;
-            color: #ffffff;
+            min-width: 320px;
+            background: #080b11;
+            color: #f4f7fb;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
         
         #loading {
             display: flex;
+            gap: 14px;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            color: #4ade80;
+            min-height: 100vh;
+            color: #f4f7fb;
         }
         
         .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid #34495e;
-            border-top: 4px solid #4ade80;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #263141;
+            border-top-color: #8db4ff;
             border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 15px;
+            animation: spin 800ms linear infinite;
         }
 
-        #build-info {
-            position: fixed;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #34495e;
-            color: #4ade80;
-            padding: 4px 8px;
-            z-index: 1000;
-            font-size: 14px;
+        .loading-title {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 680;
+        }
+
+        .loading-caption {
+            margin: 4px 0 0;
+            color: #8d9aab;
+            font-size: 12px;
         }
         
         @keyframes spin {
@@ -53,33 +55,14 @@
     </style>
 </head>
 <body>
-    <div id="build-info"></div>
-    <!-- Loading screen -->
     <div id="loading">
         <div class="spinner"></div>
         <div>
-            <h2>🦀 Loading Crypto Chart...</h2>
-            <p>WebGPU + WebSocket + Leptos</p>
+            <p class="loading-title">Starting WebGPU renderer</p>
+            <p class="loading-caption">Connecting to live market data…</p>
         </div>
     </div>
 
-    <!-- Trunk will attach the WASM here automatically -->
     <link data-trunk rel="rust" data-wasm-opt="z" />
-    <script>
-        async function loadBuildInfo() {
-            try {
-                const [commitRes, timeRes] = await Promise.all([
-                    fetch('version'),
-                    fetch('build_time'),
-                ]);
-                const commit = (await commitRes.text()).trim();
-                const time = (await timeRes.text()).trim();
-                document.getElementById('build-info').textContent = `Build: ${commit} (${time})`;
-            } catch (e) {
-                console.error('Failed to load build info', e);
-            }
-        }
-        loadBuildInfo();
-    </script>
 </body>
 </html>

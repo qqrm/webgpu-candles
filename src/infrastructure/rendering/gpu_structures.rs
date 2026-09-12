@@ -1,5 +1,12 @@
 use bytemuck::{Pod, Zeroable};
 
+pub const SMA20_COLOR: [f32; 4] = [0.882, 0.424, 0.282, 0.95]; // #e16c48
+pub const SMA50_COLOR: [f32; 4] = [1.0, 1.0, 0.0, 0.95]; // #ffff00
+pub const SMA200_COLOR: [f32; 4] = [0.435, 0.624, 1.0, 0.95]; // #6f9fff
+pub const EMA12_COLOR: [f32; 4] = [0.733, 0.525, 0.988, 0.95]; // #bb86fc
+pub const EMA26_COLOR: [f32; 4] = [0.349, 0.835, 0.878, 0.95]; // #59d5e0
+pub const CURRENT_PRICE_COLOR: [f32; 4] = [0.553, 0.706, 1.0, 0.9]; // #8db4ff
+
 /// Indicator types for GPU rendering
 #[derive(Debug, Clone, Copy)]
 pub enum IndicatorType {
@@ -263,13 +270,13 @@ impl ChartUniforms {
             bullish_color: [0.455, 0.780, 0.529, 1.0], // #74c787 - buy
             bearish_color: [0.882, 0.424, 0.282, 1.0], // #e16c48 - sell
             wick_color: [0.6, 0.6, 0.6, 1.0],          // gray
-            sma20_color: [1.0, 1.0, 0.0, 1.0],         // yellow
-            sma50_color: [1.0, 1.0, 0.0, 1.0],         // yellow
-            sma200_color: [1.0, 1.0, 0.0, 1.0],        // yellow
-            ema12_color: [1.0, 1.0, 0.0, 1.0],         // yellow
-            ema26_color: [1.0, 1.0, 0.0, 1.0],         // yellow
-            current_price_color: [1.0, 1.0, 0.0, 0.8], // 💰 bright yellow with transparency
-            render_params: [8.0, 2.0, 1.0, 0.0],       // width, spacing, line_width, padding
+            sma20_color: SMA20_COLOR,
+            sma50_color: SMA50_COLOR,
+            sma200_color: SMA200_COLOR,
+            ema12_color: EMA12_COLOR,
+            ema26_color: EMA26_COLOR,
+            current_price_color: CURRENT_PRICE_COLOR,
+            render_params: [8.0, 2.0, 1.0, 0.0], // width, spacing, line_width, padding
         }
     }
 }
@@ -695,5 +702,19 @@ impl CandleGeometry {
         };
 
         nice_normalized * magnitude
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn moving_average_colors_are_distinct() {
+        let colors = [SMA20_COLOR, SMA50_COLOR, SMA200_COLOR, EMA12_COLOR, EMA26_COLOR];
+        for (index, color) in colors.iter().enumerate() {
+            assert!(!colors[..index].contains(color));
+        }
+        assert!(!colors.contains(&CURRENT_PRICE_COLOR));
     }
 }

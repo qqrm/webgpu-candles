@@ -75,12 +75,11 @@ pub fn ecs_world() -> &'static Mutex<EcsWorld> {
 
 pub fn get_chart_signal(symbol: &Symbol) -> Option<RwSignal<Chart>> {
     let world = ecs_world().lock().unwrap();
-    world
-        .world
-        .query::<&ChartComponent>()
-        .iter()
-        .find(|(_, c)| c.0.with(|ch| ch.id == symbol.value()))
-        .map(|(_, c)| c.0)
+    world.world.query::<&ChartComponent>().iter().find_map(|(_, c)| {
+        c.0.try_with_untracked(|chart| chart.id == symbol.value())
+            .filter(|matches| *matches)
+            .map(|_| c.0)
+    })
 }
 
 pub fn ensure_chart(symbol: &Symbol) -> RwSignal<Chart> {
@@ -127,7 +126,9 @@ pub fn set_chart_in_ecs(symbol: &Symbol, chart: Chart) {
         let mut world = ecs_world().lock().unwrap();
         let mut found = false;
         for (_, comp) in world.world.query::<&mut ChartComponent>().iter() {
-            if comp.0.with(|c| c.id.clone()) == symbol.value() {
+            let matches_symbol =
+                comp.0.try_with_untracked(|current| current.id == symbol.value()).unwrap_or(false);
+            if matches_symbol {
                 comp.0.set(chart.clone());
                 found = true;
                 break;

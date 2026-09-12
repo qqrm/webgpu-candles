@@ -55,13 +55,13 @@ impl WebGpuRenderer {
         self.cached_line_visibility = self.line_visibility.clone();
         self.template_vertices = self.cached_vertices.len() as u32;
 
-        #[cfg(all(not(test), not(target_arch = "wasm32")))]
+        #[cfg(not(test))]
         self.write_buffers();
 
         true
     }
 
-    #[cfg(all(not(test), not(target_arch = "wasm32")))]
+    #[cfg(not(test))]
     fn write_buffers(&self) {
         let vertex_bytes = bytemuck::cast_slice(&self.cached_vertices);
         let uniform_copy = self.cached_uniforms;
@@ -118,7 +118,7 @@ impl WebGpuRenderer {
             });
 
         // Log only every 100 frames for performance
-        if candle_count % 100 == 0 {
+        if candle_count.is_multiple_of(100) {
             log_info!(
                 LogComponent::Infrastructure("WebGpuRenderer"),
                 "📊 Chart has {} candles to render",
@@ -205,6 +205,8 @@ impl WebGpuRenderer {
         {
             let end = perf.now();
             let duration = end - start;
+            #[cfg(not(debug_assertions))]
+            let _ = duration;
             log_info!(
                 LogComponent::Infrastructure("WebGpuRenderer"),
                 "\u{23f1}\u{fe0f} Render pass took {:.2} ms",
@@ -285,6 +287,7 @@ impl WebGpuRenderer {
             _ => None,
         };
 
+        #[cfg(debug_assertions)]
         if let Some(state) = state {
             log_info!(
                 LogComponent::Infrastructure("LegendToggle"),
@@ -293,6 +296,8 @@ impl WebGpuRenderer {
                 state
             );
         }
+        #[cfg(not(debug_assertions))]
+        let _ = state;
         crate::app::global_line_visibility().set(self.line_visibility.clone());
     }
 
