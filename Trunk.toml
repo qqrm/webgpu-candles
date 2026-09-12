@@ -1,4 +1,4 @@
 [build]
-filehash = false
+filehash = true
 dist = "dist-local"
 public_url = "/"

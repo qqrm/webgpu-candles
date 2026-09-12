@@ -139,6 +139,11 @@ test('loads WebGPU chart and keeps controls internally consistent', async ({ pag
   await openReadyChart(page);
   await expect.poll(() => market.urls.length).toBe(3);
 
+  const moduleUrl = await page.locator('link[rel="modulepreload"]').getAttribute('href');
+  const wasmUrl = await page.locator('link[rel="preload"][type="application/wasm"]').getAttribute('href');
+  expect(moduleUrl).toMatch(/price-chart-wasm-[0-9a-f]+\.js$/);
+  expect(wasmUrl).toMatch(/price-chart-wasm-[0-9a-f]+_bg\.wasm$/);
+
   await expect(page.locator('.market-price')).toHaveText(/^\$\d+$/);
   await expect(page.getByText('Real-time updates')).toHaveCount(0);
   await expect(page.getByText('WebSocket LIVE')).toHaveCount(0);
