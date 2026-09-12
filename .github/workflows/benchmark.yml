@@ -41,34 +41,40 @@ jobs:
           WASM_BINDGEN_TEST_BROWSER_ARGS: "--no-sandbox --enable-unsafe-webgpu"
         run: |
           set -o pipefail
-          wasm-pack test --chrome --headless | tee perf.log
+          wasm-pack test --chrome --headless -- --nocapture | tee perf.log
           python scripts/parse_perf_log.py perf.log benchmark_result.json
       - name: Analyze FPS
         run: |
-          python scripts/compare_fps.py benchmark_result.json docs/perf_baseline.json docs/perf_result.json 5
+          python scripts/compare_fps.py benchmark_result.json DOCS/perf_baseline.json DOCS/perf_result.json 5
       - name: Update perf markdown
         run: |
           python - <<'EOF'
           import json, pathlib
-          data = json.load(open('docs/perf_result.json'))
+          data = json.load(open('DOCS/perf_result.json'))
           lines = ['# Latest metrics', '', '| Metric | Value |', '| --- | --- |']
           for k, v in data.items():
               lines.append(f'| {k} | {v} |')
-          pathlib.Path('docs/perf.md').write_text('\n'.join(lines) + '\n')
+          pathlib.Path('DOCS/perf.md').write_text('\n'.join(lines) + '\n')
           EOF
       - name: Commit results
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add docs/perf.md docs/perf_result.json docs/perf_baseline.json
+          git add DOCS/perf.md DOCS/perf_result.json DOCS/perf_baseline.json
           git commit -m "Update perf metrics" || echo "No changes"
           git push
       - uses: actions/upload-artifact@v4
         with:
           name: perf_results
-          path: docs/perf_result.json
+          path: DOCS/perf_result.json
       - name: Send benchmark results to bot
+        continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: scripts/send_to_bot.sh docs/perf_result.json "Benchmark results"
+        run: |
+          if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
+            echo "Telegram secrets are not configured; skipping notification."
+            exit 0
+          fi
+          scripts/send_to_bot.sh DOCS/perf_result.json "Benchmark results"
