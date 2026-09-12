@@ -82,7 +82,7 @@ pub struct WebGpuRenderer {
     cached_candle_count: usize,
     cached_zoom_level: f64,
     cached_hash: u64,
-    cached_data_hash: u64,
+    cached_data_revision: u64,
     cached_line_visibility: LineVisibility,
 
     // 🔍 Zoom and pan parameters
@@ -90,8 +90,7 @@ pub struct WebGpuRenderer {
     pan_offset: f64,
 
     // ⏱️ Performance metrics
-    last_frame_time: f64,
-    fps_log: VecDeque<f64>,
+    render_time_log: VecDeque<f64>,
 
     // 📊 Indicator line visibility
     line_visibility: LineVisibility,
@@ -149,12 +148,11 @@ pub fn dummy_renderer() -> WebGpuRenderer {
             cached_candle_count: 0,
             cached_zoom_level: 1.0,
             cached_hash: 0,
-            cached_data_hash: 0,
+            cached_data_revision: 0,
             cached_line_visibility: LineVisibility::default(),
             zoom_level: 1.0,
             pan_offset: 0.0,
-            last_frame_time: 0.0,
-            fps_log: VecDeque::new(),
+            render_time_log: VecDeque::new(),
             line_visibility: LineVisibility::default(),
         }
     }

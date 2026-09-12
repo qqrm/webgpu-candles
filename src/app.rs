@@ -9,7 +9,7 @@ use leptos::html::Canvas;
 use leptos::spawn_local_with_current_owner;
 use leptos::*;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,7 +17,7 @@ use wasm_bindgen::JsCast;
 
 use crate::event_utils::{EventOptions, window_event_listener_with_options};
 use crate::global_signals;
-use crate::global_state::{connection_id, domain_state, ensure_chart, get_chart_signal, globals};
+use crate::global_state::{connection_id, ensure_chart, get_chart_signal, globals};
 use crate::{
     domain::{
         chart::Chart,
@@ -42,12 +42,12 @@ use gloo_timers::future::sleep;
 /// Maximum number of candles visible at 1x zoom
 const MAX_VISIBLE_CANDLES: f64 = 32.0;
 /// Minimum number of candles that must remain visible
-const MIN_VISIBLE_CANDLES: f64 = 1.0;
+pub(crate) const MIN_VISIBLE_CANDLES: f64 = 8.0;
 
 /// Minimum allowed zoom level
 const MIN_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / 300.0;
 /// Maximum allowed zoom level
-const MAX_ZOOM_LEVEL: f64 = 32.0;
+pub(crate) const MAX_ZOOM_LEVEL: f64 = MAX_VISIBLE_CANDLES / MIN_VISIBLE_CANDLES;
 
 const CHART_WIDTH_PX: f64 = 800.0;
 const CHART_HEIGHT_PX: f64 = 500.0;
@@ -55,7 +55,7 @@ const ZOOM_STEP: f64 = 1.2;
 const DEFAULT_VISIBLE_CANDLES: usize = 96;
 
 /// Index threshold to trigger history backfill
-pub const HISTORY_PRELOAD_THRESHOLD: usize = 200;
+pub const HISTORY_PRELOAD_THRESHOLD: usize = 64;
 
 /// Maximum candles per backfill request
 const HISTORY_FETCH_LIMIT: u32 = 1000;
@@ -92,27 +92,82 @@ pub fn pan_ratio_from_pixels(delta_x: f64, canvas_width: f64) -> f32 {
     (-(delta_x / canvas_width)).clamp(-1.0, 1.0) as f32
 }
 
+/// Accumulate sub-bar drag distances and emit only complete logical-bar shifts.
+pub fn accumulate_bar_shift(
+    remainder: &mut f64,
+    delta_x: f64,
+    canvas_width: f64,
+    visible_bars: usize,
+) -> isize {
+    if !delta_x.is_finite() || !canvas_width.is_finite() || canvas_width <= 0.0 || visible_bars == 0
+    {
+        return 0;
+    }
+
+    *remainder += -(delta_x / canvas_width) * visible_bars as f64;
+    let complete_bars = remainder.trunc() as isize;
+    *remainder -= complete_bars as f64;
+    complete_bars
+}
+
 /// Determine visible range using timestamps from the viewport
 pub fn visible_range_by_time(
     candles: &[Candle],
     viewport: &crate::domain::chart::value_objects::Viewport,
     zoom: f64,
 ) -> (usize, usize) {
-    if candles.is_empty() {
+    visible_range_by_timestamp(
+        candles.len(),
+        |index| candles[index].timestamp.value(),
+        viewport,
+        zoom,
+    )
+}
+
+/// Determine the visible range of a deque without copying the entire history.
+pub fn visible_range_by_time_deque(
+    candles: &VecDeque<Candle>,
+    viewport: &crate::domain::chart::value_objects::Viewport,
+    zoom: f64,
+) -> (usize, usize) {
+    visible_range_by_timestamp(
+        candles.len(),
+        |index| candles[index].timestamp.value(),
+        viewport,
+        zoom,
+    )
+}
+
+fn visible_range_by_timestamp<F>(
+    len: usize,
+    timestamp_at: F,
+    viewport: &crate::domain::chart::value_objects::Viewport,
+    zoom: f64,
+) -> (usize, usize)
+where
+    F: Fn(usize) -> u64,
+{
+    if len == 0 {
         return (0, 0);
     }
 
-    let visible =
-        ((MAX_VISIBLE_CANDLES / zoom).max(MIN_VISIBLE_CANDLES).min(candles.len() as f64)) as usize;
+    let visible = ((MAX_VISIBLE_CANDLES / zoom).max(MIN_VISIBLE_CANDLES).min(len as f64)) as usize;
 
     let start_ts = viewport.start_time as u64;
-    // Use `partition_point` to find the first candle after `start_ts`.
-    // This avoids scanning the entire slice manually.
-    let start_idx = candles.partition_point(|c| c.timestamp.value() < start_ts);
+    let mut left = 0;
+    let mut right = len;
+    while left < right {
+        let middle = left + (right - left) / 2;
+        if timestamp_at(middle) < start_ts {
+            left = middle + 1;
+        } else {
+            right = middle;
+        }
+    }
 
-    let max_start = candles.len().saturating_sub(visible);
+    let max_start = len.saturating_sub(visible);
     // Clamp to ensure we always display `visible` candles.
-    let start = start_idx.min(max_start);
+    let start = left.min(max_start);
     (start, visible)
 }
 
@@ -122,9 +177,18 @@ pub fn price_levels(viewport: &crate::domain::chart::value_objects::Viewport) ->
     (0..=8).rev().map(|i| viewport.min_price as f64 + i as f64 * step).collect()
 }
 
-/// Calculate zoom level and pan offset based on the viewport
-use std::collections::VecDeque;
+/// Compact price formatting for the chart chrome; tooltips retain full precision.
+pub fn format_axis_price(price: f64) -> String {
+    if price.abs() >= 100.0 {
+        format!("{price:.0}")
+    } else if price.abs() >= 1.0 {
+        format!("{price:.2}")
+    } else {
+        format!("{price:.4}")
+    }
+}
 
+/// Calculate zoom level and pan offset based on the viewport
 pub fn viewport_zoom_pan(
     candles: &VecDeque<Candle>,
     viewport: &crate::domain::chart::value_objects::Viewport,
@@ -133,14 +197,23 @@ pub fn viewport_zoom_pan(
         return (1.0, 0.0);
     }
 
-    let start_idx = candles
-        .iter()
-        .position(|c| c.timestamp.value() >= viewport.start_time as u64)
-        .unwrap_or(candles.len());
-    let end_idx = candles
-        .iter()
-        .position(|c| c.timestamp.value() > viewport.end_time as u64)
-        .unwrap_or(candles.len());
+    let lower_bound = |target: u64, inclusive: bool| {
+        let mut left = 0;
+        let mut right = candles.len();
+        while left < right {
+            let middle = left + (right - left) / 2;
+            let timestamp = candles[middle].timestamp.value();
+            let is_before = if inclusive { timestamp <= target } else { timestamp < target };
+            if is_before {
+                left = middle + 1;
+            } else {
+                right = middle;
+            }
+        }
+        left
+    };
+    let start_idx = lower_bound(viewport.start_time as u64, false);
+    let end_idx = lower_bound(viewport.end_time as u64, true);
 
     let mut visible = end_idx.saturating_sub(start_idx);
     visible = visible.clamp(MIN_VISIBLE_CANDLES as usize, candles.len());
@@ -156,7 +229,7 @@ global_signals! {
     pub global_current_price => current_price: f64,
     global_candle_count => candle_count: usize,
     global_is_streaming => is_streaming: bool,
-    global_max_volume => max_volume: f64,
+    pub global_render_time_ms => render_time_ms: f64,
     loading_more => loading_more: bool,
     tooltip_data => tooltip_data: Option<TooltipData>,
     tooltip_visible => tooltip_visible: bool,
@@ -175,11 +248,12 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
     }
 
     ensure_chart(&current_symbol().get_untracked());
-    let chart = get_chart_signal(&current_symbol().get_untracked()).unwrap();
+    let symbol = current_symbol().get_untracked();
+    let interval = current_interval().get_untracked();
+    let request_connection_id = connection_id().get_untracked();
+    let chart = get_chart_signal(&symbol).unwrap();
     let oldest_ts = chart.with(|c| {
-        c.get_series(current_interval().get_untracked())
-            .and_then(|s| s.get_candles().front())
-            .map(|c| c.timestamp.value())
+        c.get_series(interval).and_then(|s| s.get_candles().front()).map(|c| c.timestamp.value())
     });
     let end_time = match oldest_ts {
         Some(ts) if ts > 0 => ts - 1,
@@ -188,20 +262,27 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
 
     loading_more().set(true);
 
-    let symbol = current_symbol().get_untracked();
     let _ = spawn_local_with_current_owner(async move {
-        let interval = current_interval().get_untracked();
         let client = BinanceRestClient::new(symbol.clone(), interval);
         let result = client.fetch_historical_before(end_time, HISTORY_FETCH_LIMIT).await;
+        if request_connection_id != connection_id().get_untracked()
+            || current_symbol().get_untracked() != symbol
+            || current_interval().get_untracked() != interval
+        {
+            loading_more().set(false);
+            return;
+        }
         match result {
-            Ok(mut new_candles) => {
-                new_candles.sort_by_key(|c| c.timestamp.value());
-                new_candles.dedup_by_key(|c| c.timestamp.value());
+            Ok(new_candles) => {
+                let mut added = 0;
                 chart.update(|ch| {
-                    for candle in new_candles.iter() {
-                        ch.add_candle(candle.clone());
-                    }
+                    added = ch.prepend_historical_data(new_candles);
                 });
+                if added == 0 {
+                    set_status.set("Reached earliest available history".to_string());
+                    loading_more().set(false);
+                    return;
+                }
                 chart.with_untracked(|c| {
                     if c.get_candle_count() > 0
                         && with_global_renderer(|r| {
@@ -218,18 +299,9 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
                 });
 
                 let new_count = chart.with(|c| c.get_candle_count());
-                let max_volume = chart.with(|c| {
-                    c.get_series(current_interval().get_untracked())
-                        .unwrap()
-                        .get_candles()
-                        .iter()
-                        .map(|c| c.ohlcv.volume.value())
-                        .fold(0.0f64, |a, b| a.max(b))
-                });
                 global_candle_count().set(new_count);
-                global_max_volume().set(max_volume);
 
-                set_status.set(format!("📈 Loaded {} older candles", new_candles.len()));
+                set_status.set(format!("Loaded {added} older candles"));
             }
             Err(e) => set_status.set(format!("❌ Failed to load more data: {e}")),
         }
@@ -818,7 +890,7 @@ fn header() -> impl IntoView {
     let current_price = global_current_price();
     let candle_count = global_candle_count();
     let is_streaming = global_is_streaming();
-    let max_volume = global_max_volume();
+    let render_time_ms = global_render_time_ms();
 
     let zoom_level = move || {
         get_chart_signal(&current_symbol().get_untracked())
@@ -859,7 +931,7 @@ fn header() -> impl IntoView {
                         {move || format!("{} · SPOT", current_symbol().get().value())}
                     </div>
                     <div class="market-price">
-                        {move || format!("${:.2}", current_price.get())}
+                        {move || format!("${}", format_axis_price(current_price.get()))}
                     </div>
                 </div>
                 <div class="metric">
@@ -867,8 +939,10 @@ fn header() -> impl IntoView {
                     <div class="metric-label">"Candles loaded"</div>
                 </div>
                 <div class="metric">
-                    <div class="metric-value">{move || format!("{:.2}", max_volume.get())}</div>
-                    <div class="metric-label">"Peak volume"</div>
+                    <div class="metric-value">
+                        {move || format!("{:.2} ms", render_time_ms.get())}
+                    </div>
+                    <div class="metric-label">"Render submit"</div>
                 </div>
                 <div class="metric">
                     <div class="metric-value">{move || format!("{:.1}×", zoom_level())}</div>
@@ -883,42 +957,39 @@ fn header() -> impl IntoView {
 #[component]
 fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
     let time_labels = move || {
-        let interval = current_interval().get_untracked();
-        let candles = chart.with(|c| c.get_series(interval).unwrap().get_candles().clone());
-        let zoom = chart.with(|c| viewport_zoom_pan(&candles, &c.viewport).0);
-
-        if candles.is_empty() {
-            return vec![];
-        }
-
-        let (start_idx, visible) = chart.with(|c| {
-            let candle_vec: Vec<_> = candles.iter().cloned().collect();
-            visible_range_by_time(&candle_vec, &c.viewport, zoom)
-        });
-        let end_idx = (start_idx + visible).min(candles.len());
-        let span_ms = candles
-            .get(start_idx)
-            .zip(candles.get(end_idx.saturating_sub(1)))
-            .map(|(first, last)| last.timestamp.value().saturating_sub(first.timestamp.value()))
-            .unwrap_or_default();
-
-        // Show 5 time labels
-        let num_labels = 5;
-        let mut labels = Vec::new();
-
-        for i in 0..num_labels {
-            let index = (i * visible) / (num_labels - 1);
-            if let Some(candle) =
-                candles.iter().skip(start_idx).nth(index.min(visible.saturating_sub(1)))
-            {
-                let timestamp = candle.timestamp.value();
-                let time_str = format_time_label_for_span(timestamp, span_ms);
-                let position_percent = (i as f64 / (num_labels as f64 - 1.0)) * 100.0;
-                labels.push((time_str, position_percent));
+        chart.with(|current| {
+            let interval = current_interval().get_untracked();
+            let Some(series) = current.get_series(interval) else {
+                return Vec::new();
+            };
+            let candles = series.get_candles();
+            if candles.is_empty() {
+                return Vec::new();
             }
-        }
 
-        labels
+            let zoom = viewport_zoom_pan(candles, &current.viewport).0;
+            let (start_idx, visible) =
+                visible_range_by_time_deque(candles, &current.viewport, zoom);
+            let end_idx = (start_idx + visible).min(candles.len());
+            let span_ms = candles
+                .get(start_idx)
+                .zip(candles.get(end_idx.saturating_sub(1)))
+                .map(|(first, last)| last.timestamp.value().saturating_sub(first.timestamp.value()))
+                .unwrap_or_default();
+
+            let num_labels = 5;
+            let mut labels = Vec::with_capacity(num_labels);
+            for i in 0..num_labels {
+                let index = (i * visible) / (num_labels - 1);
+                if let Some(candle) = candles.get(start_idx + index.min(visible.saturating_sub(1)))
+                {
+                    let time_str = format_time_label_for_span(candle.timestamp.value(), span_ms);
+                    let position_percent = (i as f64 / (num_labels as f64 - 1.0)) * 100.0;
+                    labels.push((time_str, position_percent));
+                }
+            }
+            labels
+        })
     };
 
     view! {
@@ -962,9 +1033,8 @@ fn zoom_chart(chart: RwSignal<Chart>, factor: f64, center_x: f32) -> usize {
             return;
         }
 
-        let candle_vec: Vec<_> = candles.iter().cloned().collect();
         let (old_zoom, _) = viewport_zoom_pan(candles, &current.viewport);
-        let (start, visible) = visible_range_by_time(&candle_vec, &current.viewport, old_zoom);
+        let (start, visible) = visible_range_by_time_deque(candles, &current.viewport, old_zoom);
         let max_visible = (MAX_VISIBLE_CANDLES / MIN_ZOOM_LEVEL) as usize;
         let min_visible = (MAX_VISIBLE_CANDLES / MAX_ZOOM_LEVEL).ceil() as usize;
         let target_visible = ((visible as f64 / factor).round() as usize)
@@ -984,31 +1054,46 @@ fn zoom_chart(chart: RwSignal<Chart>, factor: f64, center_x: f32) -> usize {
     sync_chart_view(chart)
 }
 
-fn pan_chart(chart: RwSignal<Chart>, delta_x: f64, canvas_width: f64) -> usize {
-    let ratio = pan_ratio_from_pixels(delta_x, canvas_width);
-    if ratio != 0.0 {
-        chart.update(|current| {
-            let Some(series) = current.get_series(current_interval().get_untracked()) else {
-                return;
-            };
-            let candles = series.get_candles();
-            if candles.is_empty() {
-                return;
-            }
-            let candle_vec: Vec<_> = candles.iter().cloned().collect();
-            let (zoom, _) = viewport_zoom_pan(candles, &current.viewport);
-            let (start, visible) = visible_range_by_time(&candle_vec, &current.viewport, zoom);
-            let shift = (visible as f64 * ratio as f64).round() as isize;
-            let max_start = candles.len().saturating_sub(visible) as isize;
-            let new_start = (start as isize + shift).clamp(0, max_start) as usize;
-            let new_end = new_start + visible.saturating_sub(1);
-            let start_time = candles[new_start].timestamp.value() as f64;
-            let end_time = candles[new_end].timestamp.value() as f64;
-            current.viewport.start_time = start_time;
-            current.viewport.end_time = end_time;
+fn pan_chart(
+    chart: RwSignal<Chart>,
+    delta_x: f64,
+    canvas_width: f64,
+    pan_remainder: RwSignal<f64>,
+) -> usize {
+    let mut resulting_start = 0;
+    let mut moved = false;
+    chart.update(|current| {
+        let Some(series) = current.get_series(current_interval().get_untracked()) else {
+            return;
+        };
+        let candles = series.get_candles();
+        if candles.is_empty() {
+            return;
+        }
+        let (zoom, _) = viewport_zoom_pan(candles, &current.viewport);
+        let (start, visible) = visible_range_by_time_deque(candles, &current.viewport, zoom);
+        resulting_start = start;
+
+        let mut shift = 0;
+        pan_remainder.update(|remainder| {
+            shift = accumulate_bar_shift(remainder, delta_x, canvas_width, visible);
         });
-    }
-    sync_chart_view(chart)
+        if shift == 0 {
+            return;
+        }
+
+        let max_start = candles.len().saturating_sub(visible) as isize;
+        let new_start = (start as isize + shift).clamp(0, max_start) as usize;
+        let new_end = new_start + visible.saturating_sub(1);
+        let start_time = candles[new_start].timestamp.value() as f64;
+        let end_time = candles[new_end].timestamp.value() as f64;
+        current.viewport.start_time = start_time;
+        current.viewport.end_time = end_time;
+        resulting_start = new_start;
+        moved = new_start != start;
+    });
+
+    if moved { sync_chart_view(chart) } else { resulting_start }
 }
 
 fn reset_chart(chart: RwSignal<Chart>) {
@@ -1043,6 +1128,7 @@ fn ChartContainer() -> impl IntoView {
     let chart = move || chart_memo.get_untracked();
     let (_renderer, set_renderer) = create_signal::<Option<Rc<RefCell<WebGpuRenderer>>>>(None);
     let (status, set_status) = create_signal("Initializing...".to_string());
+    let pan_remainder = create_rw_signal(0.0f64);
 
     // Reference to the canvas element
     let canvas_ref = create_node_ref::<Canvas>();
@@ -1087,7 +1173,6 @@ fn ChartContainer() -> impl IntoView {
                         set_renderer.set(Some(renderer_rc.clone()));
                         set_global_renderer(renderer_rc.clone());
                         init_render_queue();
-                        let _ = renderer_rc.borrow().log_gpu_memory_usage();
                         set_status.set("✅ WebGPU renderer ready".to_string());
 
                         // Start WebSocket after the renderer is initialized
@@ -1171,7 +1256,7 @@ fn ChartContainer() -> impl IntoView {
                 let last_x = last_mouse_x().get_untracked();
                 let delta_x = mouse_x - last_x;
                 last_mouse_x().set(mouse_x);
-                let need_history = pan_chart(chart_signal(), delta_x, canvas_width);
+                let need_history = pan_chart(chart_signal(), delta_x, canvas_width, pan_remainder);
                 if should_fetch_history(need_history) {
                     fetch_more_history(status_clone);
                 }
@@ -1182,26 +1267,25 @@ fn ChartContainer() -> impl IntoView {
                     let interval = current_interval().get_untracked();
                     let candles = ch.get_series(interval).unwrap().get_candles();
                     if !candles.is_empty() {
-                        let (zoom, pan) = viewport_zoom_pan(candles, &ch.viewport);
-                        let (start_idx, visible_count) = visible_range(candles.len(), zoom, pan);
-                        let visible: Vec<_> =
-                            candles.iter().skip(start_idx).take(visible_count).collect();
+                        let (zoom, _) = viewport_zoom_pan(candles, &ch.viewport);
+                        let (start_idx, visible_count) =
+                            visible_range_by_time_deque(candles, &ch.viewport, zoom);
 
                         // Use the same logic as in candle_x_position
-                        let step_size = 2.0 / visible.len() as f64;
-                        let spacing = spacing_ratio_for(visible.len()) as f64;
+                        let step_size = 2.0 / visible_count as f64;
+                        let spacing = spacing_ratio_for(visible_count) as f64;
                         let width = (step_size * (1.0 - spacing))
                             .clamp(MIN_ELEMENT_WIDTH as f64, MAX_ELEMENT_WIDTH as f64);
                         let half_width = width / 2.0;
                         // Inverse formula matching candle_x_position
                         // index = visible_len - 1 - (1.0 - EDGE_GAP as f64 - half_width - ndc_x) / step_size
-                        let index_float = visible.len() as f64
+                        let index_float = visible_count as f64
                             - 1.0
                             - (1.0 - EDGE_GAP as f64 - half_width - ndc_x) / step_size;
                         let candle_idx = index_float.round() as i32;
 
-                        if candle_idx >= 0 && (candle_idx as usize) < visible.len() {
-                            let candle = visible[candle_idx as usize];
+                        if candle_idx >= 0 && (candle_idx as usize) < visible_count {
+                            let candle = &candles[start_idx + candle_idx as usize];
                             let data = TooltipData::new(candle.clone(), mouse_x, mouse_y);
 
                             tooltip_data().set(Some(data));
@@ -1220,12 +1304,12 @@ fn ChartContainer() -> impl IntoView {
     let handle_mouse_leave = move |_event: web_sys::MouseEvent| {
         tooltip_visible().set(false);
         is_dragging().set(false);
+        pan_remainder.set(0.0);
     };
 
     // 🔍 Mouse wheel zoom - simplified without effects
     let handle_wheel = {
         let chart_signal = chart;
-        let status_clone = set_status;
         move |event: web_sys::WheelEvent| {
             if chart_signal().try_get_untracked().is_none() {
                 return;
@@ -1246,10 +1330,7 @@ fn ChartContainer() -> impl IntoView {
             let canvas_width = canvas.client_width().max(1) as f64;
             let cursor_ratio = (event.offset_x() as f64 / canvas_width).clamp(0.0, 1.0) as f32;
             let factor = if delta_y < 0.0 { ZOOM_STEP } else { 1.0 / ZOOM_STEP };
-            let start_idx = zoom_chart(chart_signal(), factor, cursor_ratio);
-            if should_fetch_history(start_idx) {
-                fetch_more_history(status_clone);
-            }
+            let _ = zoom_chart(chart_signal(), factor, cursor_ratio);
             get_logger().info(LogComponent::Presentation("ChartZoom"), "🔍 Zoom applied");
         }
     };
@@ -1261,6 +1342,7 @@ fn ChartContainer() -> impl IntoView {
             web_sys::console::log_1(&"🖱️ Mouse down".into());
             is_dragging().set(true);
             last_mouse_x().set(event.offset_x() as f64);
+            pan_remainder.set(0.0);
 
             // Give the canvas focus for keyboard events
             if let Some(target) = event.target()
@@ -1275,12 +1357,12 @@ fn ChartContainer() -> impl IntoView {
     let handle_mouse_up = move |_event: web_sys::MouseEvent| {
         web_sys::console::log_1(&"🖱️ Mouse up".into());
         is_dragging().set(false);
+        pan_remainder.set(0.0);
     };
 
     // ⌨️ Zoom keys (+/- and PageUp/PageDown)
     let handle_keydown = {
         let chart_signal = chart;
-        let status_clone = set_status;
         move |event: web_sys::KeyboardEvent| {
             let key = event.key();
 
@@ -1304,12 +1386,9 @@ fn ChartContainer() -> impl IntoView {
                 _ => None,
             };
             if let Some(factor) = factor {
-                let start_idx = zoom_chart(chart_signal(), factor, 0.5);
+                let _ = zoom_chart(chart_signal(), factor, 0.5);
                 get_logger()
                     .info(LogComponent::Presentation("KeyboardZoom"), "Keyboard zoom applied");
-                if should_fetch_history(start_idx) {
-                    fetch_more_history(status_clone);
-                }
             }
         }
     };
@@ -1325,15 +1404,13 @@ fn ChartContainer() -> impl IntoView {
     // Reset dragging state when the mouse is released anywhere
     let mouseup_listener =
         window_event_listener_with_options(ev::mouseup, &EventOptions::default(), move |_| {
-            is_dragging().set(false)
+            is_dragging().set(false);
+            pan_remainder.set(0.0);
         });
     on_cleanup(move || mouseup_listener.remove());
 
     let handle_zoom_in = move |_| {
-        let start = zoom_chart(chart(), ZOOM_STEP, 0.5);
-        if should_fetch_history(start) {
-            fetch_more_history(set_status);
-        }
+        let _ = zoom_chart(chart(), ZOOM_STEP, 0.5);
     };
     let handle_zoom_out = move |_| {
         let _ = zoom_chart(chart(), 1.0 / ZOOM_STEP, 0.5);
@@ -1416,10 +1493,10 @@ fn ChartContainer() -> impl IntoView {
 fn visible_price_bounds(chart: &Chart) -> Option<(f64, f64)> {
     let interval = current_interval().get_untracked();
     let series = chart.get_series(interval)?;
-    let candle_vec: Vec<_> = series.get_candles().iter().cloned().collect();
-    let (zoom, _) = viewport_zoom_pan(series.get_candles(), &chart.viewport);
-    let (start, visible) = visible_range_by_time(&candle_vec, &chart.viewport, zoom);
-    let mut range = candle_vec.iter().skip(start).take(visible);
+    let candles = series.get_candles();
+    let (zoom, _) = viewport_zoom_pan(candles, &chart.viewport);
+    let (start, visible) = visible_range_by_time_deque(candles, &chart.viewport, zoom);
+    let mut range = candles.iter().skip(start).take(visible);
     let first = range.next()?;
     let mut min_price = first.ohlcv.low.value();
     let mut max_price = first.ohlcv.high.value();
@@ -1468,7 +1545,7 @@ fn PriceScale(chart: RwSignal<Chart>) -> impl IntoView {
                         class="price-level"
                         style:top=format!("{}%", position)
                     >
-                        {format!("{price:.2}")}
+                        {format_axis_price(price)}
                     </div>
                 }
             />
@@ -1478,7 +1555,9 @@ fn PriceScale(chart: RwSignal<Chart>) -> impl IntoView {
                 class="current-price-label"
                 style:top=move || format!("{}%", current_price_position())
             >
-                <span class="price-value">{move || format!("${:.2}", current_price.get())}</span>
+                <span class="price-value">
+                    {move || format!("${}", format_axis_price(current_price.get()))}
+                </span>
             </div>
         </div>
     }
@@ -1711,12 +1790,6 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
     let interval = current_interval().get_untracked();
     let conn_id = connection_id().get_untracked() + 1;
     connection_id().set(conn_id);
-    domain_state().update(|ds| {
-        ds.timeframe = Duration::from_millis(interval.duration_ms());
-        ds.candles = Arc::new(Vec::new());
-        ds.indicators = Arc::new(Vec::new());
-    });
-
     let rest_client_arc =
         Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
 
@@ -1742,10 +1815,6 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
 
             chart.update(|ch| ch.set_historical_data(historical_candles.clone()));
             reset_chart(chart);
-            domain_state().update(|ds| {
-                ds.candles = Arc::new(historical_candles.clone());
-                ds.indicators = Arc::new(Vec::new());
-            });
             // Update global signals using the historical data
             let cnt = chart.with(|c| c.get_candle_count());
             global_candle_count().set(cnt);
@@ -1753,13 +1822,6 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
             if let Some(last_candle) = historical_candles.last() {
                 global_current_price().set(last_candle.ohlcv.close.value());
             }
-
-            // Compute the maximum volume from history
-            let max_vol = historical_candles
-                .iter()
-                .map(|c| c.ohlcv.volume.value())
-                .fold(0.0f64, |a, b| a.max(b));
-            global_max_volume().set(max_vol);
 
             set_status.set("✅ Historical data loaded. Starting real-time stream...".to_string());
         }
@@ -1816,8 +1878,9 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                         .get_series(interval)
                         .map(|series| {
                             let candles = series.get_candles();
-                            let (zoom, pan) = viewport_zoom_pan(candles, &ch.viewport);
-                            let (start, visible) = visible_range(candles.len(), zoom, pan);
+                            let (zoom, _) = viewport_zoom_pan(candles, &ch.viewport);
+                            let (start, visible) =
+                                visible_range_by_time_deque(candles, &ch.viewport, zoom);
                             (start + visible >= candles.len(), visible)
                         })
                         .unwrap_or((true, DEFAULT_VISIBLE_CANDLES));
@@ -1833,24 +1896,8 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                         ch.viewport.end_time = end_time;
                     }
                 });
-                domain_state().update(|ds| {
-                    let mut v = (*ds.candles).clone();
-                    v.push(candle.clone());
-                    ds.candles = Arc::new(v);
-                });
-
                 let count = chart.with(|c| c.get_candle_count());
                 global_candle_count().set(count);
-
-                let max_vol = chart.with(|c| {
-                    c.get_series(interval)
-                        .unwrap()
-                        .get_candles()
-                        .iter()
-                        .map(|c| c.ohlcv.volume.value())
-                        .fold(0.0f64, |a, b| a.max(b))
-                });
-                global_max_volume().set(max_vol);
 
                 let sym_for_queue = symbol.clone();
                 enqueue_render_task(Box::new(move |r| {
@@ -2029,7 +2076,7 @@ mod tests {
         assert!(visible_min_zoom <= 300);
 
         let (_, visible_max_zoom) = visible_range(1000, MAX_ZOOM_LEVEL, 0.0);
-        assert!(visible_max_zoom as f64 >= MIN_VISIBLE_CANDLES);
+        assert_eq!(visible_max_zoom as f64, MIN_VISIBLE_CANDLES);
     }
 
     #[test]
@@ -2038,6 +2085,22 @@ mod tests {
         assert!((pan_ratio_from_pixels(-200.0, 800.0) - 0.25).abs() < f32::EPSILON);
         assert_eq!(pan_ratio_from_pixels(10.0, 0.0), 0.0);
         assert_eq!(pan_ratio_from_pixels(f64::NAN, 800.0), 0.0);
+    }
+
+    #[test]
+    fn sub_bar_drag_accumulates_at_max_zoom() {
+        let mut remainder = 0.0;
+        assert_eq!(accumulate_bar_shift(&mut remainder, 40.0, 800.0, 8), 0);
+        assert_eq!(accumulate_bar_shift(&mut remainder, 60.0, 800.0, 8), -1);
+        assert!(remainder.abs() < f64::EPSILON);
+        assert_eq!(accumulate_bar_shift(&mut remainder, -100.0, 800.0, 8), 1);
+    }
+
+    #[test]
+    fn chart_axis_uses_whole_dollars_for_large_prices() {
+        assert_eq!(format_axis_price(77_389.86), "77390");
+        assert_eq!(format_axis_price(42.125), "42.12");
+        assert_eq!(format_axis_price(0.12345), "0.1235");
     }
 
     #[wasm_bindgen_test]

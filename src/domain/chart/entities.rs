@@ -14,6 +14,7 @@ pub struct Chart {
     pub ichimoku: IchimokuData,
     pub ma_engines: HashMap<TimeInterval, MovingAverageEngine>,
     open_buckets: HashSet<TimeInterval>,
+    revision: u64,
 }
 
 impl Chart {
@@ -47,7 +48,17 @@ impl Chart {
             ichimoku: IchimokuData::default(),
             ma_engines,
             open_buckets: HashSet::new(),
+            revision: 0,
         }
+    }
+
+    /// Monotonic data revision used by the renderer to avoid hashing all candles.
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    fn bump_revision(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
     }
 
     pub fn add_candle(&mut self, candle: Candle) {
@@ -62,6 +73,7 @@ impl Chart {
             }
         }
         self.update_aggregates(candle);
+        self.bump_revision();
     }
 
     /// Add historical data, replacing existing values
@@ -95,6 +107,44 @@ impl Chart {
 
         // Update the viewport
         self.update_viewport_for_data();
+        self.bump_revision();
+    }
+
+    /// Prepend an ordered historical batch without disturbing the current viewport.
+    ///
+    /// The REST API returns candles older than the first loaded bar. Rebuilding the
+    /// derived series once is both cheaper and more reliable than inserting every
+    /// candle through the real-time path.
+    pub fn prepend_historical_data(&mut self, mut historical: Vec<Candle>) -> usize {
+        let Some(base) = self.series.get(&TimeInterval::TwoSeconds) else {
+            return 0;
+        };
+        let before = base.count();
+        let oldest_loaded = base.get_candles().front().map(|c| c.timestamp.value());
+
+        historical.sort_by_key(|c| c.timestamp.value());
+        historical.dedup_by_key(|c| c.timestamp.value());
+        if let Some(oldest) = oldest_loaded {
+            historical.retain(|c| c.timestamp.value() < oldest);
+        }
+        if historical.is_empty() {
+            return 0;
+        }
+
+        let capacity = base.capacity();
+        let available = capacity.saturating_sub(before);
+        if historical.len() > available {
+            historical.drain(..historical.len() - available);
+        }
+        if historical.is_empty() {
+            return 0;
+        }
+
+        let viewport = self.viewport.clone();
+        historical.extend(base.get_candles().iter().cloned());
+        self.set_historical_data(historical);
+        self.viewport = viewport;
+        self.get_candle_count().saturating_sub(before)
     }
     /// Add a new candle in real time
     pub fn add_realtime_candle(&mut self, candle: Candle) {
@@ -118,6 +168,7 @@ impl Chart {
         if is_empty {
             self.update_viewport_for_data();
         }
+        self.bump_revision();
     }
 
     /// Get total number of candles
@@ -282,3 +333,64 @@ pub enum IndicatorType {
 // - RenderLayer, RenderElement
 // - CandlestickStyle, TextStyle, FontWeight, ShapeType, ShapeStyle
 // These are handled directly in the WebGPU renderer for better performance
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::market_data::{OHLCV, Price, Timestamp};
+
+    fn candle(minute: u64) -> Candle {
+        let price = 100.0 + minute as f64;
+        Candle::new(
+            Timestamp::from_millis(minute * 60_000),
+            OHLCV::new(
+                Price::from(price),
+                Price::from(price + 1.0),
+                Price::from(price - 1.0),
+                Price::from(price + 0.5),
+                Volume::from(1.0),
+            ),
+        )
+    }
+
+    #[test]
+    fn historical_prepend_preserves_viewport_and_order() {
+        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 10);
+        chart.set_historical_data((3..6).map(candle).collect());
+        chart.viewport.start_time = candle(4).timestamp.value() as f64;
+        chart.viewport.end_time = candle(5).timestamp.value() as f64;
+        let viewport = chart.viewport.clone();
+
+        let added = chart.prepend_historical_data((0..4).map(candle).collect());
+
+        let series = chart.get_series(TimeInterval::TwoSeconds).unwrap();
+        let timestamps: Vec<_> = series.get_candles().iter().map(|c| c.timestamp.value()).collect();
+        assert_eq!(added, 3);
+        assert_eq!(timestamps, (0..6).map(|m| m * 60_000).collect::<Vec<_>>());
+        assert_eq!(chart.viewport, viewport);
+    }
+
+    #[test]
+    fn historical_prepend_keeps_nearest_data_when_capacity_is_reached() {
+        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 5);
+        chart.set_historical_data((4..7).map(candle).collect());
+
+        let added = chart.prepend_historical_data((0..4).map(candle).collect());
+
+        let series = chart.get_series(TimeInterval::TwoSeconds).unwrap();
+        let timestamps: Vec<_> = series.get_candles().iter().map(|c| c.timestamp.value()).collect();
+        assert_eq!(added, 2);
+        assert_eq!(timestamps, (2..7).map(|m| m * 60_000).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn revision_changes_without_scanning_candles() {
+        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 10);
+        let initial = chart.revision();
+        chart.add_realtime_candle(candle(1));
+        let after_insert = chart.revision();
+        chart.add_realtime_candle(candle(1));
+        assert_ne!(after_insert, initial);
+        assert_ne!(chart.revision(), after_insert);
+    }
+}

@@ -23,7 +23,7 @@ pub struct Globals {
     pub current_price: RwSignal<f64>,
     pub candle_count: RwSignal<usize>,
     pub is_streaming: RwSignal<bool>,
-    pub max_volume: RwSignal<f64>,
+    pub render_time_ms: RwSignal<f64>,
     pub loading_more: RwSignal<bool>,
     pub tooltip_data: RwSignal<Option<TooltipData>>,
     pub tooltip_visible: RwSignal<bool>,
@@ -47,7 +47,7 @@ pub fn globals() -> &'static Globals {
         current_price: create_rw_signal(0.0),
         candle_count: create_rw_signal(0),
         is_streaming: create_rw_signal(false),
-        max_volume: create_rw_signal(0.0),
+        render_time_ms: create_rw_signal(0.0),
         loading_more: create_rw_signal(false),
         tooltip_data: create_rw_signal(None),
         tooltip_visible: create_rw_signal(false),
@@ -87,7 +87,7 @@ pub fn ensure_chart(symbol: &Symbol) -> RwSignal<Chart> {
         return sig;
     }
     let mut world = ecs_world().lock().unwrap();
-    let chart = Chart::new(symbol.value().to_string(), ChartType::Candlestick, 1000);
+    let chart = Chart::new(symbol.value().to_string(), ChartType::Candlestick, 50_000);
     let entity = world.spawn_chart(chart);
     world.world.get::<&ChartComponent>(entity).map(|c| c.0).expect("chart just spawned")
 }

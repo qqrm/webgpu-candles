@@ -1,57 +1,25 @@
 use super::*;
 use crate::domain::logging::LogComponent;
 use crate::domain::market_data::TimeInterval;
+#[cfg(debug_assertions)]
 use crate::log_info;
 use leptos::{SignalGetUntracked, SignalSet};
 use serde_json;
-use std::hash::{Hash, Hasher};
 
 impl WebGpuRenderer {
-    fn geometry_hash(
-        vertices: &[CandleVertex],
-        instances: &[CandleInstance],
-        uniforms: &ChartUniforms,
-    ) -> u64 {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        bytemuck::cast_slice::<CandleVertex, u8>(vertices).hash(&mut hasher);
-        bytemuck::cast_slice::<CandleInstance, u8>(instances).hash(&mut hasher);
-        bytemuck::bytes_of(uniforms).hash(&mut hasher);
-        hasher.finish()
-    }
-
-    pub fn data_hash(chart: &Chart, _zoom: f64) -> u64 {
-        let candles = chart
-            .get_series(crate::app::current_interval().get_untracked())
-            .or_else(|| chart.get_series(TimeInterval::TwoSeconds))
-            .expect("base series not found")
-            .get_candles();
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        candles.len().hash(&mut hasher);
-        for c in candles {
-            c.timestamp.value().hash(&mut hasher);
-            c.ohlcv.open.value().to_bits().hash(&mut hasher);
-            c.ohlcv.high.value().to_bits().hash(&mut hasher);
-            c.ohlcv.low.value().to_bits().hash(&mut hasher);
-            c.ohlcv.close.value().to_bits().hash(&mut hasher);
-            c.ohlcv.volume.value().to_bits().hash(&mut hasher);
-        }
-        hasher.finish()
+    pub fn data_revision(chart: &Chart) -> u64 {
+        chart.revision()
     }
 
     fn update_cached_geometry(
         &mut self,
         vertices: Vec<CandleVertex>,
-        instances: Vec<CandleInstance>,
+        _instances: Vec<CandleInstance>,
         uniforms: ChartUniforms,
     ) -> bool {
-        let new_hash = Self::geometry_hash(&vertices, &instances, &uniforms);
-        if new_hash == self.cached_hash {
-            return false;
-        }
-
         self.cached_vertices = vertices;
         self.cached_uniforms = uniforms;
-        self.cached_hash = new_hash;
+        self.cached_hash = self.cached_hash.wrapping_add(1);
         self.cached_line_visibility = self.line_visibility.clone();
         self.template_vertices = self.cached_vertices.len() as u32;
 
@@ -73,7 +41,7 @@ impl WebGpuRenderer {
     pub fn cache_geometry_for_test(&mut self, chart: &Chart) {
         let (inst, verts, uni) = self.create_geometry(chart);
         self.update_cached_geometry(verts, inst, uni);
-        self.cached_data_hash = Self::data_hash(chart, self.zoom_level);
+        self.cached_data_revision = Self::data_revision(chart);
     }
 
     pub fn cached_hash_for_test(&self) -> u64 {
@@ -88,24 +56,6 @@ impl WebGpuRenderer {
     }
 
     pub fn render(&mut self, chart: &Chart) -> Result<(), JsValue> {
-        // ⏱️ Measure frame time
-        if let Some(window) = web_sys::window()
-            && let Some(perf) = window.performance()
-        {
-            let now = perf.now();
-            if self.last_frame_time > 0.0 {
-                let delta = now - self.last_frame_time;
-                if delta > 0.0 {
-                    let fps = 1000.0 / delta;
-                    self.fps_log.push_back(fps);
-                    if self.fps_log.len() > 60 {
-                        self.fps_log.pop_front();
-                    }
-                }
-            }
-            self.last_frame_time = now;
-        }
-
         use crate::app::current_interval;
         let interval = current_interval().get_untracked();
         let candle_count =
@@ -117,21 +67,12 @@ impl WebGpuRenderer {
                     .len()
             });
 
-        // Log only every 100 frames for performance
-        if candle_count.is_multiple_of(100) {
-            log_info!(
-                LogComponent::Infrastructure("WebGpuRenderer"),
-                "📊 Chart has {} candles to render",
-                candle_count
-            );
-        }
-
         if candle_count == 0 {
             return Ok(());
         }
 
-        let data_hash = Self::data_hash(chart, self.zoom_level);
-        let data_changed = data_hash != self.cached_data_hash;
+        let data_revision = Self::data_revision(chart);
+        let data_changed = data_revision != self.cached_data_revision;
         let visibility_changed = self.line_visibility != self.cached_line_visibility;
 
         let geometry_needs_update = candle_count != self.cached_candle_count
@@ -144,7 +85,7 @@ impl WebGpuRenderer {
             }
             self.cached_candle_count = candle_count;
             self.cached_zoom_level = self.zoom_level;
-            self.cached_data_hash = data_hash;
+            self.cached_data_revision = data_revision;
             self.update_cached_geometry(vertices, instances, uniforms);
         }
 
@@ -205,13 +146,11 @@ impl WebGpuRenderer {
         {
             let end = perf.now();
             let duration = end - start;
-            #[cfg(not(debug_assertions))]
-            let _ = duration;
-            log_info!(
-                LogComponent::Infrastructure("WebGpuRenderer"),
-                "\u{23f1}\u{fe0f} Render pass took {:.2} ms",
-                duration
-            );
+            self.render_time_log.push_back(duration);
+            if self.render_time_log.len() > 60 {
+                self.render_time_log.pop_front();
+            }
+            crate::app::global_render_time_ms().set(duration);
         }
 
         output.present();
@@ -221,18 +160,20 @@ impl WebGpuRenderer {
 
     /// Get renderer performance information
     pub fn get_performance_info(&self) -> String {
-        let avg_fps = if self.fps_log.is_empty() {
+        let avg_render_ms = if self.render_time_log.is_empty() {
             0.0
         } else {
-            self.fps_log.iter().sum::<f64>() / self.fps_log.len() as f64
+            self.render_time_log.iter().sum::<f64>() / self.render_time_log.len() as f64
         };
+        let avg_fps = if avg_render_ms > 0.0 { 1000.0 / avg_render_ms } else { 0.0 };
 
         serde_json::json!({
             "backend": "WebGPU",
             "parallel": true,
             "status": "ready",
             "gpu_threads": "unlimited",
-            "avg_fps": avg_fps
+            "avg_fps": avg_fps,
+            "avg_render_ms": avg_render_ms
         })
         .to_string()
     }
@@ -679,12 +620,11 @@ mod tests {
                 cached_candle_count: 0,
                 cached_zoom_level: 1.0,
                 cached_hash: 0,
-                cached_data_hash: 0,
+                cached_data_revision: 0,
                 cached_line_visibility: LineVisibility::default(),
                 zoom_level: 1.0,
                 pan_offset: 0.0,
-                last_frame_time: 0.0,
-                fps_log: VecDeque::new(),
+                render_time_log: VecDeque::new(),
                 line_visibility: LineVisibility::default(),
             }
         }
@@ -718,20 +658,20 @@ mod tests {
     }
 
     #[test]
-    fn fps_ring_buffer() {
+    fn render_time_ring_buffer() {
         let mut r = dummy_renderer();
         for i in 0..65 {
-            r.fps_log.push_back(i as f64);
-            if r.fps_log.len() > 60 {
-                r.fps_log.pop_front();
+            r.render_time_log.push_back(i as f64);
+            if r.render_time_log.len() > 60 {
+                r.render_time_log.pop_front();
             }
         }
-        assert_eq!(r.fps_log.len(), 60);
-        assert_eq!(r.fps_log.front().copied(), Some(5.0));
+        assert_eq!(r.render_time_log.len(), 60);
+        assert_eq!(r.render_time_log.front().copied(), Some(5.0));
     }
 
     #[test]
-    fn no_buffer_reupload_when_unchanged() {
+    fn cache_generation_advances_on_geometry_upload() {
         let mut r = dummy_renderer();
         let verts = vec![CandleVertex::body_vertex(0.0, 0.0, true)];
         let inst = vec![CandleInstance {
@@ -747,8 +687,8 @@ mod tests {
         let uniforms = ChartUniforms::default();
         assert!(r.update_cached_geometry(verts.clone(), inst.clone(), uniforms));
         let cached = r.cached_hash;
-        assert!(!r.update_cached_geometry(verts, inst, ChartUniforms::default()));
-        assert_eq!(r.cached_hash, cached);
+        assert!(r.update_cached_geometry(verts, inst, ChartUniforms::default()));
+        assert_eq!(r.cached_hash, cached.wrapping_add(1));
     }
 
     #[test]
@@ -810,7 +750,7 @@ mod tests {
         let mut r = dummy_renderer();
         let (inst, verts, uni) = r.create_geometry(&chart);
         r.update_cached_geometry(verts, inst, uni);
-        r.cached_data_hash = WebGpuRenderer::data_hash(&chart, r.zoom_level);
+        r.cached_data_revision = WebGpuRenderer::data_revision(&chart);
         let old = r.cached_hash;
 
         chart.add_candle(Candle::new(
@@ -825,11 +765,11 @@ mod tests {
         ));
 
         assert_eq!(chart.get_candle_count(), 2);
-        let new_hash = WebGpuRenderer::data_hash(&chart, r.zoom_level);
-        assert_ne!(new_hash, r.cached_data_hash);
+        let new_revision = WebGpuRenderer::data_revision(&chart);
+        assert_ne!(new_revision, r.cached_data_revision);
         let (inst2, verts2, uni2) = r.create_geometry(&chart);
         assert!(r.update_cached_geometry(verts2, inst2, uni2));
-        r.cached_data_hash = new_hash;
+        r.cached_data_revision = new_revision;
         assert_ne!(r.cached_hash, old);
     }
 
@@ -865,7 +805,7 @@ mod tests {
         r.update_cached_geometry(verts.clone(), inst.clone(), uni);
         r.cached_candle_count = chart.get_candle_count();
         r.cached_zoom_level = r.zoom_level;
-        r.cached_data_hash = WebGpuRenderer::data_hash(&chart, r.zoom_level);
+        r.cached_data_revision = WebGpuRenderer::data_revision(&chart);
         let cached = r.cached_hash;
 
         r.toggle_line_visibility("sma20");

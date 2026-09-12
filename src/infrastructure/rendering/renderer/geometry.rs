@@ -5,13 +5,12 @@ use crate::infrastructure::rendering::gpu_structures::{
     CURRENT_PRICE_COLOR, CandleGeometry, CandleInstance, EMA12_COLOR, EMA26_COLOR, IndicatorType,
     SMA20_COLOR, SMA50_COLOR, SMA200_COLOR,
 };
-use crate::{log_info, log_warn};
 use leptos::SignalGetUntracked;
 
 /// Minimum element width (candle or volume bar)
 pub const MIN_ELEMENT_WIDTH: f32 = 0.002;
 /// Maximum element width (candle or volume bar)
-pub const MAX_ELEMENT_WIDTH: f32 = 0.1;
+pub const MAX_ELEMENT_WIDTH: f32 = 0.24;
 /// Ratio of space left empty between elements
 pub const SPACING_RATIO: f32 = 0.2;
 /// Gap between the right edge and the last element
@@ -57,22 +56,11 @@ impl WebGpuRenderer {
             return (Vec::new(), Vec::new(), ChartUniforms::new());
         }
 
-        // ⚡ Performance: log less frequently
-        if candles.len().is_multiple_of(100) {
-            get_logger().info(
-                LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!("🔧 Creating optimized geometry for {} candles", candles.len()),
-            );
-        }
-
-        let chart_width = 2.0; // NDC width (-1 to 1)
-
         // 🔍 Apply zoom - show fewer candles when zooming in
-        let candle_vec: Vec<Candle> = candles.iter().cloned().collect();
         let (start_index, visible_count) =
-            crate::app::visible_range_by_time(&candle_vec, &chart.viewport, self.zoom_level);
-        let visible_candles: Vec<Candle> =
-            candle_vec.iter().skip(start_index).take(visible_count).cloned().collect();
+            crate::app::visible_range_by_time_deque(candles, &chart.viewport, self.zoom_level);
+        let visible_candles: Vec<&Candle> =
+            candles.iter().skip(start_index).take(visible_count).collect();
 
         let mut vertices = Vec::with_capacity(visible_candles.len() * 24);
 
@@ -92,69 +80,15 @@ impl WebGpuRenderer {
             max_price = max_price.max(candle.ohlcv.high.value() as f32);
         }
 
-        let mut consider_ma = |values: &[Price], period: usize| {
-            for (idx, val) in values.iter().enumerate() {
-                let candle_idx = idx + period - 1;
-                if candle_idx < start_index || candle_idx >= start_index + visible_candles.len() {
-                    continue;
-                }
-                min_price = min_price.min(val.value() as f32);
-                max_price = max_price.max(val.value() as f32);
-            }
-        };
-
-        if self.line_visibility.sma_20 {
-            consider_ma(&mas.sma_20, 20);
-        }
-        if self.line_visibility.sma_50 {
-            consider_ma(&mas.sma_50, 50);
-        }
-        if self.line_visibility.sma_200 {
-            consider_ma(&mas.sma_200, 200);
-        }
-        if self.line_visibility.ema_12 {
-            consider_ma(&mas.ema_12, 12);
-        }
-        if self.line_visibility.ema_26 {
-            consider_ma(&mas.ema_26, 26);
-        }
-
         let price_range = (max_price - min_price).abs().max(1e-6);
         min_price -= price_range * 0.05;
         max_price += price_range * 0.05;
-
-        // Log estimated candle width using the number of visible candles
-        let step_size = chart_width / visible_candles.len() as f64;
-        let candle_width_estimate =
-            step_size * (1.0 - spacing_ratio_for(visible_candles.len()) as f64);
-
-        get_logger().info(
-            LogComponent::Infrastructure("WebGpuRenderer"),
-            &format!(
-                "📏 Price range: {:.2} - {:.2}, Candle width: {:.4}, step:{:.4}",
-                min_price, max_price, candle_width_estimate, step_size
-            ),
-        );
 
         // Ensure we have a valid price range
         if (max_price - min_price).abs() < 0.01 {
             get_logger()
                 .error(LogComponent::Infrastructure("WebGpuRenderer"), "❌ Invalid price range!");
             return (Vec::new(), Vec::new(), ChartUniforms::new());
-        }
-
-        // Log less often for performance
-        if visible_candles.len().is_multiple_of(50) {
-            get_logger().info(
-                LogComponent::Infrastructure("WebGpuRenderer"),
-                &format!(
-                    "🔧 Rendering {} candles (showing last {} of {}) [zoom: {:.2}x]",
-                    visible_candles.len(),
-                    visible_count,
-                    candles.len(),
-                    self.zoom_level
-                ),
-            );
         }
 
         // Create instance data for each visible candle
@@ -185,17 +119,6 @@ impl WebGpuRenderer {
             let high_y = price_norm(candle.ohlcv.high.value());
             let low_y = price_norm(candle.ohlcv.low.value());
             let close_y = price_norm(candle.ohlcv.close.value());
-
-            // Log only the first 3 and last 3 candles
-            if i < 3 || i >= visible_candles.len() - 3 {
-                get_logger().info(
-                    LogComponent::Infrastructure("WebGpuRenderer"),
-                    &format!(
-                        "🕯️ Candle {}: x={:.3}, Y=({:.3},{:.3},{:.3},{:.3}) width={:.4}",
-                        i, x, open_y, high_y, low_y, close_y, candle_width
-                    ),
-                );
-            }
 
             let body_top = open_y.max(close_y);
             let body_bottom = open_y.min(close_y);
@@ -263,17 +186,6 @@ impl WebGpuRenderer {
 
         if self.line_visibility.sma_20 {
             let points = to_points(&mas.sma_20, 20);
-            log_info!(
-                LogComponent::Infrastructure("WebGpuRenderer"),
-                "SMA20 points: {}",
-                points.len()
-            );
-            if points.len() < 2 {
-                log_warn!(
-                    LogComponent::Infrastructure("WebGpuRenderer"),
-                    "Not enough points for SMA20"
-                );
-            }
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::SMA20,
@@ -283,17 +195,6 @@ impl WebGpuRenderer {
 
         if self.line_visibility.sma_50 {
             let points = to_points(&mas.sma_50, 50);
-            log_info!(
-                LogComponent::Infrastructure("WebGpuRenderer"),
-                "SMA50 points: {}",
-                points.len()
-            );
-            if points.len() < 2 {
-                log_warn!(
-                    LogComponent::Infrastructure("WebGpuRenderer"),
-                    "Not enough points for SMA50"
-                );
-            }
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::SMA50,
@@ -303,17 +204,6 @@ impl WebGpuRenderer {
 
         if self.line_visibility.sma_200 {
             let points = to_points(&mas.sma_200, 200);
-            log_info!(
-                LogComponent::Infrastructure("WebGpuRenderer"),
-                "SMA200 points: {}",
-                points.len()
-            );
-            if points.len() < 2 {
-                log_warn!(
-                    LogComponent::Infrastructure("WebGpuRenderer"),
-                    "Not enough points for SMA200"
-                );
-            }
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::SMA200,
@@ -323,17 +213,6 @@ impl WebGpuRenderer {
 
         if self.line_visibility.ema_12 {
             let points = to_points(&mas.ema_12, 12);
-            log_info!(
-                LogComponent::Infrastructure("WebGpuRenderer"),
-                "EMA12 points: {}",
-                points.len()
-            );
-            if points.len() < 2 {
-                log_warn!(
-                    LogComponent::Infrastructure("WebGpuRenderer"),
-                    "Not enough points for EMA12"
-                );
-            }
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::EMA12,
@@ -343,17 +222,6 @@ impl WebGpuRenderer {
 
         if self.line_visibility.ema_26 {
             let points = to_points(&mas.ema_26, 26);
-            log_info!(
-                LogComponent::Infrastructure("WebGpuRenderer"),
-                "EMA26 points: {}",
-                points.len()
-            );
-            if points.len() < 2 {
-                log_warn!(
-                    LogComponent::Infrastructure("WebGpuRenderer"),
-                    "Not enough points for EMA26"
-                );
-            }
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::EMA26,
@@ -467,12 +335,11 @@ mod tests {
                 cached_candle_count: 0,
                 cached_zoom_level: 1.0,
                 cached_hash: 0,
-                cached_data_hash: 0,
+                cached_data_revision: 0,
                 cached_line_visibility: LineVisibility::default(),
                 zoom_level: 1.0,
                 pan_offset: 0.0,
-                last_frame_time: 0.0,
-                fps_log: VecDeque::new(),
+                render_time_log: VecDeque::new(),
                 line_visibility: LineVisibility::default(),
             }
         }
@@ -686,7 +553,7 @@ mod tests {
     }
 
     #[test]
-    fn moving_average_extends_price_range() {
+    fn indicator_visibility_does_not_change_price_scale() {
         // 30 candles: first 20 around 100, last 10 around 200
         let candles: Vec<Candle> = (0..30)
             .map(|i| {
@@ -709,21 +576,30 @@ mod tests {
 
         let mut renderer = dummy_renderer();
         renderer.zoom_level = 3.0; // show only last ~10 candles
-        let (_, _, uni) = renderer.create_geometry(&chart);
+        let (_, _, with_indicators) = renderer.create_geometry(&chart);
+        renderer.line_visibility = LineVisibility {
+            sma_20: false,
+            sma_50: false,
+            sma_200: false,
+            ema_12: false,
+            ema_26: false,
+        };
+        let (_, _, without_indicators) = renderer.create_geometry(&chart);
 
-        // Price range from visible candles only
-        let visible: Vec<Candle> = candles.iter().skip(20).cloned().collect();
-        let mut min_candle = f32::INFINITY;
-        let mut max_candle = f32::NEG_INFINITY;
-        for c in &visible {
-            min_candle = min_candle.min(c.ohlcv.low.value() as f32);
-            max_candle = max_candle.max(c.ohlcv.high.value() as f32);
-        }
-        let pr = max_candle - min_candle;
-        min_candle -= pr * 0.05;
+        assert_eq!(with_indicators.viewport[2..4], without_indicators.viewport[2..4]);
+    }
 
-        // Uniform min_price should be below candle-only min due to SMA20
-        assert!(uni.viewport[2] < min_candle);
+    #[test]
+    fn max_zoom_keeps_candles_dense() {
+        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 100);
+        chart.set_historical_data((0..100).map(make_candle).collect());
+        let mut renderer = dummy_renderer();
+        renderer.zoom_level = crate::app::MAX_ZOOM_LEVEL;
+
+        let (instances, _, _) = renderer.create_geometry(&chart);
+
+        assert_eq!(instances.len(), crate::app::MIN_VISIBLE_CANDLES as usize);
+        assert!(instances.iter().all(|instance| instance.width >= 0.2));
     }
 
     #[test]
