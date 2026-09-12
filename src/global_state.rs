@@ -19,6 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+#[derive(Clone, Copy)]
 pub struct Globals {
     pub current_price: RwSignal<f64>,
     pub candle_count: RwSignal<usize>,
@@ -40,12 +41,18 @@ pub struct Globals {
     pub chart_view_revision: RwSignal<u64>,
 }
 
-// The `OnceCell` ensures this state is created at most once on demand.
+// The production app has one Leptos runtime, so a OnceCell gives lock-free
+// access after initialization. Browser unit tests create and dispose several
+// runtimes in one process; their signals must be recreated for each live
+// runtime instead of being retained forever by the OnceCell.
+#[cfg(not(test))]
 static GLOBALS: OnceCell<Globals> = OnceCell::new();
+#[cfg(test)]
+static TEST_GLOBALS: Mutex<Option<Globals>> = Mutex::new(None);
 static ECS_WORLD: OnceCell<Mutex<EcsWorld>> = OnceCell::new();
 
-pub fn globals() -> &'static Globals {
-    GLOBALS.get_or_init(|| Globals {
+fn create_globals() -> Globals {
+    Globals {
         current_price: create_rw_signal(0.0),
         candle_count: create_rw_signal(0),
         is_streaming: create_rw_signal(false),
@@ -69,7 +76,25 @@ pub fn globals() -> &'static Globals {
         view_state: create_rw_signal(ViewState::new(5.0, 1.0, 20.0)),
         connection_id: create_rw_signal(0),
         chart_view_revision: create_rw_signal(0),
-    })
+    }
+}
+
+pub fn globals() -> Globals {
+    #[cfg(not(test))]
+    {
+        *GLOBALS.get_or_init(create_globals)
+    }
+
+    #[cfg(test)]
+    {
+        let mut globals = TEST_GLOBALS.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let signals_are_live =
+            globals.as_ref().and_then(|state| state.current_interval.try_get_untracked()).is_some();
+        if !signals_are_live {
+            *globals = Some(create_globals());
+        }
+        globals.expect("test globals were initialized")
+    }
 }
 
 /// Access the global ECS world.
