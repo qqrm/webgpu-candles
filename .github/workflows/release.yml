@@ -31,7 +31,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
       - name: Install trunk
-        run: cargo install trunk
+        run: cargo install trunk --version 0.21.14 --locked
       - name: Clean dist
         run: rm -rf dist
       - name: Build
