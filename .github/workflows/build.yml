@@ -34,7 +34,7 @@ jobs:
       - name: Clean dist
         run: rm -rf dist
       - name: Build
-        run: trunk build --release --dist dist --public-url /dev/
+        run: trunk build --release --dist dist --public-url /webgpu-candles/dev/
       - name: Save version
         run: echo ${{ github.sha }} > dist/version
       - name: Archive dist
@@ -44,10 +44,16 @@ jobs:
           name: dist
           path: dist.tar.gz
       - name: Send build to bot
+        continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: scripts/send_to_bot.sh dist.tar.gz "Development build"
+        run: |
+          if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
+            echo "Telegram secrets are not configured; skipping notification."
+            exit 0
+          fi
+          scripts/send_to_bot.sh dist.tar.gz "Development build"
       - name: Deploy dev build to gh-pages
         uses: peaceiris/actions-gh-pages@v3
         with:
