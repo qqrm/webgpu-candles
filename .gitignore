@@ -16,7 +16,6 @@
 
 # Node.js (if using npm/yarn for tooling)
 node_modules/
-package-lock.json
 yarn.lock
 
 # OS generated files
@@ -30,9 +29,12 @@ ehthumbs.db
 # Leptos artifacts
 /dist
 /dist-local
+/dist-e2e
 /public
 /docs
 
 # Test and benchmark results
 criterion/
 *.profdata
+/playwright-report/
+/test-results/

@@ -11,3 +11,21 @@ The `tests/` folder contains unit and integration tests for the main components.
 Snapshot fixtures are stored in `tests/fixtures`. The pipeline test does not create snapshots.
 
 Internal module tests for the renderer can be found in `src/infrastructure/rendering/renderer/render_loop.rs`.
+
+## Browser end-to-end tests
+
+Playwright scenarios in `e2e/chart.spec.ts` build and serve the release bundle, mock Binance REST and WebSocket traffic, and verify:
+
+- WebGPU chart startup without browser errors;
+- the single connection status, price formatting, indicator toggles, zoom, and pan;
+- native `1s` source aggregation into `2s` candles and zero-volume bucket removal;
+- history backfill only after the viewport reaches the left edge.
+
+Install Chromium once and run the suite with:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+Failure screenshots, traces, and the HTML report are written to `test-results/` and `playwright-report/`.

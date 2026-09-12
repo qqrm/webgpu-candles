@@ -3,9 +3,11 @@
   "private": true,
   "scripts": {
     "test": "wasm-pack test --chrome --headless",
-    "test:node": "wasm-pack test --node"
+    "test:node": "wasm-pack test --node",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
   },
   "devDependencies": {
-    "wasm-pack": "^0.13.1"
+    "@playwright/test": "^1.63.0"
   }
 }
