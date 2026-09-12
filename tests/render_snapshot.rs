@@ -25,11 +25,9 @@ fn red_canvas_snapshot() {
     ctx.set_fill_style_str("#ff0000");
     ctx.fill_rect(0.0, 0.0, 10.0, 10.0);
 
-    let data_url = canvas.to_data_url().unwrap();
-    // `insta` shells out to `cargo metadata`, which is unavailable inside a
-    // browser WASM test. Keep the same golden value as a direct assertion.
-    assert_eq!(
-        data_url,
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAGElEQVR4nGP8z8Dwn4EIwESMolGF1FMIAD2cAhK2AyPVAAAAAElFTkSuQmCC"
-    );
+    // PNG encoders can produce different byte streams for identical pixels.
+    // Assert the rendered RGBA value instead of an implementation-specific
+    // compressed representation.
+    let pixel = ctx.get_image_data(0.0, 0.0, 1.0, 1.0).unwrap().data().0;
+    assert_eq!(&pixel[..4], &[255, 0, 0, 255]);
 }
