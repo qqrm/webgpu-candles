@@ -26,6 +26,11 @@ impl Candle {
         Price::from((self.ohlcv.close.value() - self.ohlcv.open.value()).abs())
     }
 
+    /// A zero-volume interval contains no trades and should not occupy a chart cell.
+    pub fn is_empty(&self) -> bool {
+        self.ohlcv.volume.value() <= 0.0
+    }
+
     pub fn wick_high(&self) -> Price {
         Price::from(self.ohlcv.high.value() - self.ohlcv.close.value().max(self.ohlcv.open.value()))
     }

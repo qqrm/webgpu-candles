@@ -191,7 +191,12 @@ pub enum TimeInterval {
 
 impl TimeInterval {
     pub fn to_binance_str(&self) -> &str {
-        self.as_ref()
+        match self {
+            // Binance has native 1s klines but no 2s interval. The client aggregates
+            // pairs into the product's 2s bars.
+            Self::TwoSeconds => "1s",
+            _ => self.as_ref(),
+        }
     }
 
     pub fn duration_ms(&self) -> u64 {

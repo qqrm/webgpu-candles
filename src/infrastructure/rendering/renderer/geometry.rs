@@ -11,6 +11,8 @@ use leptos::SignalGetUntracked;
 pub const MIN_ELEMENT_WIDTH: f32 = 0.002;
 /// Maximum element width (candle or volume bar)
 pub const MAX_ELEMENT_WIDTH: f32 = 0.24;
+/// Minimum visible candle body height in physical canvas pixels.
+pub const MIN_CANDLE_BODY_PX: f32 = 2.0;
 /// Ratio of space left empty between elements
 pub const SPACING_RATIO: f32 = 0.2;
 /// Gap between the right edge and the last element
@@ -80,16 +82,13 @@ impl WebGpuRenderer {
             max_price = max_price.max(candle.ohlcv.high.value() as f32);
         }
 
-        let price_range = (max_price - min_price).abs().max(1e-6);
-        min_price -= price_range * 0.05;
-        max_price += price_range * 0.05;
-
-        // Ensure we have a valid price range
-        if (max_price - min_price).abs() < 0.01 {
-            get_logger()
-                .error(LogComponent::Infrastructure("WebGpuRenderer"), "❌ Invalid price range!");
-            return (Vec::new(), Vec::new(), ChartUniforms::new());
-        }
+        // Flat and near-flat 2s windows are valid market states. Expand only the
+        // visual range instead of dropping the whole frame.
+        let price_mid = (max_price + min_price) * 0.5;
+        let minimum_range = (price_mid.abs() * 1e-6).max(1e-6);
+        let display_range = (max_price - min_price).abs().max(minimum_range) * 1.1;
+        min_price = price_mid - display_range * 0.5;
+        max_price = price_mid + display_range * 0.5;
 
         // Create instance data for each visible candle
         let step_size = 2.0 / visible_candles.len() as f32;
@@ -120,23 +119,22 @@ impl WebGpuRenderer {
             let low_y = price_norm(candle.ohlcv.low.value());
             let close_y = price_norm(candle.ohlcv.close.value());
 
-            let body_top = open_y.max(close_y);
-            let body_bottom = open_y.min(close_y);
-
-            // Minimum height for visibility
-            let min_height = 0.005;
-            let actual_body_top = if (body_top - body_bottom).abs() < min_height {
-                body_bottom + min_height
+            let is_bullish = candle.is_bullish();
+            let body_mid = (open_y + close_y) * 0.5;
+            let body_height = (close_y - open_y).abs().max(self.px_to_ndc(MIN_CANDLE_BODY_PX));
+            let body_half = body_height * 0.5;
+            let (visible_open_y, visible_close_y) = if is_bullish {
+                (body_mid - body_half, body_mid + body_half)
             } else {
-                body_top
+                (body_mid + body_half, body_mid - body_half)
             };
-
-            let is_bullish = close_y >= open_y;
+            let body_top = visible_open_y.max(visible_close_y);
+            let body_bottom = visible_open_y.min(visible_close_y);
 
             instances.push(CandleInstance {
                 x,
                 width: candle_width,
-                body_top: actual_body_top,
+                body_top,
                 body_bottom,
                 high: high_y,
                 low: low_y,
@@ -151,10 +149,10 @@ impl WebGpuRenderer {
                 candle.ohlcv.low.value() as f32,
                 candle.ohlcv.close.value() as f32,
                 x,
-                open_y,
+                visible_open_y,
                 high_y,
                 low_y,
-                close_y,
+                visible_close_y,
                 candle_width,
             );
             vertices.extend_from_slice(&candle_vertices);
@@ -414,12 +412,58 @@ mod tests {
         chart.set_historical_data(candles);
 
         let renderer = dummy_renderer();
-        let (instances, _verts, _uni) = renderer.create_geometry(&chart);
+        let (instances, verts, _uni) = renderer.create_geometry(&chart);
 
         assert_eq!(instances.len(), 3);
         assert!(instances[0].bullish > 0.5);
         assert!(instances[1].bullish < 0.5);
-        assert!(instances[2].body_top - instances[2].body_bottom >= 0.005 - f32::EPSILON);
+        let minimum_ndc_height = renderer.px_to_ndc(MIN_CANDLE_BODY_PX);
+        assert!(
+            instances[2].body_top - instances[2].body_bottom >= minimum_ndc_height - f32::EPSILON
+        );
+        let tiny = instances[2];
+        let body_vertices: Vec<_> = verts
+            .iter()
+            .filter(|vertex| {
+                vertex.element_type == 0.0
+                    && (vertex.position_x - tiny.x).abs() <= tiny.width * 0.5 + f32::EPSILON
+            })
+            .map(|vertex| vertex.position_y)
+            .collect();
+        let body_min = body_vertices.iter().copied().fold(f32::INFINITY, f32::min);
+        let body_max = body_vertices.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        assert!(body_max - body_min >= minimum_ndc_height - f32::EPSILON);
+    }
+
+    #[test]
+    fn flat_market_still_produces_visible_geometry() {
+        let candles: Vec<Candle> = (0..32)
+            .map(|i| {
+                Candle::new(
+                    Timestamp::from_millis(i * 2_000),
+                    OHLCV::new(
+                        Price::from(100.0),
+                        Price::from(100.0),
+                        Price::from(100.0),
+                        Price::from(100.0),
+                        Volume::from(1.0),
+                    ),
+                )
+            })
+            .collect();
+        let mut chart = Chart::new("flat".to_string(), ChartType::Candlestick, 50);
+        chart.set_historical_data(candles);
+
+        let renderer = dummy_renderer();
+        let (instances, vertices, uniforms) = renderer.create_geometry(&chart);
+
+        assert_eq!(instances.len(), 32);
+        assert!(!vertices.is_empty());
+        assert!(uniforms.viewport[3] > uniforms.viewport[2]);
+        assert!(instances.iter().all(|instance| {
+            instance.body_top - instance.body_bottom
+                >= renderer.px_to_ndc(MIN_CANDLE_BODY_PX) - f32::EPSILON
+        }));
     }
 
     #[test]

@@ -2,6 +2,7 @@ use crate::domain::{
     logging::{LogComponent, get_logger},
     market_data::{
         entities::{Candle, OHLCV},
+        services::Aggregator,
         value_objects::{Price, Symbol, TimeInterval, Timestamp, Volume},
     },
 };
@@ -15,6 +16,8 @@ use wasm_bindgen::prelude::*;
 pub struct BinanceWebSocketClient {
     symbol: Symbol,
     interval: TimeInterval,
+    two_second_bucket: Option<u64>,
+    two_second_parts: Vec<Candle>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,7 +61,40 @@ struct BinanceHistoricalKline(
 
 impl BinanceWebSocketClient {
     pub fn new(symbol: Symbol, interval: TimeInterval) -> Self {
-        Self { symbol, interval }
+        Self { symbol, interval, two_second_bucket: None, two_second_parts: Vec::with_capacity(2) }
+    }
+
+    fn normalize_history(&self, candles: Vec<Candle>) -> Vec<Candle> {
+        if self.interval == TimeInterval::TwoSeconds {
+            Aggregator::aggregate_series(candles, TimeInterval::TwoSeconds)
+        } else {
+            candles
+        }
+    }
+
+    fn normalize_stream_candle(&mut self, candle: Candle) -> Option<Candle> {
+        if self.interval != TimeInterval::TwoSeconds {
+            return (!candle.is_empty()).then_some(candle);
+        }
+
+        let bucket = candle.timestamp.value() / TimeInterval::TwoSeconds.duration_ms()
+            * TimeInterval::TwoSeconds.duration_ms();
+        if self.two_second_bucket != Some(bucket) {
+            self.two_second_bucket = Some(bucket);
+            self.two_second_parts.clear();
+        }
+
+        if let Some(existing) =
+            self.two_second_parts.iter_mut().find(|part| part.timestamp == candle.timestamp)
+        {
+            *existing = candle;
+        } else {
+            self.two_second_parts.push(candle);
+            self.two_second_parts.sort_by_key(|part| part.timestamp.value());
+        }
+
+        Aggregator::aggregate(&self.two_second_parts, TimeInterval::TwoSeconds)
+            .filter(|candle| !candle.is_empty())
     }
 
     /// Connect to the Binance WebSocket stream
@@ -181,7 +217,9 @@ impl BinanceWebSocketClient {
                                         candle.ohlcv.volume.value()
                                     ),
                                 );
-                            handler(candle);
+                            if let Some(candle) = self.normalize_stream_candle(candle) {
+                                handler(candle);
+                            }
                         }
                         Err(e) => {
                             get_logger().error(
@@ -269,7 +307,7 @@ impl BinanceWebSocketClient {
             &format!("✅ Loaded {} historical candles for {}", candles.len(), symbol_upper),
         );
 
-        Ok(candles)
+        Ok(self.normalize_history(candles))
     }
 
     /// 📈 Load historical data up to the specified time
@@ -329,7 +367,7 @@ impl BinanceWebSocketClient {
             &format!("✅ Loaded {} historical candles", candles.len()),
         );
 
-        Ok(candles)
+        Ok(self.normalize_history(candles))
     }
 
     /// 📈 Load uiKlines up to the specified time
@@ -389,7 +427,7 @@ impl BinanceWebSocketClient {
             &format!("✅ Loaded {} uiKlines", candles.len()),
         );
 
-        Ok(candles)
+        Ok(self.normalize_history(candles))
     }
 }
 

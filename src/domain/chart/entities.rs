@@ -62,6 +62,9 @@ impl Chart {
     }
 
     pub fn add_candle(&mut self, candle: Candle) {
+        if candle.is_empty() {
+            return;
+        }
         if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
             let latest_ts = base.latest().map(|c| c.timestamp.value());
             let is_new_candle = latest_ts.is_none_or(|ts| candle.timestamp.value() > ts);
@@ -78,6 +81,7 @@ impl Chart {
 
     /// Add historical data, replacing existing values
     pub fn set_historical_data(&mut self, mut candles: Vec<Candle>) {
+        candles.retain(|candle| !candle.is_empty());
         // Sort by timestamp for stability
         candles.sort_by_key(|a| a.timestamp.value());
 
@@ -116,6 +120,7 @@ impl Chart {
     /// derived series once is both cheaper and more reliable than inserting every
     /// candle through the real-time path.
     pub fn prepend_historical_data(&mut self, mut historical: Vec<Candle>) -> usize {
+        historical.retain(|candle| !candle.is_empty());
         let Some(base) = self.series.get(&TimeInterval::TwoSeconds) else {
             return 0;
         };
@@ -148,6 +153,9 @@ impl Chart {
     }
     /// Add a new candle in real time
     pub fn add_realtime_candle(&mut self, candle: Candle) {
+        if candle.is_empty() {
+            return;
+        }
         let is_empty = self.get_candle_count() == 0;
 
         if let Some(base) = self.series.get_mut(&TimeInterval::TwoSeconds) {
@@ -353,6 +361,20 @@ mod tests {
         )
     }
 
+    fn empty_candle(minute: u64) -> Candle {
+        let price = 100.0 + minute as f64;
+        Candle::new(
+            Timestamp::from_millis(minute * 60_000),
+            OHLCV::new(
+                Price::from(price),
+                Price::from(price),
+                Price::from(price),
+                Price::from(price),
+                Volume::from(0.0),
+            ),
+        )
+    }
+
     #[test]
     fn historical_prepend_preserves_viewport_and_order() {
         let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 10);
@@ -392,5 +414,17 @@ mod tests {
         chart.add_realtime_candle(candle(1));
         assert_ne!(after_insert, initial);
         assert_ne!(chart.revision(), after_insert);
+    }
+
+    #[test]
+    fn empty_candles_never_enter_the_chart() {
+        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 10);
+        chart.set_historical_data(vec![candle(1), empty_candle(2), candle(3)]);
+        assert_eq!(chart.get_candle_count(), 2);
+
+        let revision = chart.revision();
+        chart.add_realtime_candle(empty_candle(4));
+        assert_eq!(chart.get_candle_count(), 2);
+        assert_eq!(chart.revision(), revision);
     }
 }

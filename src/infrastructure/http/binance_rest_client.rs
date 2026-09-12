@@ -1,6 +1,7 @@
 use crate::domain::logging::{LogComponent, get_logger};
 use crate::domain::market_data::{
     Candle, TimeInterval,
+    services::Aggregator,
     value_objects::{OHLCV, Price, Symbol, Timestamp, Volume},
 };
 use gloo_net::http::Request;
@@ -113,7 +114,11 @@ impl BinanceRestClient {
             &format!("✅ Loaded {} historical candles", candles.len()),
         );
 
-        Ok(candles)
+        if self.interval == TimeInterval::TwoSeconds {
+            Ok(Aggregator::aggregate_series(candles, TimeInterval::TwoSeconds))
+        } else {
+            Ok(candles)
+        }
     }
 }
 

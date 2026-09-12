@@ -270,6 +270,69 @@ impl Aggregator {
             OHLCV::new(open, Price::from(high), Price::from(low), close, Volume::from(volume_sum)),
         ))
     }
+
+    /// Aggregate an ordered source series into complete logical time buckets.
+    pub fn aggregate_series(candles: Vec<Candle>, interval: TimeInterval) -> Vec<Candle> {
+        let mut aggregated = Vec::with_capacity(candles.len());
+        let mut bucket = Vec::new();
+        let mut bucket_start = None;
+
+        for candle in candles.into_iter().filter(|candle| !candle.is_empty()) {
+            let start = candle.timestamp.value() / interval.duration_ms() * interval.duration_ms();
+            if bucket_start.is_some_and(|current| current != start) {
+                if let Some(candle) = Self::aggregate(&bucket, interval) {
+                    aggregated.push(candle);
+                }
+                bucket.clear();
+            }
+            bucket_start = Some(start);
+            bucket.push(candle);
+        }
+
+        if let Some(candle) = Self::aggregate(&bucket, interval) {
+            aggregated.push(candle);
+        }
+        aggregated
+    }
+}
+
+#[cfg(test)]
+mod aggregator_series_tests {
+    use super::*;
+
+    fn candle(timestamp: u64, open: f64, close: f64, volume: f64) -> Candle {
+        Candle::new(
+            Timestamp::from(timestamp),
+            OHLCV::new(
+                Price::from(open),
+                Price::from(open.max(close) + 1.0),
+                Price::from(open.min(close) - 1.0),
+                Price::from(close),
+                Volume::from(volume),
+            ),
+        )
+    }
+
+    #[test]
+    fn aggregates_one_second_data_into_non_empty_two_second_bars() {
+        let source = vec![
+            candle(0, 100.0, 101.0, 2.0),
+            candle(1_000, 101.0, 103.0, 3.0),
+            candle(2_000, 103.0, 103.0, 0.0),
+            candle(3_000, 103.0, 102.0, 4.0),
+        ];
+
+        let result = Aggregator::aggregate_series(source, TimeInterval::TwoSeconds);
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].timestamp.value(), 0);
+        assert_eq!(result[0].ohlcv.open.value(), 100.0);
+        assert_eq!(result[0].ohlcv.close.value(), 103.0);
+        assert_eq!(result[0].ohlcv.volume.value(), 5.0);
+        assert_eq!(result[1].timestamp.value(), 2_000);
+        assert_eq!(result[1].ohlcv.volume.value(), 4.0);
+        assert!(result.iter().all(|candle| !candle.is_empty()));
+    }
 }
 
 // DataValidationService removed - validation is handled in MarketAnalysisService.validate_candle()

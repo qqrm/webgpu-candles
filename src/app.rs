@@ -912,7 +912,7 @@ fn header() -> impl IntoView {
                     <span class="brand-mark" aria-hidden="true">"WG"</span>
                     <div>
                         <div class="brand-name">"WebGPU Candles"</div>
-                        <div class="brand-caption">"Live market rendering in Rust + WebAssembly"</div>
+                        <div class="brand-caption">"GPU-native charts · Rust + WebAssembly"</div>
                     </div>
                 </div>
                 <div
@@ -1819,8 +1819,12 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
             let cnt = chart.with(|c| c.get_candle_count());
             global_candle_count().set(cnt);
 
-            if let Some(last_candle) = historical_candles.last() {
-                global_current_price().set(last_candle.ohlcv.close.value());
+            if let Some(price) = chart.with(|ch| {
+                ch.get_series(interval)
+                    .and_then(|series| series.latest())
+                    .map(|candle| candle.ohlcv.close.value())
+            }) {
+                global_current_price().set(price);
             }
 
             set_status.set("✅ Historical data loaded. Starting real-time stream...".to_string());
@@ -1834,9 +1838,9 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
         }
     }
 
-    // 🔌 Start the WebSocket for real-time updates
-    set_status.set("🔌 Starting WebSocket stream...".to_string());
-    global_is_streaming().set(true);
+    // The single header pill owns connection state; transient success text below
+    // the chart would duplicate it.
+    set_status.set(String::new());
 
     let stream_client_arc =
         Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
@@ -1867,9 +1871,11 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
             let handler = move |candle: Candle| {
                 if handler_handle.is_aborted()
                     || connection_guard != connection_id().get_untracked()
+                    || candle.is_empty()
                 {
                     return;
                 }
+                global_is_streaming().set(true);
                 global_current_price().set(candle.ohlcv.close.value());
 
                 chart.update(|ch| {
@@ -1916,7 +1922,7 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                 if handler_handle.is_aborted() {
                     return;
                 }
-                set_status.set("🌐 WebSocket LIVE • Real-time updates".to_string());
+                set_status.set(String::new());
             };
 
             let result = {
