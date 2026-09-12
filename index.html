@@ -53,7 +53,7 @@
             100% { transform: rotate(360deg); }
         }
     </style>
-<link rel="modulepreload" href="/webgpu-candles/price-chart-wasm.js" crossorigin="anonymous" integrity="sha384-jcggivYvSlHndwiuNu78Tu14xuIrOeaNSIVDVEoF1UkpxiJ6MMc0JHzS0wvK9+wS"><link rel="preload" href="/webgpu-candles/price-chart-wasm_bg.wasm" crossorigin="anonymous" integrity="sha384-GnEW7+lMlZ5sgo8QhdtQaAARYtYsC9vQJzFdi0PqM0v1tg+mEoV4mEqoeiOKvIzu" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/webgpu-candles/price-chart-wasm-7036fb4fcb332d65.js" crossorigin="anonymous" integrity="sha384-jcggivYvSlHndwiuNu78Tu14xuIrOeaNSIVDVEoF1UkpxiJ6MMc0JHzS0wvK9+wS"><link rel="preload" href="/webgpu-candles/price-chart-wasm-7036fb4fcb332d65_bg.wasm" crossorigin="anonymous" integrity="sha384-GnEW7+lMlZ5sgo8QhdtQaAARYtYsC9vQJzFdi0PqM0v1tg+mEoV4mEqoeiOKvIzu" as="fetch" type="application/wasm"></head>
 <body>
     <div id="loading">
         <div class="spinner"></div>
@@ -65,8 +65,8 @@
 
     
 <script type="module">
-import init, * as bindings from '/webgpu-candles/price-chart-wasm.js';
-const wasm = await init({ module_or_path: '/webgpu-candles/price-chart-wasm_bg.wasm' });
+import init, * as bindings from '/webgpu-candles/price-chart-wasm-7036fb4fcb332d65.js';
+const wasm = await init({ module_or_path: '/webgpu-candles/price-chart-wasm-7036fb4fcb332d65_bg.wasm' });
 
 
 window.wasmBindings = bindings;
