@@ -15,7 +15,7 @@ use crate::view_state::ViewState;
 use futures::future::AbortHandle;
 use leptos::*;
 use once_cell::sync::OnceCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -32,6 +32,7 @@ pub struct Globals {
     pub current_interval: RwSignal<TimeInterval>,
     pub current_symbol: RwSignal<Symbol>,
     pub stream_abort_handles: RwSignal<HashMap<Symbol, AbortHandle>>,
+    pub streaming_symbols: RwSignal<HashSet<Symbol>>,
     pub line_visibility: RwSignal<crate::infrastructure::rendering::renderer::LineVisibility>,
     pub domain_state: RwSignal<DomainState>,
     pub view_state: RwSignal<ViewState>,
@@ -56,6 +57,7 @@ pub fn globals() -> &'static Globals {
         current_interval: create_rw_signal(TimeInterval::OneMinute),
         current_symbol: create_rw_signal(Symbol::from("BTCUSDT")),
         stream_abort_handles: create_rw_signal(HashMap::new()),
+        streaming_symbols: create_rw_signal(HashSet::new()),
         line_visibility: create_rw_signal(
             crate::infrastructure::rendering::renderer::LineVisibility::default(),
         ),
@@ -94,6 +96,10 @@ pub fn ensure_chart(symbol: &Symbol) -> RwSignal<Chart> {
 
 pub fn stream_abort_handles() -> RwSignal<HashMap<Symbol, AbortHandle>> {
     globals().stream_abort_handles
+}
+
+pub fn streaming_symbols() -> RwSignal<HashSet<Symbol>> {
+    globals().streaming_symbols
 }
 
 pub fn domain_state() -> RwSignal<DomainState> {

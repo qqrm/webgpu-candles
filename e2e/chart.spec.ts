@@ -2,6 +2,7 @@ import { expect, Page, test } from '@playwright/test';
 
 type MarketRequests = {
   urls: string[];
+  webSocketUrls: string[];
   historyCount: number;
 };
 
@@ -19,8 +20,8 @@ const intervalDuration = (interval: string): number => {
   return durations[interval] ?? 60_000;
 };
 
-const kline = (timestamp: number, index: number, empty: boolean) => {
-  const center = 50_000 + index * 0.4 + Math.sin(index / 9) * 12;
+const kline = (timestamp: number, index: number, empty: boolean, basePrice: number) => {
+  const center = basePrice + index * 0.04 + Math.sin(index / 9) * basePrice * 0.0002;
   const close = empty ? center : center + Math.cos(index / 5) * 3;
   const high = empty ? center : Math.max(center, close) + 2;
   const low = empty ? center : Math.min(center, close) - 2;
@@ -42,11 +43,13 @@ const kline = (timestamp: number, index: number, empty: boolean) => {
 };
 
 async function mockMarket(page: Page): Promise<MarketRequests> {
-  const requests: MarketRequests = { urls: [], historyCount: 0 };
+  const requests: MarketRequests = { urls: [], webSocketUrls: [], historyCount: 0 };
 
   await page.route(/https:\/\/api\.binance\.com\/api\/v3\/(uiKlines|klines).*/, async route => {
     const url = new URL(route.request().url());
     const interval = url.searchParams.get('interval') ?? '1m';
+    const symbol = url.searchParams.get('symbol') ?? 'BTCUSDT';
+    const basePrice = symbol === 'ETHUSDT' ? 3_200 : symbol === 'SOLUSDT' ? 150 : 50_000;
     const limit = Number(url.searchParams.get('limit') ?? 1_000);
     const duration = intervalDuration(interval);
     const endTime = Number(url.searchParams.get('endTime') ?? Date.now());
@@ -60,7 +63,7 @@ async function mockMarket(page: Page): Promise<MarketRequests> {
       const timestamp = first + index * duration;
       const emptyTwoSecondBucket =
         interval === '1s' && Math.floor(timestamp / 2_000) % 10 === 0;
-      return kline(timestamp, index, emptyTwoSecondBucket);
+      return kline(timestamp, index, emptyTwoSecondBucket, basePrice);
     });
 
     await route.fulfill({
@@ -73,6 +76,9 @@ async function mockMarket(page: Page): Promise<MarketRequests> {
 
   await page.routeWebSocket(/wss:\/\/stream\.binance\.com.*/, socket => {
     const url = new URL(socket.url());
+    requests.webSocketUrls.push(url.toString());
+    const symbol = url.pathname.split('/').at(-1)?.split('@')[0] ?? 'btcusdt';
+    const price = symbol === 'ethusdt' ? 3_204 : symbol === 'solusdt' ? 154 : 50_404;
     const interval = url.pathname.split('kline_')[1] ?? '1m';
     const duration = intervalDuration(interval);
     const timestamp = Math.floor(Date.now() / duration) * duration;
@@ -81,10 +87,10 @@ async function mockMarket(page: Page): Promise<MarketRequests> {
         JSON.stringify({
           k: {
             t: timestamp,
-            o: '50400.00',
-            h: '50406.00',
-            l: '50398.00',
-            c: '50404.00',
+            o: price.toFixed(2),
+            h: (price + 2).toFixed(2),
+            l: (price - 2).toFixed(2),
+            c: (price + 1).toFixed(2),
             v: '2.5000',
           },
         }),
@@ -127,6 +133,7 @@ test('loads WebGPU chart and keeps controls internally consistent', async ({ pag
   const market = await mockMarket(page);
   const errors = captureRuntimeErrors(page);
   await openReadyChart(page);
+  await expect.poll(() => market.urls.length).toBe(3);
 
   await expect(page.locator('.market-price')).toHaveText(/^\$\d+$/);
   await expect(page.getByText('Real-time updates')).toHaveCount(0);
@@ -147,6 +154,38 @@ test('loads WebGPU chart and keeps controls internally consistent', async ({ pag
   const timeBefore = await page.locator('.time-scale').innerText();
   await dragRight(page, 1);
   await expect.poll(() => page.locator('.time-scale').innerText()).not.toBe(timeBefore);
+  expect(errors).toEqual([]);
+});
+
+test('keeps all three market streams hot and switches the rendered chart instantly', async ({
+  page,
+}) => {
+  const market = await mockMarket(page);
+  const errors = captureRuntimeErrors(page);
+  await openReadyChart(page);
+
+  await expect.poll(() => new Set(market.webSocketUrls).size).toBe(3);
+  for (const symbol of ['btcusdt', 'ethusdt', 'solusdt']) {
+    expect(market.webSocketUrls.some(url => url.includes(`${symbol}@kline_1m`))).toBe(true);
+    expect(market.urls.some(url => url.includes(`symbol=${symbol.toUpperCase()}`))).toBe(true);
+  }
+
+  const socketsBeforeSwitch = market.webSocketUrls.length;
+  await page.getByRole('button', { name: 'ETHUSDT', exact: true }).click();
+  await expect(page.locator('.market-symbol')).toHaveText('ETHUSDT · SPOT');
+  await expect(page.locator('.market-price')).toHaveText(/^\$3\d{3}$/);
+  await expect(page.locator('.price-level').first()).toHaveText(/^3\d{3}$/);
+  await expect(page.locator('.connection-pill')).toHaveText(/LIVE/);
+
+  await page.getByRole('button', { name: 'SOLUSDT', exact: true }).click();
+  await expect(page.locator('.market-symbol')).toHaveText('SOLUSDT · SPOT');
+  await expect(page.locator('.market-price')).toHaveText(/^\$1\d{2}$/);
+  await expect(page.locator('.price-level').first()).toHaveText(/^1\d{2}$/);
+
+  await page.getByRole('button', { name: 'BTCUSDT', exact: true }).click();
+  await expect(page.locator('.market-symbol')).toHaveText('BTCUSDT · SPOT');
+  await expect(page.locator('.market-price')).toHaveText(/^\$5\d{4}$/);
+  expect(market.webSocketUrls).toHaveLength(socketsBeforeSwitch);
   expect(errors).toEqual([]);
 });
 

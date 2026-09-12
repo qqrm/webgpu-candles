@@ -3,12 +3,12 @@
 //! Handles canvas interactions, zoom/pan logic and connects to the
 //! WebSocket stream providing market data.
 
-use futures::{channel::oneshot, lock::Mutex};
+use futures::{channel::oneshot, future::join_all, lock::Mutex};
 use js_sys;
 use leptos::html::Canvas;
 use leptos::spawn_local_with_current_owner;
 use leptos::*;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -17,7 +17,9 @@ use wasm_bindgen::JsCast;
 
 use crate::event_utils::{EventOptions, window_event_listener_with_options};
 use crate::global_signals;
-use crate::global_state::{connection_id, ensure_chart, get_chart_signal, globals};
+use crate::global_state::{
+    connection_id, ensure_chart, get_chart_signal, globals, streaming_symbols,
+};
 use crate::{
     domain::{
         chart::Chart,
@@ -363,7 +365,9 @@ pub fn app() -> impl IntoView {
     // them lazily inside a reactive closure would dispose them when that closure
     // is rebuilt while the static registry still retained their handles.
     globals();
-    ensure_chart(&current_symbol().get_untracked());
+    for symbol in default_symbols() {
+        ensure_chart(&symbol);
+    }
 
     view! {
         <style>
@@ -889,14 +893,18 @@ fn header() -> impl IntoView {
     // Use global signals for real data
     let current_price = global_current_price();
     let candle_count = global_candle_count();
-    let is_streaming = global_is_streaming();
     let render_time_ms = global_render_time_ms();
+    let is_active_streaming = move || {
+        let symbol = current_symbol().get();
+        streaming_symbols().with(|symbols| symbols.contains(&symbol))
+    };
 
     let zoom_level = move || {
-        get_chart_signal(&current_symbol().get_untracked())
+        let symbol = current_symbol().get();
+        let interval = current_interval().get();
+        get_chart_signal(&symbol)
             .and_then(|chart| {
                 chart.try_with(|c| {
-                    let interval = current_interval().get_untracked();
                     let series = c.get_series(interval)?;
                     Some(viewport_zoom_pan(series.get_candles(), &c.viewport).0)
                 })
@@ -917,11 +925,11 @@ fn header() -> impl IntoView {
                 </div>
                 <div
                     class="connection-pill"
-                    class:live=move || is_streaming.get()
+                    class:live=is_active_streaming
                     role="status"
                 >
                     <span class="connection-dot"></span>
-                    {move || if is_streaming.get() { "LIVE" } else { "CONNECTING" }}
+                    {move || if is_active_streaming() { "LIVE" } else { "CONNECTING" }}
                 </div>
             </div>
 
@@ -955,8 +963,10 @@ fn header() -> impl IntoView {
 
 /// ⏰ Time scale below the chart
 #[component]
-fn TimeScale(chart: RwSignal<Chart>) -> impl IntoView {
+fn TimeScale() -> impl IntoView {
     let time_labels = move || {
+        let symbol = current_symbol().get();
+        let chart = get_chart_signal(&symbol).unwrap_or_else(|| ensure_chart(&symbol));
         chart.with(|current| {
             let interval = current_interval().get_untracked();
             let Some(series) = current.get_series(interval) else {
@@ -1096,7 +1106,7 @@ fn pan_chart(
     if moved { sync_chart_view(chart) } else { resulting_start }
 }
 
-fn reset_chart(chart: RwSignal<Chart>) {
+fn reset_chart_viewport(chart: RwSignal<Chart>) {
     chart.update(|current| {
         current.update_viewport_for_data();
         let interval = current_interval().get_untracked();
@@ -1114,6 +1124,31 @@ fn reset_chart(chart: RwSignal<Chart>) {
         current.viewport.start_time = start_time;
         current.viewport.end_time = end_time;
     });
+}
+
+fn reset_chart(chart: RwSignal<Chart>) {
+    reset_chart_viewport(chart);
+    let _ = sync_chart_view(chart);
+}
+
+fn refresh_active_market_view() {
+    let symbol = current_symbol().get_untracked();
+    let interval = current_interval().get_untracked();
+    let chart = get_chart_signal(&symbol).unwrap_or_else(|| ensure_chart(&symbol));
+    let (count, price) = chart.with_untracked(|current| {
+        let series = current.get_series(interval);
+        let count = series.map(|value| value.count()).unwrap_or_default();
+        let price =
+            series.and_then(|value| value.latest()).map(|candle| candle.ohlcv.close.value());
+        (count, price)
+    });
+
+    global_candle_count().set(count);
+    if let Some(price) = price {
+        global_current_price().set(price);
+    }
+    global_is_streaming().set(streaming_symbols().with(|symbols| symbols.contains(&symbol)));
+    tooltip_visible().set(false);
     let _ = sync_chart_view(chart);
 }
 
@@ -1180,7 +1215,7 @@ fn ChartContainer() -> impl IntoView {
                             LogComponent::Infrastructure("WebSocket"),
                             "🌐 Starting WebSocket stream...",
                         );
-                        start_websocket_stream(set_status).await;
+                        start_all_websocket_streams(set_status).await;
                     }
                     Err(e) => {
                         let msg = e.as_string().unwrap_or_else(|| format!("{e:?}"));
@@ -1428,7 +1463,7 @@ fn ChartContainer() -> impl IntoView {
                     </div>
                     <div class="selector-group" aria-label="Timeframe">
                         <span class="selector-label">"Timeframe"</span>
-                        <TimeframeSelector chart=chart() set_status=set_status />
+                        <TimeframeSelector set_status=set_status />
                     </div>
                 </div>
                 <div class="chart-actions" aria-label="Chart controls">
@@ -1471,13 +1506,13 @@ fn ChartContainer() -> impl IntoView {
                         on:dblclick=handle_double_click
                         on:keydown=handle_keydown
                     />
-                    <PriceScale chart=chart() />
+                    <PriceScale />
                     <ChartTooltip />
                 </div>
-                <TimeScale chart=chart() />
+                <TimeScale />
             </div>
 
-            <Legend chart=chart() />
+            <Legend />
 
             <div class="chart-footer">
                 <div class="status" role="status">{move || status.get()}</div>
@@ -1509,10 +1544,12 @@ fn visible_price_bounds(chart: &Chart) -> Option<(f64, f64)> {
 }
 
 #[component]
-fn PriceScale(chart: RwSignal<Chart>) -> impl IntoView {
+fn PriceScale() -> impl IntoView {
     let current_price = global_current_price();
 
     let price_levels = move || {
+        let symbol = current_symbol().get();
+        let chart = get_chart_signal(&symbol).unwrap_or_else(|| ensure_chart(&symbol));
         let Some((min_price, max_price)) = chart.with(visible_price_bounds) else {
             return Vec::new();
         };
@@ -1526,6 +1563,8 @@ fn PriceScale(chart: RwSignal<Chart>) -> impl IntoView {
             .collect::<Vec<_>>()
     };
     let current_price_position = move || {
+        let symbol = current_symbol().get();
+        let chart = get_chart_signal(&symbol).unwrap_or_else(|| ensure_chart(&symbol));
         chart.with(|current| {
             let Some((min_price, max_price)) = visible_price_bounds(current) else {
                 return 50.0;
@@ -1539,7 +1578,7 @@ fn PriceScale(chart: RwSignal<Chart>) -> impl IntoView {
             // Display price levels
             <For
                 each=price_levels
-                key=|(_price, pos)| (*pos * 100.0) as i64
+                key=|(price, pos)| (price.to_bits(), (*pos * 100.0) as i64)
                 children=|(price, position)| view! {
                     <div
                         class="price-level"
@@ -1606,7 +1645,7 @@ fn ChartTooltip() -> impl IntoView {
 }
 
 #[component]
-fn TimeframeSelector(chart: RwSignal<Chart>, set_status: WriteSignal<String>) -> impl IntoView {
+fn TimeframeSelector(set_status: WriteSignal<String>) -> impl IntoView {
     let options = vec![
         TimeInterval::TwoSeconds,
         TimeInterval::OneMinute,
@@ -1625,7 +1664,6 @@ fn TimeframeSelector(chart: RwSignal<Chart>, set_status: WriteSignal<String>) ->
                 key=|i| i.as_ref().to_string()
                 children=move |interval| {
                     let label = interval.as_ref().to_string();
-                    let chart_signal = chart;
                     let status_signal = set_status;
                     view! {
                         <button
@@ -1635,20 +1673,14 @@ fn TimeframeSelector(chart: RwSignal<Chart>, set_status: WriteSignal<String>) ->
                                 "selector-button"
                             }
                             on:click=move |_| {
-                                current_interval().set(interval);
-                                if let Some(handle) = stream_abort_handles()
-                                    .with(|m| m.get(&current_symbol().get_untracked()).cloned())
-                                {
-                                    handle.abort();
-                                    stream_abort_handles().update(|m| {
-                                        m.remove(&current_symbol().get_untracked());
-                                    });
+                                if current_interval().get_untracked() == interval {
+                                    return;
                                 }
+                                current_interval().set(interval);
                                 let status = status_signal;
                                 let _ = spawn_local_with_current_owner(async move {
-                                    start_websocket_stream(status).await;
+                                    start_all_websocket_streams(status).await;
                                 });
-                                reset_chart(chart_signal);
                             }
                         >
                             {label}
@@ -1661,7 +1693,7 @@ fn TimeframeSelector(chart: RwSignal<Chart>, set_status: WriteSignal<String>) ->
 }
 
 #[component]
-fn LegendIndicatorToggle(name: &'static str, chart: RwSignal<Chart>) -> impl IntoView {
+fn LegendIndicatorToggle(name: &'static str) -> impl IntoView {
     let id = name;
     let label = name.to_uppercase();
     let checked = move || {
@@ -1689,6 +1721,8 @@ fn LegendIndicatorToggle(name: &'static str, chart: RwSignal<Chart>) -> impl Int
                 id=id
                 prop:checked=checked
                 on:change=move |_| {
+                    let symbol = current_symbol().get_untracked();
+                    let chart = get_chart_signal(&symbol).unwrap_or_else(|| ensure_chart(&symbol));
                     chart.with_untracked(|c| {
                         if with_global_renderer(|r| {
                             r.toggle_line_visibility(name);
@@ -1706,7 +1740,7 @@ fn LegendIndicatorToggle(name: &'static str, chart: RwSignal<Chart>) -> impl Int
 }
 
 #[component]
-fn Legend(chart: RwSignal<Chart>) -> impl IntoView {
+fn Legend() -> impl IntoView {
     let names = vec!["sma20", "sma50", "sma200", "ema12", "ema26"];
     view! {
         <div class="indicator-bar">
@@ -1714,7 +1748,7 @@ fn Legend(chart: RwSignal<Chart>) -> impl IntoView {
             <For
                 each=move || names.clone()
                 key=|name| name.to_string()
-                children=move |name| view! { <LegendIndicatorToggle name=name chart=chart /> }
+                children=move |name| view! { <LegendIndicatorToggle name=name /> }
             />
         </div>
     }
@@ -1744,9 +1778,8 @@ fn AssetSelector(set_status: WriteSignal<String>) -> impl IntoView {
                             on:click=move |_| {
                                 ensure_chart(&click_symbol);
                                 current_symbol().set(click_symbol.clone());
-                                let _ = spawn_local_with_current_owner(async move {
-                                    start_websocket_stream(status_cloned).await;
-                                });
+                                refresh_active_market_view();
+                                status_cloned.set(String::new());
                             }
                         >
                             {label}
@@ -1758,52 +1791,36 @@ fn AssetSelector(set_status: WriteSignal<String>) -> impl IntoView {
     }
 }
 
-/// Abort all active streams except the one for `symbol`.
-pub fn abort_other_streams(symbol: &Symbol) {
-    stream_abort_handles().update(|m| {
-        m.retain(|sym, handle| {
-            if sym != symbol {
-                handle.abort();
-                false
-            } else {
-                true
-            }
-        });
+/// Abort the current market-stream generation before changing timeframe.
+pub fn abort_all_streams() {
+    stream_abort_handles().update(|handles| {
+        for handle in handles.values() {
+            handle.abort();
+        }
+        handles.clear();
     });
+    streaming_symbols().set(Default::default());
+    global_is_streaming().set(false);
 }
 
-/// 🌐 Start WebSocket stream in Leptos and update global signals
-pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
-    let symbol = current_symbol().get_untracked();
-    abort_other_streams(&symbol);
+/// Start one independent market stream. Inactive markets keep receiving data,
+/// but only the selected market is allowed to update or render the shared UI.
+async fn start_market_stream(
+    symbol: Symbol,
+    interval: TimeInterval,
+    connection_generation: u64,
+    set_status: WriteSignal<String>,
+) {
     ensure_chart(&symbol);
     let chart = get_chart_signal(&symbol).unwrap();
-
-    if let Some(handle) = stream_abort_handles().with(|m| m.get(&symbol).cloned()) {
-        handle.abort();
-        stream_abort_handles().update(|m| {
-            m.remove(&symbol);
-        });
-        set_status.set("🔄 Restarting stream".to_string());
-    }
-
-    let interval = current_interval().get_untracked();
-    let conn_id = connection_id().get_untracked() + 1;
-    connection_id().set(conn_id);
     let rest_client_arc =
         Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
-
-    // Set the streaming status
-    global_is_streaming().set(false);
-
-    // 📈 First load historical data
-    set_status.set("📈 Loading historical data...".to_string());
 
     let hist_res = {
         let client = rest_client_arc.lock().await;
         client.fetch_historical_data(1000).await
     };
-    if conn_id != connection_id().get_untracked() {
+    if connection_generation != connection_id().get_untracked() {
         return;
     }
     match hist_res {
@@ -1814,33 +1831,21 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
             );
 
             chart.update(|ch| ch.set_historical_data(historical_candles.clone()));
-            reset_chart(chart);
-            // Update global signals using the historical data
-            let cnt = chart.with(|c| c.get_candle_count());
-            global_candle_count().set(cnt);
-
-            if let Some(price) = chart.with(|ch| {
-                ch.get_series(interval)
-                    .and_then(|series| series.latest())
-                    .map(|candle| candle.ohlcv.close.value())
-            }) {
-                global_current_price().set(price);
+            reset_chart_viewport(chart);
+            if current_symbol().get_untracked() == symbol {
+                refresh_active_market_view();
             }
-
-            set_status.set("✅ Historical data loaded. Starting real-time stream...".to_string());
         }
         Err(e) => {
             get_logger().error(
                 LogComponent::Presentation("WebSocketStream"),
                 &format!("❌ Failed to load historical data: {e}"),
             );
-            set_status.set("⚠️ Historical data failed. Starting real-time only...".to_string());
+            if current_symbol().get_untracked() == symbol {
+                set_status.set("⚠️ Historical data failed. Starting real-time only...".to_string());
+            }
         }
     }
-
-    // The single header pill owns connection state; transient success text below
-    // the chart would duplicate it.
-    set_status.set(String::new());
 
     let stream_client_arc =
         Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
@@ -1857,9 +1862,14 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
             handle.abort();
             let _ = spawn_local_with_current_owner(async move {
                 let _ = done_rx.await;
-                stream_abort_handles().update(|m| {
-                    m.remove(&symbol);
-                });
+                if connection_generation == connection_id().get_untracked() {
+                    stream_abort_handles().update(|m| {
+                        m.remove(&symbol);
+                    });
+                    streaming_symbols().update(|symbols| {
+                        symbols.remove(&symbol);
+                    });
+                }
             });
         }
     });
@@ -1867,7 +1877,10 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
     let fut = futures::future::Abortable::new(
         async move {
             let handler_handle = handle_check.clone();
-            let connection_guard = conn_id;
+            let connection_guard = connection_generation;
+            let handler_symbol = symbol.clone();
+            let stream_connected = Rc::new(Cell::new(false));
+            let handler_connected = stream_connected.clone();
             let handler = move |candle: Candle| {
                 if handler_handle.is_aborted()
                     || connection_guard != connection_id().get_untracked()
@@ -1875,11 +1888,13 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                 {
                     return;
                 }
-                global_is_streaming().set(true);
-                global_current_price().set(candle.ohlcv.close.value());
+                if !handler_connected.replace(true) {
+                    streaming_symbols().update(|symbols| {
+                        symbols.insert(handler_symbol.clone());
+                    });
+                }
 
                 chart.update(|ch| {
-                    let interval = current_interval().get_untracked();
                     let (was_at_live_edge, visible_before) = ch
                         .get_series(interval)
                         .map(|series| {
@@ -1902,22 +1917,33 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                         ch.viewport.end_time = end_time;
                     }
                 });
-                let count = chart.with(|c| c.get_candle_count());
-                global_candle_count().set(count);
 
-                let sym_for_queue = symbol.clone();
-                enqueue_render_task(Box::new(move |r| {
-                    let chart_signal = get_chart_signal(&sym_for_queue).unwrap();
-                    chart_signal.with_untracked(|ch| {
-                        if ch.get_candle_count() > 0 {
-                            let interval = current_interval().get_untracked();
-                            let series = ch.get_series(interval).unwrap();
-                            let (zoom, pan) = viewport_zoom_pan(series.get_candles(), &ch.viewport);
-                            r.set_zoom_params(zoom, pan);
-                            let _ = r.render(ch);
+                if current_symbol().get_untracked() == handler_symbol
+                    && current_interval().get_untracked() == interval
+                {
+                    global_is_streaming().set(true);
+                    global_current_price().set(candle.ohlcv.close.value());
+                    global_candle_count().set(chart.with(|c| c.get_candle_count()));
+
+                    let sym_for_queue = handler_symbol.clone();
+                    enqueue_render_task(Box::new(move |r| {
+                        if current_symbol().get_untracked() != sym_for_queue
+                            || current_interval().get_untracked() != interval
+                        {
+                            return;
                         }
-                    });
-                }));
+                        let chart_signal = get_chart_signal(&sym_for_queue).unwrap();
+                        chart_signal.with_untracked(|ch| {
+                            if ch.get_candle_count() > 0 {
+                                let series = ch.get_series(interval).unwrap();
+                                let (zoom, pan) =
+                                    viewport_zoom_pan(series.get_candles(), &ch.viewport);
+                                r.set_zoom_params(zoom, pan);
+                                let _ = r.render(ch);
+                            }
+                        });
+                    }));
+                }
 
                 if handler_handle.is_aborted() {
                     return;
@@ -1925,9 +1951,21 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                 set_status.set(String::new());
             };
 
+            let reconnect_symbol = symbol.clone();
+            let reconnect_connected = stream_connected.clone();
+            let on_reconnect = move || {
+                if reconnect_connected.replace(false) {
+                    streaming_symbols().update(|symbols| {
+                        symbols.remove(&reconnect_symbol);
+                    });
+                    if current_symbol().get_untracked() == reconnect_symbol {
+                        global_is_streaming().set(false);
+                    }
+                }
+            };
             let result = {
                 let mut client = stream_client_arc.lock().await;
-                client.start_stream(handler).await
+                client.start_stream_with_callback(handler, on_reconnect).await
             };
             if handle_check.is_aborted() {
                 return;
@@ -1936,8 +1974,13 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
                 if handle_check.is_aborted() {
                     return;
                 }
-                set_status.set(format!("❌ WebSocket error: {e}"));
-                global_is_streaming().set(false);
+                streaming_symbols().update(|symbols| {
+                    symbols.remove(&symbol);
+                });
+                if current_symbol().get_untracked() == symbol {
+                    set_status.set(format!("❌ WebSocket error: {e}"));
+                    global_is_streaming().set(false);
+                }
             }
         },
         abort_reg,
@@ -1949,10 +1992,30 @@ pub async fn start_websocket_stream(set_status: WriteSignal<String>) {
     });
 }
 
+/// 🌐 Keep every supported market hot so switching symbols is instant.
+pub async fn start_all_websocket_streams(set_status: WriteSignal<String>) {
+    let connection_generation = connection_id().get_untracked().wrapping_add(1);
+    connection_id().set(connection_generation);
+    abort_all_streams();
+
+    let interval = current_interval().get_untracked();
+    set_status.set("📈 Loading BTC, ETH and SOL...".to_string());
+    join_all(
+        default_symbols()
+            .into_iter()
+            .map(|symbol| start_market_stream(symbol, interval, connection_generation, set_status)),
+    )
+    .await;
+
+    if connection_generation == connection_id().get_untracked() {
+        refresh_active_market_view();
+        set_status.set(String::new());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::chart::value_objects::ChartType;
     use crate::domain::market_data::value_objects::Symbol;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
@@ -2004,35 +2067,34 @@ mod tests {
         use std::time::Duration;
 
         let container = setup_container();
-        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 100));
         let (_, set_status) = create_signal(String::new());
         leptos::mount_to(
             container.clone(),
-            move || view! { <TimeframeSelector chart=chart set_status=set_status /> },
+            move || view! { <TimeframeSelector set_status=set_status /> },
         );
 
         let two_sec = find_button(&container, "2s").expect("2s button not found");
         two_sec.click();
         sleep(Duration::from_millis(10)).await;
-        abort_other_streams(&current_symbol().get_untracked());
+        abort_all_streams();
         assert_eq!(current_interval().get(), TimeInterval::TwoSeconds);
 
         let five = find_button(&container, "5m").expect("5m button not found");
         five.click();
         sleep(Duration::from_millis(10)).await;
-        abort_other_streams(&current_symbol().get_untracked());
+        abort_all_streams();
         assert_eq!(current_interval().get(), TimeInterval::FiveMinutes);
 
         let fifteen = find_button(&container, "15m").expect("15m button not found");
         fifteen.click();
         sleep(Duration::from_millis(10)).await;
-        abort_other_streams(&current_symbol().get_untracked());
+        abort_all_streams();
         assert_eq!(current_interval().get(), TimeInterval::FifteenMinutes);
 
         let one_hour = find_button(&container, "1h").expect("1h button not found");
         one_hour.click();
         sleep(Duration::from_millis(10)).await;
-        abort_other_streams(&current_symbol().get_untracked());
+        abort_all_streams();
         assert_eq!(current_interval().get(), TimeInterval::OneHour);
     }
 
@@ -2043,11 +2105,10 @@ mod tests {
         use std::rc::Rc;
 
         let container = setup_container();
-        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 10));
         let renderer = Rc::new(RefCell::new(dummy_renderer()));
 
         set_global_renderer(renderer.clone());
-        leptos::mount_to(container.clone(), move || view! { <Legend chart=chart /> });
+        leptos::mount_to(container.clone(), move || view! { <Legend /> });
 
         let cb = find_checkbox(&container, "sma20").expect("sma20 checkbox not found");
         cb.click();
@@ -2062,11 +2123,10 @@ mod tests {
         use std::rc::Rc;
 
         let container = setup_container();
-        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 10));
         let renderer = Rc::new(RefCell::new(dummy_renderer()));
 
         set_global_renderer(renderer.clone());
-        leptos::mount_to(container.clone(), move || view! { <Legend chart=chart /> });
+        leptos::mount_to(container.clone(), move || view! { <Legend /> });
 
         let cb = find_checkbox(&container, "sma20").expect("sma20 checkbox not found");
         assert!(cb.checked());
@@ -2112,11 +2172,10 @@ mod tests {
     #[wasm_bindgen_test]
     fn timeframe_selector_exposes_long_ranges() {
         let container = setup_container();
-        let chart = create_rw_signal(Chart::new("test".to_string(), ChartType::Candlestick, 100));
         let (_, set_status) = create_signal(String::new());
         leptos::mount_to(
             container.clone(),
-            move || view! { <TimeframeSelector chart=chart set_status=set_status /> },
+            move || view! { <TimeframeSelector set_status=set_status /> },
         );
 
         find_button(&container, "1d").expect("1d button not found");
