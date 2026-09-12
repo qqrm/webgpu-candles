@@ -42,7 +42,7 @@ const kline = (timestamp: number, index: number, empty: boolean, basePrice: numb
   ];
 };
 
-async function mockMarket(page: Page): Promise<MarketRequests> {
+async function mockMarket(page: Page, historyRows?: number): Promise<MarketRequests> {
   const requests: MarketRequests = { urls: [], webSocketUrls: [], historyCount: 0 };
 
   await page.route(/https:\/\/api\.binance\.com\/api\/v3\/(uiKlines|klines).*/, async route => {
@@ -59,7 +59,8 @@ async function mockMarket(page: Page): Promise<MarketRequests> {
     requests.urls.push(url.toString());
     if (isHistory) requests.historyCount += 1;
 
-    const rows = Array.from({ length: limit }, (_, index) => {
+    const rowCount = Math.min(limit, historyRows ?? limit);
+    const rows = Array.from({ length: rowCount }, (_, index) => {
       const timestamp = first + index * duration;
       const emptyTwoSecondBucket =
         interval === '1s' && Math.floor(timestamp / 2_000) % 10 === 0;
@@ -158,6 +159,31 @@ test('loads WebGPU chart and keeps controls internally consistent', async ({ pag
   const timeBefore = await page.locator('.time-scale').innerText();
   await dragRight(page, 1);
   await expect.poll(() => page.locator('.time-scale').innerText()).not.toBe(timeBefore);
+  expect(errors).toEqual([]);
+});
+
+test('keeps every control alive while a market has fewer than eight candles', async ({ page }) => {
+  const market = await mockMarket(page, 2);
+  const errors = captureRuntimeErrors(page);
+  await openReadyChart(page);
+
+  const canvas = page.locator('#chart-canvas');
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('Chart canvas has no bounding box');
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5);
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await page.getByRole('button', { name: 'Zoom out' }).click();
+
+  await page.getByRole('button', { name: 'ETHUSDT', exact: true }).click();
+  await expect(page.locator('.market-symbol')).toHaveText('ETHUSDT · SPOT');
+  await expect(page.locator('.market-price')).toHaveText(/^\$3\d{3}$/);
+
+  await page.getByRole('button', { name: '5m', exact: true }).click();
+  await expect
+    .poll(() => market.urls.some(url => url.includes('interval=5m')))
+    .toBe(true);
+  await expect(page.locator('.connection-pill')).toHaveText(/LIVE/);
+  await expect(page.locator('.time-scale')).not.toBeEmpty();
   expect(errors).toEqual([]);
 });
 

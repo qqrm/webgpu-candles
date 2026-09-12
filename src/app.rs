@@ -135,6 +135,12 @@ pub fn visible_range(len: usize, zoom: f64, pan: f64) -> (usize, usize) {
     (start as usize, visible as usize)
 }
 
+/// Keep the requested viewport size inside the available series, including
+/// the short period before enough live candles have arrived.
+fn bounded_visible_count(len: usize, requested: usize) -> usize {
+    requested.max(MIN_VISIBLE_CANDLES as usize).min(len)
+}
+
 /// Check if the viewport is already at the latest candle
 pub fn should_auto_scroll(len: usize, zoom: f64, pan: f64) -> bool {
     let (start, visible) = visible_range(len, zoom, pan);
@@ -274,8 +280,7 @@ pub fn viewport_zoom_pan(
     let start_idx = lower_bound(viewport.start_time as u64, false);
     let end_idx = lower_bound(viewport.end_time as u64, true);
 
-    let mut visible = end_idx.saturating_sub(start_idx);
-    visible = visible.clamp(MIN_VISIBLE_CANDLES as usize, candles.len());
+    let visible = bounded_visible_count(candles.len(), end_idx.saturating_sub(start_idx));
 
     let zoom = MAX_VISIBLE_CANDLES / visible as f64;
     let base_start = candles.len().saturating_sub(visible);
@@ -1174,8 +1179,10 @@ fn zoom_chart(chart: RwSignal<Chart>, factor: f64, center_x: f32) -> usize {
         let (start, visible) = visible_range_by_time_deque(candles, &current.viewport, old_zoom);
         let max_visible = (MAX_VISIBLE_CANDLES / MIN_ZOOM_LEVEL) as usize;
         let min_visible = (MAX_VISIBLE_CANDLES / MAX_ZOOM_LEVEL).ceil() as usize;
-        let target_visible = ((visible as f64 / factor).round() as usize)
-            .clamp(min_visible, max_visible.min(candles.len()));
+        let target_visible = bounded_visible_count(
+            candles.len(),
+            ((visible as f64 / factor).round() as usize).clamp(min_visible, max_visible),
+        );
         let anchor = center_x.clamp(0.0, 1.0) as f64;
         let anchor_index = start as f64 + visible.saturating_sub(1) as f64 * anchor;
         let desired_start =
@@ -2426,6 +2433,40 @@ mod tests {
 
         let (_, visible_max_zoom) = visible_range(1000, MAX_ZOOM_LEVEL, 0.0);
         assert_eq!(visible_max_zoom as f64, MIN_VISIBLE_CANDLES);
+    }
+
+    #[test]
+    fn sparse_live_series_never_builds_an_invalid_viewport_range() {
+        use crate::domain::chart::value_objects::Viewport;
+        use crate::domain::market_data::{OHLCV, Price, Timestamp, Volume};
+
+        for len in 1..MIN_VISIBLE_CANDLES as usize {
+            let candles = (0..len)
+                .map(|index| {
+                    Candle::new(
+                        Timestamp::from_millis(index as u64 * 1_000),
+                        OHLCV::new(
+                            Price::from(100.0),
+                            Price::from(101.0),
+                            Price::from(99.0),
+                            Price::from(100.5),
+                            Volume::from(1.0),
+                        ),
+                    )
+                })
+                .collect::<VecDeque<_>>();
+            let viewport = Viewport {
+                start_time: 0.0,
+                end_time: (len.saturating_sub(1) as u64 * 1_000) as f64,
+                min_price: 99.0,
+                max_price: 101.0,
+                ..Viewport::default()
+            };
+
+            let (zoom, pan) = viewport_zoom_pan(&candles, &viewport);
+            assert!(zoom.is_finite());
+            assert_eq!(visible_range(candles.len(), zoom, pan).1, len);
+        }
     }
 
     #[test]
