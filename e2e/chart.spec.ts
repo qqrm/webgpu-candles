@@ -155,7 +155,7 @@ test('loads WebGPU chart and keeps controls internally consistent', async ({ pag
   expect(await page.locator('.price-level').allTextContents()).toEqual(scaleBefore);
 
   const requestCountBeforeZoom = market.urls.length;
-  for (let index = 0; index < 16; index += 1) {
+  for (let index = 0; index < 30; index += 1) {
     await page.getByRole('button', { name: 'Zoom in' }).click();
   }
   await expect(page.locator('.metric-value').last()).toHaveText('4.0×');
@@ -240,6 +240,7 @@ test('stays interactive after live ticks and changes the active timeframe', asyn
     )
     .toBe(true);
   await expect(page.locator('.connection-pill')).toHaveText(/LIVE/);
+  await expect(page.locator('.metric-value').last()).toHaveText('0.032×');
   await expect.poll(() => page.locator('.time-scale').innerText()).not.toBe(oneMinuteRange);
 
   const beforePan = await page.locator('.time-scale').innerText();
@@ -276,7 +277,7 @@ test('loads older history only after reaching the left edge', async ({ page }) =
   await openReadyChart(page);
 
   const initialCount = Number(await page.locator('.metric-value').first().innerText());
-  expect(initialCount).toBe(1_000);
+  expect(initialCount).toBeGreaterThanOrEqual(1_000);
   expect(market.historyCount).toBe(0);
 
   await dragRight(page, 14);

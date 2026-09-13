@@ -221,29 +221,39 @@ impl Chart {
         self.indicators.retain(|ind| ind.id != indicator_id);
     }
 
-    /// Update the viewport based on candle data
+    /// Update the viewport from the base series.
     pub fn update_viewport_for_data(&mut self) {
-        if let Some(base) = self.series.get(&TimeInterval::TwoSeconds)
-            && let Some((min_price, max_price)) = base.price_range()
-        {
-            // Add padding for better visualization (5% top and bottom)
-            let mut min_v = min_price.value() as f32;
-            let mut max_v = max_price.value() as f32;
-            let price_range = (max_v - min_v).abs().max(1e-6);
-            let padding = price_range * 0.05;
-            min_v -= padding;
-            max_v += padding;
+        self.update_viewport_for_series(TimeInterval::TwoSeconds);
+    }
 
-            self.viewport.min_price = min_v.max(0.1); // Minimum $0.1
-            self.viewport.max_price = max_v;
+    /// Update the viewport to fit every candle in the selected series.
+    pub fn update_viewport_for_series(&mut self, interval: TimeInterval) {
+        let Some((min_price, max_price, first_time, last_time)) =
+            self.series.get(&interval).and_then(|series| {
+                let (min_price, max_price) = series.price_range()?;
+                Some((
+                    min_price,
+                    max_price,
+                    series.get_candles().front()?.timestamp.value(),
+                    series.get_candles().back()?.timestamp.value(),
+                ))
+            })
+        else {
+            return;
+        };
 
-            // Update the time range
-            let candles = base.get_candles();
-            if !candles.is_empty() {
-                self.viewport.start_time = candles.front().unwrap().timestamp.value() as f64;
-                self.viewport.end_time = candles.back().unwrap().timestamp.value() as f64;
-            }
-        }
+        // Add padding for better visualization (5% top and bottom)
+        let mut min_v = min_price.value() as f32;
+        let mut max_v = max_price.value() as f32;
+        let price_range = (max_v - min_v).abs().max(1e-6);
+        let padding = price_range * 0.05;
+        min_v -= padding;
+        max_v += padding;
+
+        self.viewport.min_price = min_v.max(0.1); // Minimum $0.1
+        self.viewport.max_price = max_v;
+        self.viewport.start_time = first_time as f64;
+        self.viewport.end_time = last_time as f64;
     }
 
     pub fn zoom(&mut self, factor: f32, center_x: f32) {

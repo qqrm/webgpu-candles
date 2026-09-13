@@ -1242,21 +1242,8 @@ fn pan_chart(
 
 fn reset_chart_viewport(chart: RwSignal<Chart>) {
     chart.update_untracked(|current| {
-        current.update_viewport_for_data();
         let interval = current_interval().get_untracked();
-        let Some(series) = current.get_series(interval) else {
-            return;
-        };
-        let candles = series.get_candles();
-        if candles.is_empty() {
-            return;
-        }
-
-        let start = candles.len().saturating_sub(DEFAULT_VISIBLE_CANDLES);
-        let start_time = candles[start].timestamp.value() as f64;
-        let end_time = candles.back().unwrap().timestamp.value() as f64;
-        current.viewport.start_time = start_time;
-        current.viewport.end_time = end_time;
+        current.update_viewport_for_series(interval);
     });
 }
 

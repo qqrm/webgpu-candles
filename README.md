@@ -1,193 +1,89 @@
 # WebGPU Candles
 
-![screenshot](res/screen.png)
+![WebGPU Candles dashboard with BTCUSDT selected](res/screen.png)
 
-A demonstration Bitcoin candlestick chart built with **WebGPU** for rendering and **Leptos** for the reactive UI. Real-time price data is streamed from Binance via WebSocket and drawn directly to a `<canvas>` using Rust compiled to WebAssembly.
-The chart supports zoom levels from roughly `0.2x` up to `32x` with a minimum of one visible candle.
-> **Note**: WebGPU must be enabled in your browser. The demo works in Microsoft Edge but is not supported in Firefox.
+An interactive spot-market candlestick chart rendered with WebGPU in Rust/WebAssembly. The Leptos UI combines Binance REST history with live WebSocket updates and keeps supported markets ready for instant switching.
 
 ## Demo
 
-The development version is available at <https://qqrm.github.io/webgpu-candles/dev/>, and release builds
-are published at <https://qqrm.github.io/webgpu-candles/>. GitHub Pages publishes these files from the
-`gh-pages` branch, keeping build artifacts out of `main`.
+- [Release](https://qqrm.github.io/webgpu-candles/)
+- [Development build](https://qqrm.github.io/webgpu-candles/dev/)
 
-The project requires the `wasm32-unknown-unknown` target, which the build script verifies is installed. Install it with:
-`rustup target add wasm32-unknown-unknown`.
+Use a browser with WebGPU enabled. Chromium-based browsers such as Chrome and Microsoft Edge are the tested targets.
 
-## Setup
+## Features
+
+- BTCUSDT, ETHUSDT, and SOLUSDT spot markets, with a live stream kept open for each market.
+- Timeframes from two seconds to one month: `2s`, `1m`, `5m`, `15m`, `1h`, `1d`, `1w`, and `1M`. The two-second view aggregates Binance one-second candles.
+- REST backfill when panning to the oldest loaded candle, plus live updates at the current edge.
+- Mouse-wheel and button zoom, drag-to-pan, double-click reset, price and time scales, OHLCV tooltip, volume bars, and a current-price marker.
+- Toggleable SMA 20/50/200 and EMA 12/26 overlays.
+- A deterministic one-million-candle stress mode. It keeps the source data resident while limiting the rendered OHLCV level of detail to 4,096 GPU bars.
+
+## Requirements
+
+- Rust stable and the `wasm32-unknown-unknown` target.
+- [Trunk](https://trunkrs.dev/) for local builds and serving.
+- A WebGPU-capable browser for the application and Chromium for browser tests.
 
 ```bash
-# Add the WebAssembly compilation target
 rustup target add wasm32-unknown-unknown
-# Install Trunk for building and serving
-cargo install trunk
+cargo install trunk --locked
 ```
 
-Install either [Trunk](https://trunkrs.dev/) or [wasm-pack](https://rustwasm.github.io/wasm-pack/) depending on your preferred workflow.
-
-To automatically format and lint the code before each commit, enable the pre-commit hook:
+## Run locally
 
 ```bash
-git config core.hooksPath .githooks
+trunk serve
 ```
 
-## Building with Trunk
-
-Trunk compiles the project and automatically injects the generated WASM into `index.html`:
+Open <http://127.0.0.1:8080>. To produce a local release bundle without changing the deployment directory:
 
 ```bash
-trunk serve       # dev server on http://localhost:8080
-# or
-trunk build --dist dist-local
+trunk build --release --dist dist-local
 ```
 
-Local builds are saved to `dist-local`. In GitHub Actions the `dist` path is
-uploaded to the `gh-pages` branch to publish the demo. The `dist/` directory is
-not stored in the repository; the `gh-pages` branch contains the `version`
-file with the SHA of the last commit.
+The CI deployment builds `dist/` and publishes it to GitHub Pages.
 
-Both release and development builds are deployed to `gh-pages`. To use a different location, adjust the deployment steps in the workflow files:
-`.github/workflows/build.yml` and `.github/workflows/release.yml`.
-
-When using Trunk, open **`index.html`** (served automatically when using `trunk serve`). The file contains a Trunk hook so the WASM is loaded for you:
-
-```html
-<!-- Trunk will automatically inject the WASM here -->
-
-<link data-trunk rel="rust" data-wasm-opt="z" />
-```
-
-### Subresource Integrity
-
-Trunk automatically includes integrity hashes for the generated JavaScript
-and WebAssembly files.
-
-## Building with wasm-pack
-
-Alternatively, you can build using wasm-pack:
+## Test
 
 ```bash
-wasm-pack build --target web --release
+# Native unit and integration tests
+cargo test
+
+# Deterministic browser end-to-end suite
+npx playwright install chromium
+npm run test:e2e
 ```
 
-This produces a `pkg/` directory with the compiled `price_chart_wasm.js`. After running wasm-pack, open **`leptos-index.html`**, which manually imports the generated file:
+The end-to-end suite builds a release bundle, mocks Binance REST and WebSocket responses, and covers market switching, timeframe changes, zooming, panning, history loading, and the one-million-candle mode. Failure traces, screenshots, and the HTML report are written to `test-results/` and `playwright-report/`.
 
-```html
-<script type="module">
-    import init, { hydrate } from './pkg/price_chart_wasm.js';
-    // ...
-</script>
+Browser-targeted Rust tests can also be run with [wasm-pack](https://rustwasm.github.io/wasm-pack/):
+
+```bash
+wasm-pack test --chrome --headless
 ```
 
-## Directory Structure
-
-Key folders are under `src/`:
+## Project layout
 
 ```text
 src/
-├── app.rs                  # Leptos UI components and reactivity
-├── lib.rs                  # WASM exports (entry points)
-├── simple_shader.wgsl      # WebGPU shaders
-├── domain/                 # Core domain logic (chart, market data, logging)
-├── infrastructure/         # WebSocket and WebGPU renderer implementations
+├── app.rs                  # Leptos UI and interactions
+├── domain/                 # Chart and market-data domain logic
+├── ecs/                    # Chart update systems
+└── infrastructure/         # Binance clients and WebGPU renderer
 ```
-
-For more architectural details see [ARCHITECTURE.md](DOCS/ARCHITECTURE.md).
-Planned features are listed in [FEATURES.md](DOCS/FEATURES.md).
-Details on the WebSocket feed are in [WEBSOCKETS.md](DOCS/WEBSOCKETS.md).
 
 ## Documentation
 
-All additional documentation lives in the [`DOCS/`](DOCS/) directory:
-
-- [ARCHITECTURE.md](DOCS/ARCHITECTURE.md)
-- [FEATURES.md](DOCS/FEATURES.md)
-- [WEBSOCKETS.md](DOCS/WEBSOCKETS.md)
-- [CONTRIBUTING.md](DOCS/CONTRIBUTING.md)
-- [PIPELINES.md](.github/workflows/PIPELINES.md)
-- [TESTS.md](DOCS/TESTS.md)
-- [PIPELINES.md](DOCS/PIPELINES.md)
-- [VOLUME_SYNC_FIXES.md](DOCS/VOLUME_SYNC_FIXES.md)
-- [COLORS.md](DOCS/COLORS.md)
-
-## Chart Elements
-
-The chart is composed of several layers:
-
-- Candles with wicks representing OHLC data
-- Volume bars below the main chart
-- Time and price grid lines
-- A highlighted line for the current price
-- Technical indicators:
-  - Simple Moving Averages (20, 50, 200 periods)
-  - Exponential Moving Averages (12, 26 periods)
-  - Ichimoku cloud with Tenkan, Kijun, Senkou spans and Chikou line
-
-## Benchmarks
-
-To measure performance use:
-
-```bash
-wasm-pack test --chrome --headless
-```
-
-FPS is printed to the console and the `perf.yml` workflow saves the log as an
-artifact. Current metric values are stored in [PIPELINES.md](.github/workflows/PIPELINES.md).
-`tests/performance_limit.rs` logs when FPS drops below 30 for large charts.
-
-The `1M stress` control also provides an in-browser benchmark: it generates and
-bulk-loads one million deterministic two-second candles, reports generation,
-load, and first-render time, and keeps the full source series resident. Rendering
-uses viewport-aware OHLCV level-of-detail aggregation capped at 4,096 GPU bars,
-so the complete data set can be inspected without creating one draw item per
-source candle.
-
-
-## Tests
-
-The tests use [`wasm-bindgen-test`](https://docs.rs/wasm-bindgen-test). Run
-them with:
-
-```bash
-wasm-pack test --chrome --headless
-
-```
-or
-```bash
-wasm-pack test --chrome
-```
-
-Alternatively install Node dependencies and run:
-
-```bash
-npm install
-npm test
-```
-
-See [TESTS.md](DOCS/TESTS.md) for more details about the test suite.
-
-## Native Run
-
-For benchmarking outside the browser you can run the native binary. Parallel ECS
-systems powered by Rayon are enabled automatically:
-
-```bash
-cargo run --release --features parallel
-```
-## Docker
-
-Build and run the container with:
-```bash
-docker build -t webgpu-candles .
-docker run --rm -p 8080:80 webgpu-candles
-```
-(the container uses nginx, so port 80 is mapped to host 8080).
-
-## Debug
-```bash
-npx wscat -c wss://stream.binance.com:9443/ws/btcusdt@kline_1m
-```
+- [Architecture](DOCS/ARCHITECTURE.md)
+- [Features](DOCS/FEATURES.md)
+- [WebSocket integration](DOCS/WEBSOCKETS.md)
+- [Tests](DOCS/TESTS.md)
+- [CI pipelines](DOCS/PIPELINES.md)
+- [Contributing](DOCS/CONTRIBUTING.md)
+- [Color palette](DOCS/COLORS.md)
 
 ## License
-This project is distributed under the [MIT License](LICENSE).
+
+Distributed under the [MIT License](LICENSE).
