@@ -1,4 +1,5 @@
 #![cfg(feature = "render")]
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 use price_chart_wasm::domain::market_data::{Symbol, TimeInterval};
 use price_chart_wasm::infrastructure::websocket::binance_client::BinanceWebSocketClient;
 use wasm_bindgen_test::*;

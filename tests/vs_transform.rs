@@ -1,4 +1,5 @@
 #![cfg(feature = "render")]
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 use price_chart_wasm::infrastructure::rendering::gpu_structures::{CandleInstance, CandleVertex};
 use wasm_bindgen_test::*;
 

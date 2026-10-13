@@ -1,4 +1,5 @@
 #![cfg(feature = "render")]
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 use js_sys::Date;
 use price_chart_wasm::time_utils::format_time_label;
 use wasm_bindgen::JsValue;

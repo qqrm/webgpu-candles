@@ -76,7 +76,7 @@ jobs:
         with:
           tool: wasm-pack@0.13.1
           fallback: none
-      - run: wasm-pack test --node -- --locked --features logic-only --test logic_only
+      - run: wasm-pack test --node -- --locked --features logic-only
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 30
