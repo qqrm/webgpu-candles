@@ -27,8 +27,8 @@ jobs:
           targets: wasm32-unknown-unknown
           components: rustfmt, clippy
       - run: cargo fmt --all -- --check
-      - run: cargo check --locked --tests --benches
-      - run: cargo clippy --locked --tests --benches --all-features -- -D warnings
+      - run: cargo check --locked --tests --benches --all-features --keep-going
+      - run: cargo clippy --locked --tests --benches --all-features --keep-going -- -D warnings
       - name: Verify Python and dependency policy tests
         run: |
           python3 -m unittest discover -s tests -p '*_script.py'

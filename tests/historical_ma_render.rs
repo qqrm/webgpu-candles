@@ -1,4 +1,5 @@
 #![cfg(feature = "render")]
+use leptos::{SignalGetUntracked, SignalSet};
 use price_chart_wasm::app::{current_interval, visible_range_by_time};
 use price_chart_wasm::domain::chart::{Chart, value_objects::ChartType};
 use price_chart_wasm::domain::market_data::{
@@ -119,7 +120,7 @@ fn minute_ma_tracks_closed_buckets() {
         .enumerate()
         .filter(|(idx, _)| {
             let candle_idx = idx + period_offset;
-            *candle_idx >= start_idx && *candle_idx < start_idx + visible_len
+            candle_idx >= start_idx && candle_idx < start_idx + visible_len
         })
         .count();
 
