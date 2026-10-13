@@ -49,11 +49,26 @@ jobs:
           tool: wasm-pack@0.13.1
           fallback: none
       - uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2
+        id: chrome
         with:
           chrome-version: stable
           install-chromedriver: true
+      - name: Select the browser matching ChromeDriver
+        env:
+          CHROME_BINARY: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          path = Path('webdriver.json')
+          capabilities = json.loads(path.read_text())
+          capabilities['goog:chromeOptions']['binary'] = os.environ['CHROME_BINARY']
+          path.write_text(json.dumps(capabilities))
+          PY
       - name: Browser Rust tests, including application owner lifecycle
         env:
+          CHROMEDRIVER_ARGS: --verbose
           INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
           WASM_BINDGEN_TEST_TIMEOUT: '120'
           WASM_BINDGEN_TEST_WEBDRIVER_JSON: webdriver.json
