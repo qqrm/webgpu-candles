@@ -72,7 +72,7 @@ jobs:
           INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
           WASM_BINDGEN_TEST_TIMEOUT: '120'
           WASM_BINDGEN_TEST_WEBDRIVER_JSON: webdriver.json
-        run: wasm-pack test --chrome --headless -- --locked --features render
+        run: wasm-pack test --chrome --headless -- --locked --features render --no-fail-fast
   node-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -91,7 +91,7 @@ jobs:
         with:
           tool: wasm-pack@0.13.1
           fallback: none
-      - run: wasm-pack test --node -- --locked --features logic-only
+      - run: wasm-pack test --node -- --locked --features logic-only --no-fail-fast
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 30
