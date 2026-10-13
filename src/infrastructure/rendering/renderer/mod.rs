@@ -54,12 +54,8 @@ where
     })
 }
 
-/// Actual WebGPU renderer for candles
-pub struct WebGpuRenderer {
-    _canvas_id: String,
-    width: u32,
-    height: u32,
-
+/// GPU handles are present only for an initialized renderer. Geometry fixtures own none.
+struct GpuResources {
     // WGPU state
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
@@ -73,6 +69,16 @@ pub struct WebGpuRenderer {
     uniform_bind_group: wgpu::BindGroup,
     msaa_texture: wgpu::Texture,
     msaa_view: wgpu::TextureView,
+}
+
+/// Actual WebGPU renderer for candles
+pub struct WebGpuRenderer {
+    _canvas_id: String,
+    width: u32,
+    height: u32,
+
+    gpu: Option<GpuResources>,
+
     template_vertices: u32,
 
     // 🗄️ Cached data
@@ -109,36 +115,31 @@ mod render_queue;
 
 pub use render_queue::{enqueue_render_task, init_render_queue};
 
-#[allow(invalid_value)]
+/// Geometry-only fixture: no fabricated GPU handles and safe to drop.
 pub fn dummy_renderer() -> WebGpuRenderer {
     use std::collections::VecDeque;
-    unsafe {
-        WebGpuRenderer {
-            _canvas_id: String::new(),
-            width: 800,
-            height: 600,
-            surface: std::mem::MaybeUninit::zeroed().assume_init(),
-            device: std::mem::MaybeUninit::zeroed().assume_init(),
-            queue: std::mem::MaybeUninit::zeroed().assume_init(),
-            config: std::mem::MaybeUninit::zeroed().assume_init(),
-            render_pipeline: std::mem::MaybeUninit::zeroed().assume_init(),
-            vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
-            uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
-            uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
-            msaa_texture: std::mem::MaybeUninit::zeroed().assume_init(),
-            msaa_view: std::mem::MaybeUninit::zeroed().assume_init(),
-            template_vertices: 0,
-            cached_vertices: Vec::new(),
-            cached_uniforms: ChartUniforms::new(),
-            cached_candle_count: 0,
-            cached_zoom_level: 1.0,
-            cached_hash: 0,
-            cached_data_revision: 0,
-            cached_line_visibility: LineVisibility::default(),
-            zoom_level: 1.0,
-            pan_offset: 0.0,
-            render_time_log: VecDeque::new(),
-            line_visibility: LineVisibility::default(),
-        }
+    WebGpuRenderer {
+        _canvas_id: String::new(),
+        width: 800,
+        height: 600,
+        gpu: None,
+        template_vertices: 0,
+        cached_vertices: Vec::new(),
+        cached_uniforms: ChartUniforms::new(),
+        cached_candle_count: 0,
+        cached_zoom_level: 1.0,
+        cached_hash: 0,
+        cached_data_revision: 0,
+        cached_line_visibility: LineVisibility::default(),
+        zoom_level: 1.0,
+        pan_offset: 0.0,
+        render_time_log: VecDeque::new(),
+        line_visibility: LineVisibility::default(),
+    }
+}
+
+impl WebGpuRenderer {
+    fn gpu(&self) -> &GpuResources {
+        self.gpu.as_ref().expect("GPU operation requires an initialized renderer")
     }
 }

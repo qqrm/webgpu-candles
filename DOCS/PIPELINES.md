@@ -6,4 +6,4 @@
 - build.yml publishes the development bundle after a main push; release.yml keeps its published-release/manual triggers. Build jobs have read-only repository access; only the separate Pages deployment jobs can write contents.
 - benchmark.yml and perf.yml retain performance artifacts. Benchmark results no longer write directly to the protected main branch. Existing optional Telegram notifications remain restricted to those main/release workflows.
 
-Browser execution runs on hosted CI. The software Vulkan/WebGPU backend validates behavior, not physical-device GPU performance. The project still has legacy renderer test fixtures using zero-initialized GPU handles; those must not be interpreted as validation of real GPU resources.
+Browser execution runs on hosted CI. The software Vulkan/WebGPU backend validates behavior, not physical-device GPU performance. Geometry fixtures contain no GPU resources and are safe to drop. Actual WebGPU behavior is validated separately by the hosted UI suite. Rust browser tests block Binance DNS; stream abort tests use local handles.

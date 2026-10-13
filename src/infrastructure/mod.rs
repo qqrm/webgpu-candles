@@ -57,10 +57,18 @@ pub mod services {
 
                 // Use gloo console methods
                 match entry.level {
-                    LogLevel::Trace | LogLevel::Debug => console::debug!("{}", formatted.clone()),
-                    LogLevel::Info => console::info!("{}", formatted.clone()),
-                    LogLevel::Warn => console::warn!("{}", formatted.clone()),
-                    LogLevel::Error => console::error!("{}", formatted.clone()),
+                    LogLevel::Trace | LogLevel::Debug => {
+                        console::debug!("{}", formatted.clone());
+                    }
+                    LogLevel::Info => {
+                        console::info!("{}", formatted.clone());
+                    }
+                    LogLevel::Warn => {
+                        console::warn!("{}", formatted.clone());
+                    }
+                    LogLevel::Error => {
+                        console::error!("{}", formatted.clone());
+                    }
                 }
             }
         }

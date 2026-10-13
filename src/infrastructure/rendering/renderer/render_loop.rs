@@ -31,11 +31,14 @@ impl WebGpuRenderer {
 
     #[cfg(not(test))]
     fn write_buffers(&mut self) {
+        let Some(gpu) = self.gpu.as_mut() else {
+            return;
+        };
         let vertex_bytes = bytemuck::cast_slice(&self.cached_vertices);
         let required_size = vertex_bytes.len() as u64;
-        if required_size > self.vertex_buffer.size() {
+        if required_size > gpu.vertex_buffer.size() {
             let new_size = required_size.next_power_of_two();
-            self.vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            gpu.vertex_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Resizable Vertex Buffer"),
                 size: new_size,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
@@ -44,8 +47,8 @@ impl WebGpuRenderer {
         }
         let uniform_copy = self.cached_uniforms;
         let uniform_bytes = bytemuck::bytes_of(&uniform_copy);
-        self.queue.write_buffer(&self.vertex_buffer, 0, vertex_bytes);
-        self.queue.write_buffer(&self.uniform_buffer, 0, uniform_bytes);
+        gpu.queue.write_buffer(&gpu.vertex_buffer, 0, vertex_bytes);
+        gpu.queue.write_buffer(&gpu.uniform_buffer, 0, uniform_bytes);
     }
 
     pub fn cache_geometry_for_test(&mut self, chart: &Chart) {
@@ -70,6 +73,9 @@ impl WebGpuRenderer {
     }
 
     pub fn render(&mut self, chart: &Chart) -> Result<(), JsValue> {
+        if self.gpu.is_none() {
+            return Err(JsValue::from_str("geometry-only renderer has no GPU resources"));
+        }
         use crate::app::current_interval;
         let interval = current_interval().get_untracked();
         let candle_count =
@@ -111,7 +117,7 @@ impl WebGpuRenderer {
         let num_vertices = self.template_vertices;
 
         // Get surface texture and start rendering
-        let output = self.surface.get_current_texture().map_err(|e| {
+        let output = self.gpu().surface.get_current_texture().map_err(|e| {
             let error_msg = format!("Failed to get surface texture: {:?}", e);
             get_logger().error(LogComponent::Infrastructure("WebGpuRenderer"), &error_msg);
             JsValue::from_str(&error_msg)
@@ -121,15 +127,16 @@ impl WebGpuRenderer {
 
         let start_pass = web_sys::window().and_then(|w| w.performance()).map(|p| p.now());
 
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Render Encoder"),
-        });
+        let mut encoder =
+            self.gpu().device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.msaa_view,
+                    view: &self.gpu().msaa_view,
                     resolve_target: Some(&surface_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -146,13 +153,13 @@ impl WebGpuRenderer {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_pipeline(&self.gpu().render_pipeline);
+            render_pass.set_bind_group(0, &self.gpu().uniform_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.gpu().vertex_buffer.slice(..));
             render_pass.draw(0..num_vertices, 0..1);
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.gpu().queue.submit(std::iter::once(encoder.finish()));
 
         if let Some(start) = start_pass
             && let Some(window) = web_sys::window()
@@ -194,7 +201,7 @@ impl WebGpuRenderer {
 
     /// Log GPU memory usage and return statistics as JSON
     pub fn log_gpu_memory_usage(&self) -> String {
-        if let Some(report) = self.device.generate_allocator_report() {
+        if let Some(report) = self.gpu().device.generate_allocator_report() {
             let reserved = report.total_reserved_bytes / 1024 / 1024;
             let allocated = report.total_allocated_bytes / 1024 / 1024;
             let msg = format!(
@@ -295,15 +302,16 @@ impl WebGpuRenderer {
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
 
         let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Clear Only Encoder"),
-        });
+        let mut encoder =
+            self.gpu().device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Clear Only Encoder"),
+            });
 
         {
             let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Clear Only Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.msaa_view,
+                    view: &self.gpu().msaa_view,
                     resolve_target: Some(&surface_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -327,7 +335,7 @@ impl WebGpuRenderer {
             );
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.gpu().queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
         get_logger()
@@ -386,11 +394,19 @@ impl WebGpuRenderer {
         );
 
         // Write to buffer
-        self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
+        self.gpu().queue.write_buffer(
+            &self.gpu().vertex_buffer,
+            0,
+            bytemuck::cast_slice(&test_vertices),
+        );
 
         // Basic uniforms
         let test_uniforms = ChartUniforms::default();
-        self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[test_uniforms]));
+        self.gpu().queue.write_buffer(
+            &self.gpu().uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[test_uniforms]),
+        );
 
         let output = self
             .surface
@@ -398,15 +414,16 @@ impl WebGpuRenderer {
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
 
         let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Test Simple Quad Encoder"),
-        });
+        let mut encoder =
+            self.gpu().device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Test Simple Quad Encoder"),
+            });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Test Simple Quad Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.msaa_view,
+                    view: &self.gpu().msaa_view,
                     resolve_target: Some(&surface_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -423,9 +440,9 @@ impl WebGpuRenderer {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_pipeline(&self.gpu().render_pipeline);
+            render_pass.set_bind_group(0, &self.gpu().uniform_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.gpu().vertex_buffer.slice(..));
             render_pass.draw(0..6, 0..1);
 
             get_logger().info(
@@ -434,7 +451,7 @@ impl WebGpuRenderer {
             );
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.gpu().queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
         get_logger()
@@ -468,11 +485,19 @@ impl WebGpuRenderer {
         );
 
         // Write to buffer
-        self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
+        self.gpu().queue.write_buffer(
+            &self.gpu().vertex_buffer,
+            0,
+            bytemuck::cast_slice(&test_vertices),
+        );
 
         // Create test uniforms
         let test_uniforms = ChartUniforms::default();
-        self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[test_uniforms]));
+        self.gpu().queue.write_buffer(
+            &self.gpu().uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[test_uniforms]),
+        );
 
         let output = self
             .surface
@@ -480,15 +505,16 @@ impl WebGpuRenderer {
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
 
         let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Test Rectangle Encoder"),
-        });
+        let mut encoder =
+            self.gpu().device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Test Rectangle Encoder"),
+            });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Test Rectangle Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.msaa_view,
+                    view: &self.gpu().msaa_view,
                     resolve_target: Some(&surface_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -505,9 +531,9 @@ impl WebGpuRenderer {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_pipeline(&self.gpu().render_pipeline);
+            render_pass.set_bind_group(0, &self.gpu().uniform_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.gpu().vertex_buffer.slice(..));
             render_pass.draw(0..6, 0..1); // Draw 6 rectangle vertices
 
             get_logger().info(
@@ -516,7 +542,7 @@ impl WebGpuRenderer {
             );
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.gpu().queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
         get_logger().info(
@@ -547,11 +573,19 @@ impl WebGpuRenderer {
         );
 
         // Write to buffer
-        self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&test_vertices));
+        self.gpu().queue.write_buffer(
+            &self.gpu().vertex_buffer,
+            0,
+            bytemuck::cast_slice(&test_vertices),
+        );
 
         // Create test uniforms
         let test_uniforms = ChartUniforms::default();
-        self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[test_uniforms]));
+        self.gpu().queue.write_buffer(
+            &self.gpu().uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[test_uniforms]),
+        );
 
         let output = self
             .surface
@@ -559,15 +593,16 @@ impl WebGpuRenderer {
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
 
         let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Test Triangle Encoder"),
-        });
+        let mut encoder =
+            self.gpu().device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Test Triangle Encoder"),
+            });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Test Triangle Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.msaa_view,
+                    view: &self.gpu().msaa_view,
                     resolve_target: Some(&surface_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -584,9 +619,9 @@ impl WebGpuRenderer {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_pipeline(&self.gpu().render_pipeline);
+            render_pass.set_bind_group(0, &self.gpu().uniform_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.gpu().vertex_buffer.slice(..));
             render_pass.draw(0..3, 0..1); // Draw 3 triangle vertices
 
             get_logger().info(
@@ -595,7 +630,7 @@ impl WebGpuRenderer {
             );
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.gpu().queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
         get_logger().info(
@@ -611,38 +646,7 @@ impl WebGpuRenderer {
 mod tests {
     use super::*;
 
-    #[allow(invalid_value)]
-    fn dummy_renderer() -> WebGpuRenderer {
-        unsafe {
-            WebGpuRenderer {
-                _canvas_id: String::new(),
-                width: 0,
-                height: 0,
-                surface: std::mem::MaybeUninit::zeroed().assume_init(),
-                device: std::mem::MaybeUninit::zeroed().assume_init(),
-                queue: std::mem::MaybeUninit::zeroed().assume_init(),
-                config: std::mem::MaybeUninit::zeroed().assume_init(),
-                render_pipeline: std::mem::MaybeUninit::zeroed().assume_init(),
-                vertex_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
-                uniform_buffer: std::mem::MaybeUninit::zeroed().assume_init(),
-                uniform_bind_group: std::mem::MaybeUninit::zeroed().assume_init(),
-                msaa_texture: std::mem::MaybeUninit::zeroed().assume_init(),
-                msaa_view: std::mem::MaybeUninit::zeroed().assume_init(),
-                template_vertices: 0,
-                cached_vertices: Vec::new(),
-                cached_uniforms: ChartUniforms::new(),
-                cached_candle_count: 0,
-                cached_zoom_level: 1.0,
-                cached_hash: 0,
-                cached_data_revision: 0,
-                cached_line_visibility: LineVisibility::default(),
-                zoom_level: 1.0,
-                pan_offset: 0.0,
-                render_time_log: VecDeque::new(),
-                line_visibility: LineVisibility::default(),
-            }
-        }
-    }
+    use super::super::dummy_renderer;
 
     #[test]
     fn toggles_visibility() {

@@ -130,8 +130,7 @@ impl AppContext {
             let chart =
                 Chart::new(symbol.value().to_string(), ChartType::Candlestick, LIVE_CHART_CAPACITY);
             let entity = world.spawn_chart(chart);
-            let signal = world.world.get::<&ChartComponent>(entity).expect("chart just spawned").0;
-            signal
+            world.world.get::<&ChartComponent>(entity).expect("chart just spawned").0
         })
     }
 

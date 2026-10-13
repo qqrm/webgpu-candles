@@ -238,16 +238,18 @@ impl WebGpuRenderer {
             _canvas_id: canvas.id(),
             width,
             height,
-            surface,
-            device,
-            queue,
-            config,
-            render_pipeline,
-            vertex_buffer,
-            uniform_buffer,
-            uniform_bind_group,
-            msaa_texture,
-            msaa_view,
+            gpu: Some(GpuResources {
+                surface,
+                device,
+                queue,
+                config,
+                render_pipeline,
+                vertex_buffer,
+                uniform_buffer,
+                uniform_bind_group,
+                msaa_texture,
+                msaa_view,
+            }),
             template_vertices: 0,
             cached_vertices: Vec::new(),
             cached_uniforms: ChartUniforms::new(),
@@ -276,10 +278,13 @@ impl WebGpuRenderer {
             }
             self.width = new_width;
             self.height = new_height;
-            self.config.width = new_width;
-            self.config.height = new_height;
-            self.surface.configure(&self.device, &self.config);
-            self.msaa_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            let Some(gpu) = self.gpu.as_mut() else {
+                return;
+            };
+            gpu.config.width = new_width;
+            gpu.config.height = new_height;
+            gpu.surface.configure(&gpu.device, &gpu.config);
+            gpu.msaa_texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("MSAA Texture"),
                 size: wgpu::Extent3d {
                     width: new_width,
@@ -289,11 +294,11 @@ impl WebGpuRenderer {
                 mip_level_count: 1,
                 sample_count: MSAA_SAMPLE_COUNT,
                 dimension: wgpu::TextureDimension::D2,
-                format: self.config.format,
+                format: gpu.config.format,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
             });
-            self.msaa_view = self.msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
+            gpu.msaa_view = gpu.msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
         }
     }
 
