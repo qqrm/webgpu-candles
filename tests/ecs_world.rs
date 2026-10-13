@@ -7,13 +7,13 @@ use price_chart_wasm::ecs::components::CandleComponent;
 use price_chart_wasm::ecs::components::{ChartComponent, ViewportComponent};
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn world_starts_empty() {
     let world = EcsWorld::new();
     assert_eq!(world.world.len(), 0);
 }
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn spawn_chart_entity() {
     let mut world = EcsWorld::new();
     let chart = Chart::new("test".into(), ChartType::Candlestick, 100);
@@ -22,7 +22,7 @@ fn spawn_chart_entity() {
     assert_eq!(stored.0.with_untracked(|c| c.id.clone()), chart.id);
 }
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn spawn_chart_adds_viewport_component() {
     let mut world = EcsWorld::new();
     let chart = Chart::new("test_vp".into(), ChartType::Candlestick, 50);
@@ -32,7 +32,7 @@ fn spawn_chart_adds_viewport_component() {
     assert_eq!(vp.0, chart.viewport);
 }
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn candle_system_applies_candles() {
     let mut world = EcsWorld::new();
     let chart = Chart::new("test".into(), ChartType::Candlestick, 10);
@@ -58,7 +58,7 @@ fn candle_system_applies_candles() {
     assert_eq!(world.world.len(), 1);
 }
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn candle_system_parallel_matches_sequential() {
     let mut world_seq = EcsWorld::new();
     let mut world_par = EcsWorld::new();
@@ -104,7 +104,7 @@ fn candle_system_parallel_matches_sequential() {
     assert_eq!(count_seq, count_par);
 }
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn viewport_component_updates() {
     let mut world = EcsWorld::new();
     let mut chart = Chart::new("test".into(), ChartType::Candlestick, 10);
@@ -123,7 +123,7 @@ fn viewport_component_updates() {
     let vp = world.world.get::<&ViewportComponent>(entity).unwrap();
     assert_eq!(vp.0, chart.viewport);
 }
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn candle_system_no_candles() {
     let mut world = EcsWorld::new();
     world.spawn_chart(Chart::new("noop".into(), ChartType::Candlestick, 10));
@@ -141,7 +141,7 @@ fn candle_system_no_candles() {
     assert_eq!(world.world.len(), 1);
 }
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn candle_system_no_charts() {
     let mut world = EcsWorld::new();
     let candle = Candle::new(
@@ -159,7 +159,7 @@ fn candle_system_no_charts() {
     assert_eq!(world.world.len(), 0);
 }
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn viewport_system_multiple_charts() {
     let mut world = EcsWorld::new();
     let mut chart_a = Chart::new("A".into(), ChartType::Candlestick, 10);

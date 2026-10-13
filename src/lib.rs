@@ -6,6 +6,7 @@
 //! `infrastructure` implements rendering and networking services.
 
 pub mod app;
+pub mod app_context;
 pub mod domain;
 pub mod ecs;
 pub mod event_utils;
@@ -13,6 +14,7 @@ pub mod global_state;
 pub mod infrastructure;
 pub mod macros;
 pub mod time_utils;
+pub mod ui_state;
 pub mod view_state;
 
 // === WASM EXPORTS ===

@@ -48,9 +48,14 @@ where
     opts.set_capture(options.capture);
     opts.set_once(options.once);
 
+    let owner = leptos::Owner::current();
     let event_name = event.name().into_owned();
     let callback = Closure::wrap(Box::new(move |ev: Event| {
-        cb(ev.unchecked_into::<E::EventType>());
+        if let Some(owner) = owner {
+            let _ = leptos::try_with_owner(owner, || cb(ev.unchecked_into::<E::EventType>()));
+        } else {
+            cb(ev.unchecked_into::<E::EventType>());
+        }
     }) as Box<dyn FnMut(Event)>);
 
     if let Some(window) = web_sys::window() {

@@ -1,15 +1,9 @@
-# GitHub Actions Pipelines
+# GitHub Actions pipelines
 
-This document outlines the CI pipelines used in this repository.
+- CI runs locked stable Rust checks and strict clippy, Rust browser tests, Node logic tests and deterministic WebGPU end-to-end tests for every pull request and main push. The ci-gate requires all four jobs, including browser tests, to succeed; skipped or failed jobs block merge.
+- Workflow Security runs actionlint, zizmor and signed Dependabot commit provenance checks. Its gate requires all three results.
+- Weekly Dependabot maintenance batches cover Cargo, npm and Actions. Native auto-merge targets the exact tested head after both gates, with branch protection supplying the final requirements. No review or cron merge sweep is used.
+- build.yml publishes the development bundle after a main push; release.yml keeps its published-release/manual triggers. Build jobs have read-only repository access; only the separate Pages deployment jobs can write contents.
+- benchmark.yml and perf.yml retain performance artifacts. Benchmark results no longer write directly to the protected main branch. Existing optional Telegram notifications remain restricted to those main/release workflows.
 
-- `build.yml` — compiles the project for multiple platforms.
-- `test.yml` — runs unit and integration tests.
-- `e2e.yml` — runs deterministic Chromium tests against the release WebAssembly bundle.
-- `benchmark.yml` — measures performance against baseline.
-- `perf.yml` — tracks WebAssembly size and rendering speed.
-- `release.yml` — publishes release builds and artifacts.
-
-## Security check
-
-Automated checks run only when a pull request is opened by `qqrm`.
-Pull requests from other users are ignored by CI.
+Browser execution runs on hosted CI. The software Vulkan/WebGPU backend validates behavior, not physical-device GPU performance. The project still has legacy renderer test fixtures using zero-initialized GPU handles; those must not be interpreted as validation of real GPU resources.

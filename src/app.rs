@@ -3,7 +3,7 @@
 //! Handles canvas interactions, zoom/pan logic and connects to the
 //! WebSocket stream providing market data.
 
-use futures::{channel::oneshot, future::join_all, lock::Mutex};
+use futures::{future::join_all, lock::Mutex};
 use js_sys;
 use leptos::html::Canvas;
 use leptos::spawn_local_with_current_owner;
@@ -15,6 +15,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use wasm_bindgen::JsCast;
 
+use crate::app_context::bind_context;
 use crate::event_utils::{EventOptions, window_event_listener_with_options};
 use crate::global_signals;
 use crate::global_state::{
@@ -39,7 +40,7 @@ use crate::{
         http::binance_rest_client::BinanceRestClient, rendering::WebGpuRenderer,
         websocket::BinanceWebSocketClient,
     },
-    time_utils::{format_time_label_for_span, format_timestamp_utc},
+    time_utils::format_time_label_for_span,
 };
 use gloo_timers::future::sleep;
 
@@ -375,44 +376,18 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
     });
 }
 
-/// 🎯 Data for the tooltip
-#[derive(Clone, Debug)]
-pub struct TooltipData {
-    pub candle: Candle,
-    pub x: f64,
-    pub y: f64,
-    pub formatted_text: String,
-}
-
-impl TooltipData {
-    pub fn new(candle: Candle, x: f64, y: f64) -> Self {
-        let change = candle.ohlcv.close.value() - candle.ohlcv.open.value();
-        let change_pct = (change / candle.ohlcv.open.value()) * 100.0;
-        let direction = if change >= 0.0 { "UP" } else { "DOWN" };
-        let time_str = format_timestamp_utc(candle.timestamp.value());
-
-        let symbol = current_symbol().get_untracked();
-        let formatted_text = format!(
-            "{}  {}\nOpen       ${:.2}\nHigh       ${:.2}\nLow        ${:.2}\nClose      ${:.2}\nChange     ${:.2} ({:.2}%)\nVolume     {:.4}\n{}",
-            symbol.value(),
-            direction,
-            candle.ohlcv.open.value(),
-            candle.ohlcv.high.value(),
-            candle.ohlcv.low.value(),
-            candle.ohlcv.close.value(),
-            change,
-            change_pct,
-            candle.ohlcv.volume.value(),
-            time_str
-        );
-
-        Self { candle, x, y, formatted_text }
-    }
-}
+pub use crate::ui_state::TooltipData;
 
 /// 🦀 Main Crypto Chart component built with Leptos
 #[component]
 pub fn app() -> impl IntoView {
+    run_as_child(|| {
+        crate::app_context::AppContext::provide();
+        app_view()
+    })
+}
+
+fn app_view() -> impl IntoView {
     // 🚀 Initialize the global logger on application start
     use crate::domain::logging::get_logger;
 
@@ -1535,7 +1510,12 @@ fn ChartContainer() -> impl IntoView {
 
                         if candle_idx >= 0 && (candle_idx as usize) < visible_count {
                             let candle = &candles[start_idx + candle_idx as usize];
-                            let data = TooltipData::new(candle.clone(), mouse_x, mouse_y);
+                            let data = TooltipData::new(
+                                &current_symbol().get_untracked(),
+                                candle.clone(),
+                                mouse_x,
+                                mouse_y,
+                            );
 
                             tooltip_data().set(Some(data));
                             tooltip_visible().set(true);
@@ -1722,7 +1702,7 @@ fn ChartContainer() -> impl IntoView {
                         }
                         title="Load and render 1,000,000 deterministic candles"
                         disabled=move || stress_running().get()
-                        on:click=handle_stress
+                        on:click=bind_context(handle_stress)
                     >
                         {move || if stress_running().get() {
                             "Building 1M…"
@@ -1736,18 +1716,18 @@ fn ChartContainer() -> impl IntoView {
                         class="chart-action"
                         aria-label="Zoom out"
                         title="Zoom out"
-                        on:click=handle_zoom_out
+                        on:click=bind_context(handle_zoom_out)
                     >"−"</button>
                     <button
                         class="chart-action"
                         aria-label="Zoom in"
                         title="Zoom in"
-                        on:click=handle_zoom_in
+                        on:click=bind_context(handle_zoom_in)
                     >"+"</button>
                     <button
                         class="chart-action reset"
                         title="Reset chart to live data"
-                        on:click=handle_reset
+                        on:click=bind_context(handle_reset)
                     >"Live view"</button>
                 </div>
             </div>
@@ -1766,12 +1746,12 @@ fn ChartContainer() -> impl IntoView {
                         height="500"
                         tabindex="0"
                         aria-label="Interactive candlestick chart. Use the mouse wheel to zoom and drag to pan."
-                        on:mousemove=handle_mouse_move
-                        on:mouseleave=handle_mouse_leave
-                        on:mousedown=handle_mouse_down
-                        on:mouseup=handle_mouse_up
-                        on:dblclick=handle_double_click
-                        on:keydown=handle_keydown
+                        on:mousemove=bind_context(handle_mouse_move)
+                        on:mouseleave=bind_context(handle_mouse_leave)
+                        on:mousedown=bind_context(handle_mouse_down)
+                        on:mouseup=bind_context(handle_mouse_up)
+                        on:dblclick=bind_context(handle_double_click)
+                        on:keydown=bind_context(handle_keydown)
                     />
                     <PriceScale />
                     <ChartTooltip />
@@ -1945,7 +1925,7 @@ fn TimeframeSelector(set_status: WriteSignal<String>) -> impl IntoView {
                             } else {
                                 "selector-button"
                             }
-                            on:click=move |_| {
+                            on:click=bind_context(move |_| {
                                 if current_interval().get_untracked() == interval {
                                     return;
                                 }
@@ -1954,7 +1934,7 @@ fn TimeframeSelector(set_status: WriteSignal<String>) -> impl IntoView {
                                 let _ = spawn_local_with_current_owner(async move {
                                     start_all_websocket_streams(status).await;
                                 });
-                            }
+                            })
                         >
                             {label}
                         </button>
@@ -1994,7 +1974,7 @@ fn LegendIndicatorToggle(name: &'static str) -> impl IntoView {
                 type="checkbox"
                 id=id
                 prop:checked=checked
-                on:change=move |_| {
+                on:change=bind_context(move |_| {
                     let symbol = current_symbol().get_untracked();
                     let chart = get_chart_signal(&symbol).unwrap_or_else(|| ensure_chart(&symbol));
                     chart.with_untracked(|c| {
@@ -2005,7 +1985,7 @@ fn LegendIndicatorToggle(name: &'static str) -> impl IntoView {
                             // renderer not available
                         }
                     });
-                }
+                })
             />
             <span class="indicator-dot" aria-hidden="true"></span>
             {label}
@@ -2051,12 +2031,12 @@ fn AssetSelector(set_status: WriteSignal<String>) -> impl IntoView {
                             } else {
                                 "selector-button"
                             }
-                            on:click=move |_| {
+                            on:click=bind_context(move |_| {
                                 ensure_chart(&click_symbol);
                                 current_symbol().set(click_symbol.clone());
                                 refresh_active_market_view();
                                 status_cloned.set(String::new());
-                            }
+                            })
                         >
                             {label}
                         </button>
@@ -2126,28 +2106,12 @@ async fn start_market_stream(
     let stream_client_arc =
         Arc::new(Mutex::new(BinanceWebSocketClient::new(symbol.clone(), interval)));
     let (abort_handle, abort_reg) = futures::future::AbortHandle::new_pair();
-    let (done_tx, done_rx) = oneshot::channel::<()>();
     stream_abort_handles().update(|m| {
         m.insert(symbol.clone(), abort_handle.clone());
     });
     on_cleanup({
-        let symbol = symbol.clone();
         let handle = abort_handle.clone();
-        let done_rx = done_rx;
-        move || {
-            handle.abort();
-            let _ = spawn_local_with_current_owner(async move {
-                let _ = done_rx.await;
-                if connection_generation == connection_id().get_untracked() {
-                    stream_abort_handles().update(|m| {
-                        m.remove(&symbol);
-                    });
-                    streaming_symbols().update(|symbols| {
-                        symbols.remove(&symbol);
-                    });
-                }
-            });
-        }
+        move || handle.abort()
     });
     let handle_check = abort_handle.clone();
     let fut = futures::future::Abortable::new(
@@ -2265,7 +2229,6 @@ async fn start_market_stream(
 
     let _ = spawn_local_with_current_owner(async move {
         let _ = fut.await;
-        let _ = done_tx.send(());
     });
 }
 

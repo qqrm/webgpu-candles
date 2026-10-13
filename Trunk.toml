@@ -1,4 +1,5 @@
 [build]
+locked = true
 filehash = true
 dist = "dist-local"
 public_url = "/"

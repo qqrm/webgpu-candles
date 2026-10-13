@@ -4,25 +4,25 @@ on:
   push:
     branches: [main]
 
-permissions: write-all
+permissions:
+  contents: read
 concurrency:
   group: benchmark-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   perf:
-    if: ${{ github.actor == 'qqrm' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: dtolnay/rust-toolchain@v1
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
       - name: Cache cargo
-        uses: actions/cache@v3
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
             ~/.cargo/registry
@@ -31,17 +31,17 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.x'
       - name: Install wasm-pack
-        run: cargo install wasm-pack --version 0.13.1
+        run: cargo install wasm-pack --version 0.13.1 --locked
       - name: Run benchmarks
         env:
           WASM_BINDGEN_TEST_BROWSER_ARGS: "--no-sandbox --enable-unsafe-webgpu"
         run: |
           set -o pipefail
-          wasm-pack test --chrome --headless | tee perf.log
+          wasm-pack test --chrome --headless -- --locked | tee perf.log
           python scripts/parse_perf_log.py perf.log benchmark_result.json
       - name: Analyze FPS
         run: |
@@ -56,14 +56,7 @@ jobs:
               lines.append(f'| {k} | {v} |')
           pathlib.Path('DOCS/perf.md').write_text('\n'.join(lines) + '\n')
           EOF
-      - name: Commit results
-        run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add DOCS/perf.md DOCS/perf_result.json DOCS/perf_baseline.json
-          git commit -m "Update perf metrics" || echo "No changes"
-          git push
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: perf_results
           path: DOCS/perf_result.json

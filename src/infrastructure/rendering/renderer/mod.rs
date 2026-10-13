@@ -95,21 +95,7 @@ pub struct WebGpuRenderer {
     line_visibility: LineVisibility,
 }
 
-/// State of indicator line visibility
-#[derive(Debug, Clone, PartialEq)]
-pub struct LineVisibility {
-    pub sma_20: bool,
-    pub sma_50: bool,
-    pub sma_200: bool,
-    pub ema_12: bool,
-    pub ema_26: bool,
-}
-
-impl Default for LineVisibility {
-    fn default() -> Self {
-        Self { sma_20: true, sma_50: true, sma_200: true, ema_12: true, ema_26: true }
-    }
-}
+pub use crate::ui_state::LineVisibility;
 
 mod geometry;
 pub use geometry::{
