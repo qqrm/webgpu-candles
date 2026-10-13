@@ -86,7 +86,7 @@ impl Timestamp {
 }
 
 /// Value Object - OHLCV data with generated helpers
-#[derive(Debug, Clone, Copy, PartialEq, Constructor, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct OHLCV {
     pub open: Price,
     pub high: Price,
@@ -96,6 +96,10 @@ pub struct OHLCV {
 }
 
 impl OHLCV {
+    pub fn new(open: Price, high: Price, low: Price, close: Price, volume: Volume) -> Self {
+        Self { open, high, low, close, volume }
+    }
+
     /// Check the validity of OHLCV data
     pub fn is_valid(&self) -> bool {
         self.high >= self.open

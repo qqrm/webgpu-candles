@@ -49,6 +49,14 @@ pub fn init_render_queue() {
 }
 
 pub fn enqueue_render_task(task: RenderTask) {
+    let owner = leptos::Owner::current();
+    let task: RenderTask = Box::new(move |renderer| {
+        if let Some(owner) = owner {
+            let _ = leptos::try_with_owner(owner, || task(renderer));
+        } else {
+            task(renderer);
+        }
+    });
     RENDER_QUEUE.with(|cell| {
         if let Some(tx) = &*cell.borrow() {
             let _ = tx.unbounded_send(task);

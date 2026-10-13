@@ -33,3 +33,11 @@ npm run test:e2e
 ```
 
 Failure screenshots, traces, and the HTML report are written to `test-results/` and `playwright-report/`.
+
+## Required CI and coverage boundaries
+
+`ci-gate` requires locked stable compilation, strict Clippy, Python regression and dependency-policy tests, browser Rust tests, Node logic tests, and the Playwright WebGPU suite. Browser Rust tests explicitly select the Chrome binary paired with ChromeDriver. Tests run with `--no-fail-fast` so a failing test executable does not hide later failures.
+
+`tests/app_context.rs` checks independent UI/ECS owners, disposal/remount, chart lifetime, and callback ownership. The renderer and render queue remain shared services; these tests do not establish independent GPU renderers for multiple application roots. Browser tests use software WebGPU and do not establish physical-device performance.
+
+The WASM harness executes `#[wasm_bindgen_test]` cases, not plain `#[test]` or QuickCheck cases. There are 49 legacy plain/QuickCheck cases compiled by the current WASM check but not executed by this harness, plus one native-only performance case excluded from WASM. Native runtime execution is not established by this CI. Keep compiled coverage distinct from executed test counts when reporting results.

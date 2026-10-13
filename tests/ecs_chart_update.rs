@@ -1,24 +1,26 @@
 #![cfg(feature = "render")]
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 use leptos::*;
 use price_chart_wasm::domain::chart::{Chart, value_objects::ChartType};
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Symbol, Timestamp, Volume};
 use price_chart_wasm::ecs::components::ChartComponent;
 use price_chart_wasm::global_state::{ecs_world, set_chart_in_ecs};
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn set_chart_spawns_when_missing() {
     ecs_world().lock().unwrap().world = hecs::World::new();
     let symbol = Symbol::from("TEST");
     let chart = Chart::new(symbol.value().to_string(), ChartType::Candlestick, 10);
     set_chart_in_ecs(&symbol, chart.clone());
-    let world_ref = ecs_world().lock().unwrap();
+    let world_handle = ecs_world();
+    let world_ref = world_handle.lock().unwrap();
     let mut query = world_ref.world.query::<&ChartComponent>();
     assert_eq!(query.iter().count(), 1);
     let stored = query.iter().next().unwrap().1;
     assert_eq!(stored.0.with_untracked(|c| c.id.clone()), chart.id);
 }
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn set_chart_replaces_existing() {
     ecs_world().lock().unwrap().world = hecs::World::new();
     let symbol = Symbol::from("TEST2");
@@ -36,13 +38,14 @@ fn set_chart_replaces_existing() {
     );
     chart.add_candle(candle);
     set_chart_in_ecs(&symbol, chart.clone());
-    let world_ref = ecs_world().lock().unwrap();
+    let world_handle = ecs_world();
+    let world_ref = world_handle.lock().unwrap();
     let mut query = world_ref.world.query::<&ChartComponent>();
     let stored = query.iter().next().unwrap().1;
     assert_eq!(stored.0.with_untracked(|c| c.get_candle_count()), 1);
 }
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn set_chart_updates_only_target() {
     ecs_world().lock().unwrap().world = hecs::World::new();
     let sym_a = Symbol::from("A");
@@ -50,7 +53,8 @@ fn set_chart_updates_only_target() {
     let chart_a = Chart::new(sym_a.value().to_string(), ChartType::Candlestick, 5);
     let mut chart_b = Chart::new(sym_b.value().to_string(), ChartType::Candlestick, 5);
     {
-        let mut world = ecs_world().lock().unwrap();
+        let world_handle = ecs_world();
+        let mut world = world_handle.lock().unwrap();
         world.spawn_chart(chart_a);
         world.spawn_chart(chart_b.clone());
     }
@@ -66,7 +70,8 @@ fn set_chart_updates_only_target() {
     );
     chart_b.add_candle(candle);
     set_chart_in_ecs(&sym_b, chart_b);
-    let world_ref = ecs_world().lock().unwrap();
+    let world_handle = ecs_world();
+    let world_ref = world_handle.lock().unwrap();
     let mut query = world_ref.world.query::<&ChartComponent>();
     let mut count_a = 0;
     let mut count_b = 0;

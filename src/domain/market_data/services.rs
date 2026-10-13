@@ -55,7 +55,7 @@ impl MarketAnalysisService {
 
     /// Calculate the Simple Moving Average (SMA)
     pub fn calculate_sma(&self, candles: &[Candle], period: usize) -> Vec<Price> {
-        if candles.len() < period {
+        if period == 0 || candles.len() < period {
             return Vec::new();
         }
 
@@ -63,7 +63,7 @@ impl MarketAnalysisService {
 
         for i in (period - 1)..candles.len() {
             let sum: f64 =
-                candles[i - period + 1..=i].iter().map(|candle| candle.ohlcv.close.value()).sum();
+                candles[i + 1 - period..=i].iter().map(|candle| candle.ohlcv.close.value()).sum();
 
             sma_values.push(Price::from(sum / period as f64));
         }
@@ -73,7 +73,7 @@ impl MarketAnalysisService {
 
     /// Calculate the Exponential Moving Average (EMA)
     pub fn calculate_ema(&self, candles: &[Candle], period: usize) -> Vec<Price> {
-        if candles.len() < period {
+        if period == 0 || candles.len() < period {
             return Vec::new();
         }
 
@@ -182,7 +182,7 @@ impl MarketAnalysisService {
 
     /// Calculate the Ichimoku Tenkan-sen
     pub fn calculate_tenkan_sen(&self, candles: &[Candle], period: usize) -> Vec<Price> {
-        if candles.len() < period {
+        if period == 0 || candles.len() < period {
             return Vec::new();
         }
 

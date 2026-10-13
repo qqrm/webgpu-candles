@@ -41,10 +41,11 @@ fn positioning_regression_basic() {
 #[wasm_bindgen_test]
 fn positioning_regression_math() {
     let test_cases = vec![
-        (1, vec![1.0]),                          // one candle
-        (2, vec![0.0, 1.0]),                     // two candles
-        (3, vec![-0.33333334, 0.33333334, 1.0]), // three candles (float error)
-        (4, vec![-0.5, 0.0, 0.5, 1.0]),          // four candles
+        // Center positions include the capped half-width 0.12 and edge gap 0.003.
+        (1, vec![0.877]),
+        (2, vec![-0.123, 0.877]),
+        (3, vec![-0.45633334, 0.21033334, 0.877]),
+        (4, vec![-0.623, -0.123, 0.377, 0.877]),
     ];
 
     for (visible_len, expected_positions) in test_cases {

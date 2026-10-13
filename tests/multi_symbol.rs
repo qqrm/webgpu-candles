@@ -1,9 +1,10 @@
 #![cfg(feature = "render")]
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 use leptos::*;
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Symbol, Timestamp, Volume};
 use price_chart_wasm::global_state::ensure_chart;
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn charts_accumulate_independently() {
     let btc = Symbol::from("BTCUSDT");
     let eth = Symbol::from("ETHUSDT");

@@ -131,3 +131,11 @@ python -m http.server 8080
 - WebGPU performance ✅
 
 **Architecture:** simple, clean, working 🚀
+
+## Application state ownership
+
+`App` creates a dedicated reactive owner and provides `AppContext`. The context owns UI signals and its own ECS world; owner cleanup aborts streams and clears chart entities before signals are disposed. Charts first requested by transient effects are allocated under the application owner. DOM callbacks and queued render tasks retain their originating owner and ignore work after disposal.
+
+`global_state` remains a compatibility facade over the current context. New consumers can use `AppContext` directly. `ui_state` holds plain `TooltipData` and `LineVisibility`; tooltip formatting receives its symbol explicitly. Domain data remains ordinary Rust data. ECS chart components still adapt Leptos signals; removing that adapter and the single renderer service is outside this first migration step.
+
+Lifecycle tests dispose and remount independent reactive owners. In Leptos CSR, `create_runtime` returns the shared runtime, so owner disposal is the meaningful browser lifecycle boundary.

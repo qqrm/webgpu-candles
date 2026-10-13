@@ -84,7 +84,7 @@ impl Viewport {
 
         if self.min_price < 0.1 {
             let shift = 0.1 - self.min_price;
-            self.min_price += shift;
+            self.min_price = 0.1;
             self.max_price += shift;
         }
     }

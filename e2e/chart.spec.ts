@@ -45,7 +45,7 @@ const kline = (timestamp: number, index: number, empty: boolean, basePrice: numb
 async function mockMarket(page: Page, historyRows?: number): Promise<MarketRequests> {
   const requests: MarketRequests = { urls: [], webSocketUrls: [], historyCount: 0 };
 
-  await page.route(/https:\/\/api\.binance\.com\/api\/v3\/(uiKlines|klines).*/, async route => {
+  await page.route(/^https:\/\/api\.binance\.com\/api\/v3\/(uiKlines|klines)(?:\?[^#]*)?$/, async route => {
     const url = new URL(route.request().url());
     const interval = url.searchParams.get('interval') ?? '1m';
     const symbol = url.searchParams.get('symbol') ?? 'BTCUSDT';
@@ -75,7 +75,7 @@ async function mockMarket(page: Page, historyRows?: number): Promise<MarketReque
     });
   });
 
-  await page.routeWebSocket(/wss:\/\/stream\.binance\.com.*/, socket => {
+  await page.routeWebSocket(/^wss:\/\/stream\.binance\.com(?::9443)?\/ws\/[^/?#]+$/, socket => {
     const url = new URL(socket.url());
     requests.webSocketUrls.push(url.toString());
     const symbol = url.pathname.split('/').at(-1)?.split('@')[0] ?? 'btcusdt';

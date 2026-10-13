@@ -46,6 +46,19 @@ fn partial_realtime_updates_refresh_mas() {
     assert_eq!(base_engine.data().ema_26.last(), expected.data().ema_26.last());
 
     let minute_engine = chart.ma_engines.get(&TimeInterval::OneMinute).expect("minute engine");
-    assert_eq!(minute_engine.data().ema_12.last().map(|price| price.value()), Some(40.0));
-    assert_eq!(minute_engine.data().ema_26.last().map(|price| price.value()), Some(40.0));
+    assert!(minute_engine.data().ema_12.is_empty());
+    assert!(minute_engine.data().ema_26.is_empty());
+
+    // Opening the next minute commits the previous bucket exactly once.
+    chart.add_realtime_candle(candle(60_000, 50.0));
+    chart.add_realtime_candle(candle(62_000, 70.0));
+    let minute_engine = chart.ma_engines.get(&TimeInterval::OneMinute).unwrap();
+    assert_eq!(minute_engine.data().ema_12, [Price::from(40.0)]);
+    assert_eq!(minute_engine.data().ema_26, [Price::from(40.0)]);
+
+    chart.add_realtime_candle(candle(120_000, 80.0));
+    let minute_engine = chart.ma_engines.get(&TimeInterval::OneMinute).unwrap();
+    assert_eq!(minute_engine.data().ema_12.len(), 2);
+    assert_eq!(minute_engine.data().ema_12[0], Price::from(40.0));
+    assert!((minute_engine.data().ema_12[1].value() - (40.0 + 60.0 / 13.0)).abs() < 1e-12);
 }

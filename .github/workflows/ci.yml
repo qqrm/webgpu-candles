@@ -1,0 +1,182 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  CARGO_INCREMENTAL: '0'
+  CARGO_PROFILE_DEV_DEBUG: '0'
+  CARGO_PROFILE_TEST_DEBUG: '0'
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo check --locked --tests --benches --all-features --keep-going
+      - run: cargo clippy --locked --tests --benches --all-features --keep-going -- -D warnings
+      - name: Verify Python and dependency policy tests
+        run: |
+          python3 -m unittest discover -s tests -p '*_script.py'
+          python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+  render-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - name: Read the locked WASM runner version
+        id: bindgen
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+          packages = tomllib.loads(Path('Cargo.lock').read_text())['package']
+          versions = {p['version'] for p in packages if p['name'] == 'wasm-bindgen'}
+          assert len(versions) == 1, versions
+          version = versions.pop()
+          assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version), version
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version={version}\n')
+          PY
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        with:
+          tool: wasm-bindgen@${{ steps.bindgen.outputs.version }}
+          fallback: none
+      - uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2
+        id: chrome
+        with:
+          chrome-version: stable
+          install-chromedriver: true
+      - name: Select the browser matching ChromeDriver
+        env:
+          CHROME_BINARY: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          path = Path('webdriver.json')
+          capabilities = json.loads(path.read_text())
+          capabilities['goog:chromeOptions']['binary'] = os.environ['CHROME_BINARY']
+          path.write_text(json.dumps(capabilities))
+          PY
+      - name: Browser Rust tests, including application owner lifecycle
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+          CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
+          CHROMEDRIVER_ARGS: --verbose
+          WASM_BINDGEN_TEST_ONLY_WEB: '1'
+          INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
+          WASM_BINDGEN_TEST_TIMEOUT: '120'
+          WASM_BINDGEN_TEST_WEBDRIVER_JSON: webdriver.json
+        run: cargo test --target wasm32-unknown-unknown --locked --features render --no-fail-fast
+  node-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Read the locked WASM runner version
+        id: bindgen
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+          packages = tomllib.loads(Path('Cargo.lock').read_text())['package']
+          versions = {p['version'] for p in packages if p['name'] == 'wasm-bindgen'}
+          assert len(versions) == 1, versions
+          version = versions.pop()
+          assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version), version
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version={version}\n')
+          PY
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        with:
+          tool: wasm-bindgen@${{ steps.bindgen.outputs.version }}
+          fallback: none
+      - name: Node Rust logic tests
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+          WASM_BINDGEN_TEST_ONLY_NODE: '1'
+        run: cargo test --target wasm32-unknown-unknown --locked --features logic-only --no-fail-fast
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        with:
+          tool: trunk@0.21.14
+          fallback: none
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Deterministic WebGPU UI tests
+        run: npm run test:e2e
+      - name: Upload failure report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+  ci-gate:
+    if: always()
+    needs: [checks, render-tests, node-tests, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every Rust, WASM and browser check
+        env:
+          CHECKS: ${{ needs.checks.result }}
+          RENDER: ${{ needs.render-tests.result }}
+          NODE: ${{ needs.node-tests.result }}
+          BROWSER: ${{ needs.browser.result }}
+        run: |
+          test "$CHECKS" = success
+          test "$RENDER" = success
+          test "$NODE" = success
+          test "$BROWSER" = success

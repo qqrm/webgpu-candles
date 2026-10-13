@@ -20,7 +20,7 @@ fn candle_methods() {
     assert!(!candle.is_bearish());
     assert_eq!(candle.body_size().value(), 1.0);
     assert_eq!(candle.wick_high().value(), 1.0);
-    assert_eq!(candle.wick_low().value(), 0.0);
+    assert_eq!(candle.wick_low().value(), 1.0); // min(open, close) - low = 10 - 9
 }
 
 #[wasm_bindgen_test]

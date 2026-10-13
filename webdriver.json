@@ -1,0 +1,12 @@
+{
+  "goog:chromeOptions": {
+    "args": [
+      "--no-sandbox",
+      "--enable-unsafe-webgpu",
+      "--enable-features=Vulkan",
+      "--use-angle=swiftshader",
+      "--disable-vulkan-surface",
+      "--host-resolver-rules=MAP api.binance.com ~NOTFOUND, MAP stream.binance.com ~NOTFOUND"
+    ]
+  }
+}
