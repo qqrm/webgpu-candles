@@ -2049,14 +2049,7 @@ fn AssetSelector(set_status: WriteSignal<String>) -> impl IntoView {
 
 /// Abort the current market-stream generation before changing timeframe.
 pub fn abort_all_streams() {
-    stream_abort_handles().update(|handles| {
-        for handle in handles.values() {
-            handle.abort();
-        }
-        handles.clear();
-    });
-    streaming_symbols().set(Default::default());
-    global_is_streaming().set(false);
+    crate::app_context::app_context().abort_streams();
 }
 
 /// Start one independent market stream. Inactive markets keep receiving data,

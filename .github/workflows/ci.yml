@@ -115,7 +115,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Require every native, WASM and browser check
+      - name: Require every Rust, WASM and browser check
         env:
           CHECKS: ${{ needs.checks.result }}
           RENDER: ${{ needs.render-tests.result }}

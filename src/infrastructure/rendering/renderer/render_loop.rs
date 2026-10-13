@@ -297,6 +297,7 @@ impl WebGpuRenderer {
         );
 
         let output = self
+            .gpu()
             .surface
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
@@ -409,6 +410,7 @@ impl WebGpuRenderer {
         );
 
         let output = self
+            .gpu()
             .surface
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
@@ -500,6 +502,7 @@ impl WebGpuRenderer {
         );
 
         let output = self
+            .gpu()
             .surface
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
@@ -588,6 +591,7 @@ impl WebGpuRenderer {
         );
 
         let output = self
+            .gpu()
             .surface
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;

@@ -107,6 +107,17 @@ impl AppContext {
         context
     }
 
+    /// Cancel the previous timeframe's streams and reset its connection status.
+    pub fn abort_streams(&self) {
+        self.signals.stream_abort_handles.update(|handles| {
+            for (_, handle) in handles.drain() {
+                handle.abort();
+            }
+        });
+        self.signals.streaming_symbols.set(Default::default());
+        self.signals.is_streaming.set(false);
+    }
+
     pub fn ecs_world(&self) -> Arc<Mutex<EcsWorld>> {
         self.world.clone()
     }
