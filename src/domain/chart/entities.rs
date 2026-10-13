@@ -301,7 +301,6 @@ impl Chart {
 
                 let latest_ts = series.latest().map(|c| c.timestamp.value());
                 if latest_ts == Some(bucket_start) {
-                    let mut new_close = None;
                     if let Some(last) = series.latest_mut() {
                         if candle.ohlcv.high > last.ohlcv.high {
                             last.ohlcv.high = candle.ohlcv.high;
@@ -312,13 +311,9 @@ impl Chart {
                         last.ohlcv.close = candle.ohlcv.close;
                         last.ohlcv.volume =
                             Volume::from(last.ohlcv.volume.value() + candle.ohlcv.volume.value());
-                        new_close = Some(last.ohlcv.close.value());
                     }
-                    if let Some(close) = new_close
-                        && let Some(engine) = self.ma_engines.get_mut(interval)
-                    {
-                        engine.replace_last_close(close);
-                    }
+                    // Aggregate indicators contain closed buckets only. A partial update
+                    // must not replace the preceding closed bucket's indicator value.
                     self.open_buckets.insert(*interval);
                     continue;
                 }

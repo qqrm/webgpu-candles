@@ -28,11 +28,16 @@ fn sample_chart() -> Chart {
 fn visibility_refreshes_cached_geometry() {
     let chart = sample_chart();
     let mut renderer = dummy_renderer();
-    renderer.cache_geometry_for_test(&chart);
+    assert!(renderer.render(&chart).is_err());
     let initial = renderer.cached_hash_for_test();
+    assert!(renderer.render(&chart).is_err());
+    assert_eq!(renderer.cached_hash_for_test(), initial);
 
     renderer.toggle_line_visibility("sma20");
-    let _ = renderer.render(&chart);
+    assert!(renderer.render(&chart).is_err()); // Geometry updates; no GPU submission is possible.
 
     assert_ne!(renderer.cached_hash_for_test(), initial);
+    let refreshed = renderer.cached_hash_for_test();
+    assert!(renderer.render(&chart).is_err());
+    assert_eq!(renderer.cached_hash_for_test(), refreshed);
 }

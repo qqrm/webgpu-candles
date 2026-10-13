@@ -73,9 +73,6 @@ impl WebGpuRenderer {
     }
 
     pub fn render(&mut self, chart: &Chart) -> Result<(), JsValue> {
-        if self.gpu.is_none() {
-            return Err(JsValue::from_str("geometry-only renderer has no GPU resources"));
-        }
         use crate::app::current_interval;
         let interval = current_interval().get_untracked();
         let candle_count =
@@ -107,6 +104,11 @@ impl WebGpuRenderer {
             self.cached_zoom_level = self.zoom_level;
             self.cached_data_revision = data_revision;
             self.update_cached_geometry(vertices, instances, uniforms);
+        }
+
+        // Geometry-only fixtures exercise cache invalidation without fabricated GPU handles.
+        if self.gpu.is_none() {
+            return Err(JsValue::from_str("geometry-only renderer has no GPU resources"));
         }
 
         // Skip empty check for simple shader - we don't use instances

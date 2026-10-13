@@ -87,7 +87,8 @@ fn ichimoku_calculation() {
     let svc = MarketAnalysisService::new();
     let tenkan = svc.calculate_tenkan_sen(&candles, 3);
     assert_eq!(tenkan.len(), 3);
-    assert!((tenkan[0].value() - 10.5).abs() < f64::EPSILON);
+    // The first window spans high=13 and low=9, giving a midpoint of 11.
+    assert_eq!(tenkan.iter().map(|p| p.value()).collect::<Vec<_>>(), [11.0, 12.0, 13.0]);
 }
 
 #[wasm_bindgen_test]

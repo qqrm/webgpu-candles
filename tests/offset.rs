@@ -10,14 +10,14 @@ fn candle_offset_calculation() {
     let visible = 10usize;
     let step = 2.0 / visible as f32;
 
-    // First candle should be at position 1.0 - (visible-1) * step
-    let expected_first = 1.0 - (visible as f32 - 1.0) * step;
+    // Centers include half the body width and the intentional right-edge gap.
+    let spacing = spacing_ratio_for(visible);
+    let width = (step * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
+    let expected_first = 1.0 - (visible as f32 - 1.0) * step - width / 2.0 - EDGE_GAP;
     let x = candle_x_position(0, visible);
     assert!((x - expected_first).abs() < f32::EPSILON);
 
     // ✅ Last candle's right edge should align with 1.0
-    let spacing = spacing_ratio_for(visible);
-    let width = (step * (1.0 - spacing)).clamp(MIN_ELEMENT_WIDTH, MAX_ELEMENT_WIDTH);
     let x_last = candle_x_position(visible - 1, visible);
     assert!((x_last + width / 2.0 + EDGE_GAP - 1.0).abs() < f32::EPSILON);
 }
