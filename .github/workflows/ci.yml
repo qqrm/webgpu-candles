@@ -44,9 +44,25 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
+      - name: Read the locked WASM runner version
+        id: bindgen
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+          packages = tomllib.loads(Path('Cargo.lock').read_text())['package']
+          versions = {p['version'] for p in packages if p['name'] == 'wasm-bindgen'}
+          assert len(versions) == 1, versions
+          version = versions.pop()
+          assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version), version
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version={version}\n')
+          PY
       - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
-          tool: wasm-pack@0.13.1
+          tool: wasm-bindgen@${{ steps.bindgen.outputs.version }}
           fallback: none
       - uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2
         id: chrome
@@ -68,11 +84,14 @@ jobs:
           PY
       - name: Browser Rust tests, including application owner lifecycle
         env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+          CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
           CHROMEDRIVER_ARGS: --verbose
+          WASM_BINDGEN_TEST_ONLY_WEB: '1'
           INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
           WASM_BINDGEN_TEST_TIMEOUT: '120'
           WASM_BINDGEN_TEST_WEBDRIVER_JSON: webdriver.json
-        run: wasm-pack test --chrome --headless -- --locked --features render --no-fail-fast
+        run: cargo test --target wasm32-unknown-unknown --locked --features render --no-fail-fast
   node-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -87,11 +106,31 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
+      - name: Read the locked WASM runner version
+        id: bindgen
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+          packages = tomllib.loads(Path('Cargo.lock').read_text())['package']
+          versions = {p['version'] for p in packages if p['name'] == 'wasm-bindgen'}
+          assert len(versions) == 1, versions
+          version = versions.pop()
+          assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version), version
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version={version}\n')
+          PY
       - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
-          tool: wasm-pack@0.13.1
+          tool: wasm-bindgen@${{ steps.bindgen.outputs.version }}
           fallback: none
-      - run: wasm-pack test --node -- --locked --features logic-only --no-fail-fast
+      - name: Node Rust logic tests
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+          WASM_BINDGEN_TEST_ONLY_NODE: '1'
+        run: cargo test --target wasm32-unknown-unknown --locked --features logic-only --no-fail-fast
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 30

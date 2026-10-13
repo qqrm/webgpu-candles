@@ -27,7 +27,7 @@ fn grid_vertex_count_and_bounds() {
         }
     }
 
-    for (index, line) in vertices.chunks_exact(6).enumerate() {
+    for (index, line) in vertices.as_chunks::<6>().0.iter().enumerate() {
         let (center, low, high) = if index <= 4 {
             (index as f32 / 4.0 * 2.0 - 1.0, line[0].position_x, line[1].position_x)
         } else {
