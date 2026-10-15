@@ -249,6 +249,7 @@ impl WebGpuRenderer {
                 uniform_bind_group,
                 msaa_texture,
                 msaa_view,
+                _instance: instance,
             }),
             template_vertices: 0,
             cached_vertices: Vec::new(),

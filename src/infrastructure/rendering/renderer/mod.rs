@@ -69,6 +69,8 @@ struct GpuResources {
     uniform_bind_group: wgpu::BindGroup,
     msaa_texture: wgpu::Texture,
     msaa_view: wgpu::TextureView,
+    // Drop last: the browser instance must outlive every device/queue resource.
+    _instance: wgpu::Instance,
 }
 
 /// Actual WebGPU renderer for candles
