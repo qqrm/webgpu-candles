@@ -36,7 +36,9 @@ Failure screenshots, traces, and the HTML report are written to `test-results/` 
 
 ## Required CI and coverage boundaries
 
-`ci-gate` requires locked stable compilation, strict Clippy, Python regression and dependency-policy tests, browser Rust tests, Node logic tests, and the Playwright WebGPU suite. Browser Rust tests explicitly select the Chrome binary paired with ChromeDriver. Tests run with `--no-fail-fast` so a failing test executable does not hide later failures.
+`ci-gate` requires locked stable compilation, strict Clippy, Python regression and dependency-policy tests, browser Rust tests, Node logic tests, the Playwright WebGPU suite, dependency auditing, and measured completed-frame performance. Browser Rust tests explicitly select the Chrome binary paired with ChromeDriver. Tests run with `--no-fail-fast` so a failing test executable does not hide later failures.
+
+`tests/performance_limit.rs` runs separately in release mode with the `performance` feature. It requires a real WebGPU adapter (software SwiftShader on CI), rejects invalid inputs and reports all 15 completed-frame samples. Ten Python regression tests reject absent/invalid/duplicate samples, zero or mismatched baselines, missing baseline files, and per-workload regressions; medians tolerate individual outliers. See [measurement details](../.github/workflows/PIPELINES.md).
 
 `tests/app_context.rs` checks independent UI/ECS owners, disposal/remount, chart lifetime, and callback ownership. The renderer and render queue remain shared services; these tests do not establish independent GPU renderers for multiple application roots. Browser tests use software WebGPU and do not establish physical-device performance.
 

@@ -1,1 +1,54 @@
-{"fps": 0.0}
+{
+  "schema": 1,
+  "workload": "cached-chart-completed-frames-800x600-msaa4-v1",
+  "cases": {
+    "1000": [
+      160.54370802450515,
+      159.9360255897666,
+      159.0330788804076,
+      164.40157825515493,
+      165.23008289042278
+    ],
+    "50000": [
+      159.5872011064708,
+      157.0187375693399,
+      163.89860139860713,
+      147.41290354282725,
+      159.2103168285241
+    ],
+    "1000000": [
+      161.7992071838904,
+      161.75122661346748,
+      162.42115806285545,
+      159.1174286623582,
+      159.11320904822702
+    ]
+  },
+  "provenance": {
+    "tested_sha": "d95f58f76e286296b87fc2b05a6751e4eef347b8",
+    "run_url": "https://github.com/qqrm/webgpu-candles/actions/runs/38680812974",
+    "browser": "Google Chrome for Testing 155.0.8059.79",
+    "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "os": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "cpu": "x86_64",
+    "backend": "SwiftShader software WebGPU",
+    "browser_flags": [
+      "--no-sandbox",
+      "--enable-unsafe-webgpu",
+      "--enable-features=Vulkan",
+      "--use-angle=swiftshader",
+      "--disable-vulkan-surface",
+      "--host-resolver-rules=MAP api.binance.com ~NOTFOUND, MAP stream.binance.com ~NOTFOUND",
+      "--use-webgpu-adapter=swiftshader",
+      "--use-vulkan=swiftshader",
+      "--enable-unsafe-swiftshader"
+    ],
+    "adapter": {
+      "vendor": "google",
+      "architecture": "swiftshader"
+    },
+    "measurement_status": "2 browser tests and all 15 samples passed; comparator rejected legacy zero baseline",
+    "tested_head_sha": "1b79e9df3d64542d367a1291273a48dff5ce57a6",
+    "event": "pull_request"
+  }
+}

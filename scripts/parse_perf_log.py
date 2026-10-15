@@ -1,28 +1,41 @@
+"""Parse every expected completed-frame sample; missing measurements are errors."""
 import json
-import re
 import sys
+from pathlib import Path
 
-if len(sys.argv) != 3:
-    print("Usage: parse_perf_log.py LOG OUTPUT")
-    sys.exit(1)
+from perf_schema import COUNTS, SAMPLES, FRAMES, WORKLOAD, validate
 
-log_path, out_path = sys.argv[1:3]
 
-fps_values = []
-with open(log_path) as f:
-    for line in f:
-        m = re.search(r"\d+ candles: ([0-9.]+) FPS", line)
-        if m:
-            fps_values.append(float(m.group(1)))
+def parse(log):
+    cases = {str(count): [None] * SAMPLES for count in COUNTS}
+    for line in log.splitlines():
+        if "PERF_SAMPLE " not in line:
+            continue
+        data = json.loads(line.split("PERF_SAMPLE ", 1)[1])
+        count, sample = data["candles"], data["sample"]
+        if type(count) is not int or count not in COUNTS:
+            raise ValueError("unexpected candle count")
+        if type(sample) is not int or sample not in range(SAMPLES):
+            raise ValueError("unexpected sample index")
+        if data["frames"] != FRAMES or type(data["frames"]) is not int:
+            raise ValueError("unexpected frame count")
+        if cases[str(count)][sample] is not None:
+            raise ValueError("duplicate performance sample")
+        cases[str(count)][sample] = data["fps"]
+    result = {"schema": 1, "workload": WORKLOAD, "cases": cases}
+    validate(result)
+    return result
 
-if not fps_values:
-    print("No FPS data found in log, assuming zero")
-    # Zero FPS is allowed to keep the pipeline green without measurements
-    with open(out_path, "w") as f:
-        json.dump({"fps": 0.0}, f)
-    sys.exit(0)
 
-fps = sum(fps_values) / len(fps_values) if fps_values else 0.0
+def main():
+    if len(sys.argv) != 3:
+        raise ValueError("Usage: parse_perf_log.py LOG OUTPUT")
+    result = parse(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    Path(sys.argv[2]).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
 
-with open(out_path, "w") as f:
-    json.dump({"fps": fps}, f)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (ValueError, KeyError, TypeError, OSError) as error:
+        sys.exit(f"Invalid performance measurements: {error}")

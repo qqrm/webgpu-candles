@@ -103,7 +103,7 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
       - name: Read the locked WASM runner version
@@ -142,7 +142,7 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
           cache: npm
@@ -176,9 +176,11 @@ jobs:
           fallback: none
       - name: Audit the committed lockfile against current RustSec advisories
         run: cargo audit --deny unsound
+  performance:
+    uses: ./.github/workflows/benchmark.yml
   ci-gate:
     if: always()
-    needs: [checks, render-tests, node-tests, browser, dependency-audit]
+    needs: [checks, render-tests, node-tests, browser, dependency-audit, performance]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -189,9 +191,11 @@ jobs:
           NODE: ${{ needs.node-tests.result }}
           BROWSER: ${{ needs.browser.result }}
           AUDIT: ${{ needs.dependency-audit.result }}
+          PERFORMANCE: ${{ needs.performance.result }}
         run: |
           test "$CHECKS" = success
           test "$RENDER" = success
           test "$NODE" = success
           test "$BROWSER" = success
           test "$AUDIT" = success
+          test "$PERFORMANCE" = success
