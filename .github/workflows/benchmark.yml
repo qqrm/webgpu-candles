@@ -56,6 +56,11 @@ jobs:
           from pathlib import Path
           path = Path('webdriver.json')
           config = json.loads(path.read_text())
+          config['goog:chromeOptions']['args'].extend([
+              '--use-webgpu-adapter=swiftshader',
+              '--use-vulkan=swiftshader',
+              '--enable-unsafe-swiftshader',
+          ])
           config['goog:chromeOptions']['binary'] = os.environ['CHROME_BINARY']
           path.write_text(json.dumps(config))
           metadata = {

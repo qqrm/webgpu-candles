@@ -31,12 +31,35 @@ export function traceMapErrors() {
     };
 }
 export function mapErrors() { return JSON.stringify(globalThis.__perfMapErrors); }
+export async function verifyBrowserGpu() {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) throw new Error('No browser WebGPU adapter');
+    const device = await adapter.requestDevice();
+    const buffer = device.createBuffer({ size: 256, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+    const encoder = device.createCommandEncoder();
+    encoder.clearBuffer(buffer);
+    device.queue.submit([encoder.finish()]);
+    await buffer.mapAsync(GPUMapMode.READ);
+    buffer.unmap();
+    const info = {
+        vendor: adapter.info.vendor,
+        architecture: adapter.info.architecture,
+        device: adapter.info.device,
+        description: adapter.info.description,
+    };
+    if (!JSON.stringify(info).toLowerCase().includes('swiftshader')) {
+        throw new Error('Benchmark requires SwiftShader: ' + JSON.stringify(info));
+    }
+    return JSON.stringify(info);
+}
 ")]
 extern "C" {
     #[wasm_bindgen::prelude::wasm_bindgen(js_name = traceMapErrors)]
     fn trace_map_errors();
     #[wasm_bindgen::prelude::wasm_bindgen(js_name = mapErrors)]
     fn map_errors() -> String;
+    #[wasm_bindgen::prelude::wasm_bindgen(catch, js_name = verifyBrowserGpu)]
+    async fn verify_browser_gpu() -> Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>;
 }
 
 fn setup_canvas(id: &str, width: u32, height: u32) {
@@ -78,6 +101,8 @@ fn sample_chart(count: usize) -> Chart {
 #[wasm_bindgen_test(async)]
 async fn completed_frame_throughput() {
     trace_map_errors();
+    let adapter = verify_browser_gpu().await.expect("browser GPU readback preflight");
+    console_log!("PERF_ADAPTER {:?}", adapter);
     price_chart_wasm::app::current_interval().set(TimeInterval::TwoSeconds);
     assert!(WebGpuRenderer::is_webgpu_supported().await, "WebGPU is required");
     setup_canvas("perf-canvas", 800, 600);
