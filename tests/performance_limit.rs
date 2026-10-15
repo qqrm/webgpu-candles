@@ -10,6 +10,35 @@ use price_chart_wasm::infrastructure::rendering::renderer::WebGpuRenderer;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 
+#[wasm_bindgen::prelude::wasm_bindgen(inline_js = "
+export function traceMapErrors() {
+    if (globalThis.__perfMapErrors) return;
+    globalThis.__perfMapErrors = [];
+    const requestDevice = GPUAdapter.prototype.requestDevice;
+    GPUAdapter.prototype.requestDevice = function(...args) {
+        return requestDevice.apply(this, args).then(device => {
+            device.lost.then(info => globalThis.__perfMapErrors.push(
+                `Device lost: ${info.reason}: ${info.message}`));
+            return device;
+        });
+    };
+    const original = GPUBuffer.prototype.mapAsync;
+    GPUBuffer.prototype.mapAsync = function(...args) {
+        return original.apply(this, args).catch(error => {
+            globalThis.__perfMapErrors.push(String(error));
+            throw error;
+        });
+    };
+}
+export function mapErrors() { return JSON.stringify(globalThis.__perfMapErrors); }
+")]
+extern "C" {
+    #[wasm_bindgen::prelude::wasm_bindgen(js_name = traceMapErrors)]
+    fn trace_map_errors();
+    #[wasm_bindgen::prelude::wasm_bindgen(js_name = mapErrors)]
+    fn map_errors() -> String;
+}
+
 fn setup_canvas(id: &str, width: u32, height: u32) {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
@@ -48,6 +77,7 @@ fn sample_chart(count: usize) -> Chart {
 
 #[wasm_bindgen_test(async)]
 async fn completed_frame_throughput() {
+    trace_map_errors();
     price_chart_wasm::app::current_interval().set(TimeInterval::TwoSeconds);
     assert!(WebGpuRenderer::is_webgpu_supported().await, "WebGPU is required");
     setup_canvas("perf-canvas", 800, 600);
@@ -56,7 +86,10 @@ async fn completed_frame_throughput() {
     let counts = [1_000usize, 50_000, 1_000_000];
     for &count in &counts {
         let chart = sample_chart(count);
-        renderer.measure_fps(&chart, 10).await.expect("warmup frames");
+        renderer
+            .measure_fps(&chart, 10)
+            .await
+            .unwrap_or_else(|error| panic!("warmup frames: {error:?}; browser: {}", map_errors()));
         for sample in 0..5 {
             let fps = renderer.measure_fps(&chart, 30).await.expect("measured frames");
             assert!(fps.is_finite() && fps > 0.0);
@@ -72,6 +105,7 @@ async fn completed_frame_throughput() {
 
 #[wasm_bindgen_test(async)]
 async fn invalid_benchmark_inputs_fail() {
+    trace_map_errors();
     let mut renderer = price_chart_wasm::infrastructure::rendering::renderer::dummy_renderer();
     assert!(renderer.measure_fps(&sample_chart(10), 30).await.is_err());
     setup_canvas("invalid-perf-canvas", 800, 600);
@@ -80,7 +114,10 @@ async fn invalid_benchmark_inputs_fail() {
     assert!(renderer.measure_fps(&sample_chart(0), 30).await.is_err());
     price_chart_wasm::app::current_interval().set(TimeInterval::TwoSeconds);
     let chart = sample_chart(10);
-    renderer.measure_fps(&chart, 1).await.unwrap();
+    renderer
+        .measure_fps(&chart, 1)
+        .await
+        .unwrap_or_else(|error| panic!("positive control: {error:?}; browser: {}", map_errors()));
     // The base series is populated, but the selected derived series is empty.
     // A previous cached frame must not make a no-op render count as a new frame.
     price_chart_wasm::app::current_interval().set(TimeInterval::OneMinute);
