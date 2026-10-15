@@ -26,18 +26,21 @@ fn sample_chart() -> Chart {
 
 #[wasm_bindgen_test]
 fn visibility_refreshes_cached_geometry() {
-    let chart = sample_chart();
-    let mut renderer = dummy_renderer();
-    assert!(renderer.render(&chart).is_err());
-    let initial = renderer.cached_hash_for_test();
-    assert!(renderer.render(&chart).is_err());
-    assert_eq!(renderer.cached_hash_for_test(), initial);
+    let owner = leptos::prelude::Owner::new();
+    owner.with(|| {
+        let chart = sample_chart();
+        let mut renderer = dummy_renderer();
+        assert!(renderer.render(&chart).is_err());
+        let initial = renderer.cached_hash_for_test();
+        assert!(renderer.render(&chart).is_err());
+        assert_eq!(renderer.cached_hash_for_test(), initial);
 
-    renderer.toggle_line_visibility("sma20");
-    assert!(renderer.render(&chart).is_err()); // Geometry updates; no GPU submission is possible.
+        renderer.toggle_line_visibility("sma20");
+        assert!(renderer.render(&chart).is_err()); // Geometry updates; no GPU submission is possible.
 
-    assert_ne!(renderer.cached_hash_for_test(), initial);
-    let refreshed = renderer.cached_hash_for_test();
-    assert!(renderer.render(&chart).is_err());
-    assert_eq!(renderer.cached_hash_for_test(), refreshed);
+        assert_ne!(renderer.cached_hash_for_test(), initial);
+        let refreshed = renderer.cached_hash_for_test();
+        assert!(renderer.render(&chart).is_err());
+        assert_eq!(renderer.cached_hash_for_test(), refreshed);
+    });
 }

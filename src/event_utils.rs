@@ -48,11 +48,11 @@ where
     opts.set_capture(options.capture);
     opts.set_once(options.once);
 
-    let owner = leptos::Owner::current();
+    let owner = crate::app_context::CallbackOwner::capture();
     let event_name = event.name().into_owned();
     let callback = Closure::wrap(Box::new(move |ev: Event| {
-        if let Some(owner) = owner {
-            let _ = leptos::try_with_owner(owner, || cb(ev.unchecked_into::<E::EventType>()));
+        if let Some(owner) = &owner {
+            let _ = owner.run(|| cb(ev.unchecked_into::<E::EventType>()));
         } else {
             cb(ev.unchecked_into::<E::EventType>());
         }
@@ -68,6 +68,3 @@ where
 
     WindowEventListenerHandle { event_name, callback, capture: options.capture }
 }
-use leptos::{HtmlElement, html::AnyElement};
-
-pub fn wheel_event_options(_el: HtmlElement<AnyElement>, _opts: &EventOptions) {}

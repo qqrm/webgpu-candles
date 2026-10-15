@@ -1,6 +1,6 @@
 use super::*;
 use crate::domain::market_data::TimeInterval;
-use leptos::SignalGetUntracked;
+use leptos::prelude::GetUntracked;
 use std::collections::VecDeque;
 
 impl WebGpuRenderer {
@@ -12,12 +12,14 @@ impl WebGpuRenderer {
                 return false;
             }
 
-            let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+            let instance =
+                wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
             instance
                 .request_adapter(&wgpu::RequestAdapterOptions {
                     power_preference: wgpu::PowerPreference::LowPower,
                     compatible_surface: None,
                     force_fallback_adapter: false,
+                    apply_limit_buckets: false,
                 })
                 .await
                 .is_ok()
@@ -52,7 +54,7 @@ impl WebGpuRenderer {
             &format!("🎯 Canvas configured: {}x{}", canvas.width(), canvas.height()),
         );
 
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
 
         let surface = instance
             .create_surface(wgpu::SurfaceTarget::Canvas(canvas.clone()))
@@ -68,6 +70,7 @@ impl WebGpuRenderer {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
+                apply_limit_buckets: false,
             })
             .await
             .map_err(|e| JsValue::from_str(&format!("Failed to find adapter: {:?}", e)))?;
@@ -92,6 +95,7 @@ impl WebGpuRenderer {
                 required_limits: supported_limits,
                 memory_hints: wgpu::MemoryHints::default(),
                 trace: wgpu::Trace::Off,
+                experimental_features: wgpu::ExperimentalFeatures::disabled(),
             })
             .await
             .map_err(|e| JsValue::from_str(&format!("Failed to create device: {:?}", e)))?;
@@ -113,6 +117,7 @@ impl WebGpuRenderer {
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
+            color_space: wgpu::SurfaceColorSpace::Auto,
         };
 
         get_logger().info(
@@ -180,8 +185,8 @@ impl WebGpuRenderer {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&uniform_bind_group_layout],
-                push_constant_ranges: &[],
+                bind_group_layouts: &[Some(&uniform_bind_group_layout)],
+                immediate_size: 0,
             });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -190,7 +195,7 @@ impl WebGpuRenderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[CandleVertex::desc()],
+                buffers: &[Some(CandleVertex::desc())],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -218,7 +223,7 @@ impl WebGpuRenderer {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 

@@ -3,7 +3,7 @@
 #[macro_export]
 macro_rules! global_signal {
     ($vis:vis $name:ident, $field:ident : $ty:ty) => {
-        $vis fn $name() -> ::leptos::RwSignal<$ty> {
+        $vis fn $name() -> ::leptos::prelude::RwSignal<$ty> {
             $crate::global_state::globals().$field
         }
     };
@@ -20,7 +20,7 @@ macro_rules! global_signal {
 macro_rules! global_signals {
     ( $( $vis:vis $name:ident => $field:ident : $ty:ty ),+ $(,)? ) => {
         $(
-            $vis fn $name() -> ::leptos::RwSignal<$ty> {
+            $vis fn $name() -> ::leptos::prelude::RwSignal<$ty> {
                 $crate::global_state::globals().$field
             }
         )+

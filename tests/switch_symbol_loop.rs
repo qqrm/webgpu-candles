@@ -1,6 +1,6 @@
 #![cfg(feature = "render")]
 use futures::future::AbortHandle;
-use leptos::*;
+use leptos::prelude::*;
 use price_chart_wasm::app::{abort_all_streams, current_symbol, stream_abort_handles};
 use price_chart_wasm::domain::market_data::Symbol;
 use price_chart_wasm::global_state::domain_state;
@@ -21,24 +21,27 @@ fn heap_usage() -> f64 {
 
 #[wasm_bindgen_test]
 fn rapid_symbol_switch_no_leak() {
-    let start = heap_usage();
-    for i in 0..20 {
-        let sym = if i % 2 == 0 { "BTCUSDT" } else { "ETHUSDT" };
-        current_symbol().set(Symbol::from(sym));
-        let (handle, _) = AbortHandle::new_pair();
-        stream_abort_handles().update(|m| {
-            m.insert(Symbol::from(sym), handle);
-        });
-        abort_all_streams();
-        domain_state().update(|ds| {
-            ds.candles = Arc::new(Vec::new());
-            ds.indicators = Arc::new(Vec::new());
-        });
-    }
-    assert_eq!(stream_abort_handles().with(|m| m.len()), 0);
-    let end = heap_usage();
-    if start > 0.0 && end > 0.0 {
-        let growth = (end - start) / start;
-        assert!(growth <= 0.05);
-    }
+    let owner = leptos::prelude::Owner::new();
+    owner.with(|| {
+        let start = heap_usage();
+        for i in 0..20 {
+            let sym = if i % 2 == 0 { "BTCUSDT" } else { "ETHUSDT" };
+            current_symbol().set(Symbol::from(sym));
+            let (handle, _) = AbortHandle::new_pair();
+            stream_abort_handles().update(|m| {
+                m.insert(Symbol::from(sym), handle);
+            });
+            abort_all_streams();
+            domain_state().update(|ds| {
+                ds.candles = Arc::new(Vec::new());
+                ds.indicators = Arc::new(Vec::new());
+            });
+        }
+        assert_eq!(stream_abort_handles().with(|m| m.len()), 0);
+        let end = heap_usage();
+        if start > 0.0 && end > 0.0 {
+            let growth = (end - start) / start;
+            assert!(growth <= 0.05);
+        }
+    });
 }

@@ -20,19 +20,22 @@ fn make_candle(i: u64) -> Candle {
 
 #[wasm_bindgen_test]
 fn series_extension_preserves_view() {
-    let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 400);
-    for i in 100..200 {
-        chart.add_candle(make_candle(i));
-    }
+    let owner = leptos::prelude::Owner::new();
+    owner.with(|| {
+        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 400);
+        for i in 100..200 {
+            chart.add_candle(make_candle(i));
+        }
 
-    let (start_before, visible) = visible_range(chart.get_candle_count(), 1.0, -20.0);
+        let (start_before, visible) = visible_range(chart.get_candle_count(), 1.0, -20.0);
 
-    for i in 0..100 {
-        chart.add_candle(make_candle(i));
-    }
+        for i in 0..100 {
+            chart.add_candle(make_candle(i));
+        }
 
-    let (start_after, visible_after) = visible_range(chart.get_candle_count(), 1.0, -20.0);
+        let (start_after, visible_after) = visible_range(chart.get_candle_count(), 1.0, -20.0);
 
-    assert_eq!(visible, visible_after);
-    assert_eq!(start_after, start_before + 100);
+        assert_eq!(visible, visible_after);
+        assert_eq!(start_after, start_before + 100);
+    });
 }

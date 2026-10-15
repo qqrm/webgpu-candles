@@ -2,20 +2,23 @@ use hecs::World;
 
 use super::components::ViewportComponent;
 use super::components::{CandleComponent, ChartComponent};
-use leptos::{SignalUpdate, SignalWithUntracked};
+use leptos::prelude::{Update, WithUntracked};
 
 /// Apply new candles to all charts and remove processed candle entities.
 pub fn apply_candles(world: &mut World) {
     let mut candle_entities = Vec::new();
-    let candles: Vec<(hecs::Entity, CandleComponent)> =
-        world.query::<&CandleComponent>().iter().map(|(e, c)| (e, c.clone())).collect();
+    let candles: Vec<(hecs::Entity, CandleComponent)> = world
+        .query::<(hecs::Entity, &CandleComponent)>()
+        .iter()
+        .map(|(e, c)| (e, c.clone()))
+        .collect();
 
     if candles.is_empty() {
         return;
     }
 
     for (_, candle) in &candles {
-        for (_, chart) in world.query::<&mut ChartComponent>().iter() {
+        for chart in world.query::<&mut ChartComponent>().iter() {
             chart.0.update(|c| c.add_realtime_candle(candle.0.clone()));
         }
     }
@@ -32,14 +35,14 @@ pub fn apply_candles_parallel(world: &mut World) {
     use rayon::prelude::*;
 
     let candles: Vec<CandleComponent> =
-        world.query::<&CandleComponent>().iter().map(|(_, c)| c.clone()).collect();
+        world.query::<(hecs::Entity, &CandleComponent)>().iter().map(|(_, c)| c.clone()).collect();
 
     if candles.is_empty() {
         return;
     }
 
     let chart_entities: Vec<hecs::Entity> =
-        world.query::<&ChartComponent>().iter().map(|(e, _)| e).collect();
+        world.query::<(hecs::Entity, &ChartComponent)>().iter().map(|(e, _)| e).collect();
     let mut charts: Vec<ChartComponent> = chart_entities
         .iter()
         .filter_map(|&e| world.get::<&ChartComponent>(e).ok().map(|c| c.clone()))
@@ -58,7 +61,7 @@ pub fn apply_candles_parallel(world: &mut World) {
     }
 
     let candle_entities: Vec<hecs::Entity> =
-        world.query::<&CandleComponent>().iter().map(|(e, _)| e).collect();
+        world.query::<(hecs::Entity, &CandleComponent)>().iter().map(|(e, _)| e).collect();
     for e in candle_entities {
         let _ = world.despawn(e);
     }
@@ -72,7 +75,7 @@ pub fn apply_candles_parallel(world: &mut World) {
 /// Update `ViewportComponent` to match the chart's viewport.
 pub fn sync_viewports(world: &mut World) {
     let mut query = world.query::<(&ChartComponent, &mut ViewportComponent)>();
-    for (_, (chart, viewport)) in query.iter() {
+    for (chart, viewport) in query.iter() {
         let vp = chart.0.with_untracked(|c| c.viewport.clone());
         viewport.0 = vp;
     }

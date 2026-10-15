@@ -5,7 +5,7 @@ use crate::infrastructure::rendering::gpu_structures::{
     CURRENT_PRICE_COLOR, CandleGeometry, CandleInstance, EMA12_COLOR, EMA26_COLOR, IndicatorType,
     SMA20_COLOR, SMA50_COLOR, SMA200_COLOR,
 };
-use leptos::SignalGetUntracked;
+use leptos::prelude::GetUntracked;
 
 /// Minimum element width (candle or volume bar)
 pub const MIN_ELEMENT_WIDTH: f32 = 0.0001;
@@ -391,7 +391,7 @@ mod tests {
         chart::{Chart, value_objects::ChartType},
         market_data::{Candle, OHLCV, Price, Timestamp, Volume},
     };
-    use leptos::SignalSet;
+    use leptos::prelude::Set;
     use std::collections::VecDeque;
 
     use super::super::dummy_renderer;

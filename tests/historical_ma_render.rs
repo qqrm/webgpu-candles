@@ -1,6 +1,6 @@
 #![cfg(feature = "render")]
 mod support;
-use leptos::{SignalGetUntracked, SignalSet};
+use leptos::prelude::{GetUntracked, Set};
 use price_chart_wasm::app::{current_interval, visible_range_by_time};
 use price_chart_wasm::domain::chart::{Chart, value_objects::ChartType};
 use price_chart_wasm::domain::market_data::{
