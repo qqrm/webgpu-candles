@@ -58,17 +58,22 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           python3 - <<'PY'
+          import hashlib
           import json
           import os
           import platform
           import subprocess
           from pathlib import Path
+          harness = Path('tests/performance_limit.rs').read_bytes()
+          reference_harness = Path('_perf_reference/tests/performance_limit.rs').read_bytes()
+          assert harness == reference_harness, 'Workload changed: review and update the pinned measurement reference'
           config = json.loads(Path('webdriver-perf.json').read_text())
           config['goog:chromeOptions']['binary'] = os.environ['CHROME_BINARY']
+          profile = json.dumps(config)
           # The locked wasm-bindgen 0.2.100 runner reads only webdriver.json.
           # Materialize the dedicated profile in this isolated job checkout.
-          Path('webdriver.json').write_text(json.dumps(config))
-          Path('_perf_reference/webdriver.json').write_text(json.dumps(config))
+          Path('webdriver.json').write_text(profile)
+          Path('_perf_reference/webdriver.json').write_text(profile)
           reference_sha = subprocess.check_output(
               ['git', '-C', '_perf_reference', 'rev-parse', 'HEAD'], text=True).strip()
           assert reference_sha == '1b79e9df3d64542d367a1291273a48dff5ce57a6'
@@ -85,6 +90,8 @@ jobs:
               'browser_flags': config['goog:chromeOptions']['args'],
               'cpu_details': json.loads(subprocess.check_output(['lscpu', '--json'], text=True)),
               'reference_sha': reference_sha,
+              'harness_sha256': hashlib.sha256(harness).hexdigest(),
+              'browser_profile_sha256': hashlib.sha256(profile.encode()).hexdigest(),
               'comparison': 'candidate versus pinned reference measured on this same runner',
           }
           Path('perf-environment.json').write_text(json.dumps(metadata, indent=2) + '\n')

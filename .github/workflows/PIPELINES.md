@@ -25,6 +25,9 @@ the reference. The reference is pinned to reviewed commit
 checkout on the same runner, with the same compiler, browser and profile as the
 candidate. Any workload median more than 30% below that reference fails. Missing
 reference measurements fail too; a fast workload cannot hide a slower one.
+The candidate and reference measurement harness must match byte for byte before
+either runs. Its hash and the shared browser-profile hash are recorded; changing
+dataset/canvas/warmup/sample parameters requires a reviewed reference update.
 
 An absolute cross-host baseline was unsuitable: identical renderer code measured
 about 160 and 91-109 completed frames/s on different hosted machines. Paired
