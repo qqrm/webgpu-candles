@@ -54,13 +54,8 @@ jobs:
           import platform
           import subprocess
           from pathlib import Path
-          path = Path('webdriver.json')
+          path = Path('webdriver-perf.json')
           config = json.loads(path.read_text())
-          config['goog:chromeOptions']['args'].extend([
-              '--use-webgpu-adapter=swiftshader',
-              '--use-vulkan=swiftshader',
-              '--enable-unsafe-swiftshader',
-          ])
           config['goog:chromeOptions']['binary'] = os.environ['CHROME_BINARY']
           path.write_text(json.dumps(config))
           metadata = {
@@ -81,7 +76,7 @@ jobs:
           CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
           WASM_BINDGEN_TEST_ONLY_WEB: '1'
           WASM_BINDGEN_TEST_TIMEOUT: '180'
-          WASM_BINDGEN_TEST_WEBDRIVER_JSON: webdriver.json
+          WASM_BINDGEN_TEST_WEBDRIVER_JSON: webdriver-perf.json
         run: |
           set -o pipefail
           cargo test --release --locked --features performance --test performance_limit -- --nocapture 2>&1 | tee perf.log

@@ -7,7 +7,9 @@ It uses deterministic 1,000 / 50,000 / 1,000,000-candle base datasets, an
 
 Each dataset receives 10 completed warmup frames followed by five samples of
 30 frames. Every frame calls the real renderer and awaits the WebGPU queue
-completion via a four-byte readback fence. This includes the fence and mapping overhead; wgpu 25 does not implement its queue-completion callback on WebGPU. A missing adapter, failed render, empty geometry, missing
+completion via a four-byte readback fence. This includes fence and mapping
+overhead; wgpu 25 does not implement its queue-completion callback on WebGPU.
+A missing adapter, failed render, empty geometry, missing
 sample, duplicate sample, zero, negative or non-finite value fails the job.
 
 This measures serialized, cached-chart throughput including CPU submission,
@@ -27,7 +29,7 @@ Run the same workload with a matching wasm-bindgen runner and ChromeDriver:
 
 ```bash
 WASM_BINDGEN_TEST_ONLY_WEB=1 WASM_BINDGEN_TEST_TIMEOUT=180 \
-WASM_BINDGEN_TEST_WEBDRIVER_JSON=webdriver.json \
+WASM_BINDGEN_TEST_WEBDRIVER_JSON=webdriver-perf.json \
 CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner \
 cargo test --release --locked --features performance --test performance_limit -- --nocapture 2>&1 | tee perf.log
 python3 scripts/parse_perf_log.py perf.log benchmark_result.json
@@ -44,3 +46,8 @@ A baseline update must retain raw samples and link the successful measurement
 run, tested SHA, browser/compiler versions and software backend. Review changes
 to workload or environment before recalibrating; do not copy a regressed result
 into the baseline just to make CI green.
+
+The dedicated `webdriver-perf.json` selects SwiftShader for both ANGLE and Dawn
+WebGPU/Vulkan. Selecting only ANGLE allowed a browser adapter to be created but
+its device was destroyed before readback. A raw browser preflight now requires
+successful mapping and verifies the SwiftShader adapter before measuring Rust.
