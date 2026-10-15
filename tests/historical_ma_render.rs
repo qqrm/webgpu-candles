@@ -120,12 +120,11 @@ fn minute_ma_tracks_closed_buckets() {
             .collect();
 
         let (start_idx, visible_len) = visible_range_by_time(&aggregated, &chart.viewport, 1.0);
-        let period_offset = EMA_PERIOD - 1;
         let drawn_points = ema12
             .iter()
             .enumerate()
             .filter(|(idx, _)| {
-                let candle_idx = idx + period_offset;
+                let candle_idx = *idx;
                 candle_idx >= start_idx && candle_idx < start_idx + visible_len
             })
             .count();
@@ -133,5 +132,15 @@ fn minute_ma_tracks_closed_buckets() {
         assert!(drawn_points >= 2, "EMA line should have at least two points");
         let expected_segments = drawn_points - 1;
         assert_eq!(ema_vertices.len(), expected_segments * 6);
+        assert_eq!(drawn_points, closed_closes.len());
+        // Dense EMA starts at the first closed candle and must end before the
+        // final open bucket, without the SMA-style period offset.
+        let first_x = (ema_vertices[0].position_x + ema_vertices[2].position_x) / 2.0;
+        let last_x = (ema_vertices[ema_vertices.len() - 2].position_x
+            + ema_vertices[ema_vertices.len() - 1].position_x)
+            / 2.0;
+        use price_chart_wasm::infrastructure::rendering::renderer::candle_x_position;
+        assert!((first_x - candle_x_position(0, visible_len)).abs() < 1e-6);
+        assert!((last_x - candle_x_position(closed_closes.len() - 1, visible_len)).abs() < 1e-6);
     });
 }

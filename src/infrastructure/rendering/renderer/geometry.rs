@@ -118,10 +118,17 @@ impl WebGpuRenderer {
     ) -> (Vec<CandleInstance>, Vec<CandleVertex>, ChartUniforms) {
         use crate::app::current_interval;
 
-        let interval = current_interval().get_untracked();
-        let candles = chart.get_series(interval).map(|s| s.get_candles()).unwrap_or_else(|| {
-            chart.get_series(TimeInterval::TwoSeconds).expect("base series not found").get_candles()
-        });
+        let requested_interval = current_interval().get_untracked();
+        let (interval, series) = chart
+            .get_series(requested_interval)
+            .map(|series| (requested_interval, series))
+            .unwrap_or_else(|| {
+                (
+                    TimeInterval::TwoSeconds,
+                    chart.get_series(TimeInterval::TwoSeconds).expect("base series not found"),
+                )
+            });
+        let candles = series.get_candles();
 
         if candles.is_empty() {
             get_logger()
@@ -235,12 +242,20 @@ impl WebGpuRenderer {
             vertices.extend_from_slice(&volume_vertices);
         }
 
-        let to_points = |values: &[Price], period: usize| -> Vec<(f32, f32)> {
+        let closed_candles = chart.indicator_candle_count(interval);
+        let to_points = |values: &[Price]| -> Vec<(f32, f32)> {
             visible_candles
                 .iter()
                 .enumerate()
                 .filter_map(|(display_index, item)| {
-                    let value_index = item.source_index.checked_sub(period - 1)?;
+                    // Indicator buffers retain history even after candles are
+                    // evicted. Align their tails to the final closed candle.
+                    // This also respects SMA warmup and dense first-close EMA.
+                    if item.source_index >= closed_candles {
+                        return None;
+                    }
+                    let value_index =
+                        values.len().checked_sub(closed_candles - item.source_index)?;
                     let val = values.get(value_index)?;
                     let x = candle_x_position(display_index, visible_candles.len());
                     let y = price_norm(val.value());
@@ -252,7 +267,7 @@ impl WebGpuRenderer {
         let line_width = self.px_to_ndc(2.0);
 
         if self.line_visibility.sma_20 {
-            let points = to_points(&mas.sma_20, 20);
+            let points = to_points(&mas.sma_20);
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::SMA20,
@@ -261,7 +276,7 @@ impl WebGpuRenderer {
         }
 
         if self.line_visibility.sma_50 {
-            let points = to_points(&mas.sma_50, 50);
+            let points = to_points(&mas.sma_50);
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::SMA50,
@@ -270,7 +285,7 @@ impl WebGpuRenderer {
         }
 
         if self.line_visibility.sma_200 {
-            let points = to_points(&mas.sma_200, 200);
+            let points = to_points(&mas.sma_200);
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::SMA200,
@@ -279,7 +294,7 @@ impl WebGpuRenderer {
         }
 
         if self.line_visibility.ema_12 {
-            let points = to_points(&mas.ema_12, 12);
+            let points = to_points(&mas.ema_12);
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::EMA12,
@@ -288,7 +303,7 @@ impl WebGpuRenderer {
         }
 
         if self.line_visibility.ema_26 {
-            let points = to_points(&mas.ema_26, 26);
+            let points = to_points(&mas.ema_26);
             vertices.extend_from_slice(&CandleGeometry::create_indicator_line_vertices(
                 &points,
                 IndicatorType::EMA26,
@@ -402,7 +417,16 @@ mod tests {
             let candles: Vec<Candle> = (0..210).map(make_candle).collect();
             chart.set_historical_data(candles);
 
-            let renderer = dummy_renderer();
+            // Include the SMA200 warmup in this geometry fixture. The default
+            // renderer zoom displays only the first 32 candles.
+            let base = chart.get_series(TimeInterval::TwoSeconds).unwrap().get_candles();
+            let (zoom, pan) = crate::app::viewport_zoom_pan(base, &chart.viewport);
+            let mut renderer = dummy_renderer();
+            renderer.set_zoom_params(zoom, pan);
+            assert_eq!(
+                crate::app::visible_range_by_time_deque(base, &chart.viewport, zoom),
+                (0, 210)
+            );
             let (_, verts, _) = renderer.create_geometry(&chart);
 
             assert!(verts.iter().any(|v| (v.color_type - 2.0).abs() < f32::EPSILON));
@@ -561,8 +585,8 @@ mod tests {
                 (&mas.sma_20, IndicatorType::SMA20, 2.0, 20usize),
                 (&mas.sma_50, IndicatorType::SMA50, 3.0, 50usize),
                 (&mas.sma_200, IndicatorType::SMA200, 4.0, 200usize),
-                (&mas.ema_12, IndicatorType::EMA12, 5.0, 12usize),
-                (&mas.ema_26, IndicatorType::EMA26, 6.0, 26usize),
+                (&mas.ema_12, IndicatorType::EMA12, 5.0, 1usize),
+                (&mas.ema_26, IndicatorType::EMA26, 6.0, 1usize),
             ];
 
             for (values, t, color, period) in checks {

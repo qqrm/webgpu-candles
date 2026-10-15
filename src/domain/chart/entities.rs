@@ -283,6 +283,15 @@ impl Chart {
         self.series.get(&interval)
     }
 
+    /// Retained candles represented by committed indicator values. Aggregate
+    /// series include an open final bucket whose indicators are not committed.
+    pub(crate) fn indicator_candle_count(&self, interval: TimeInterval) -> usize {
+        self.series
+            .get(&interval)
+            .map_or(0, CandleSeries::count)
+            .saturating_sub(usize::from(self.open_buckets.contains(&interval)))
+    }
+
     fn update_aggregates(&mut self, candle: Candle) {
         let intervals = [
             TimeInterval::OneMinute,
