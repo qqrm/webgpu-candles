@@ -44,7 +44,7 @@ async fn benchmark_fps() {
 
     for &count in &[100usize, 1000usize] {
         let chart = sample_chart(count);
-        let fps = renderer.measure_fps(&chart, 30);
+        let fps = renderer.measure_fps(&chart, 30).await.expect("completed GPU frames");
         web_sys::console::log_1(&format!("{count} candles: {fps:.2} FPS").into());
     }
 }

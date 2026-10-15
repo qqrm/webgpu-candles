@@ -1,5 +1,7 @@
-#![cfg(feature = "render")]
+#![cfg(feature = "performance")]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+use leptos::SignalSet;
+use price_chart_wasm::domain::market_data::TimeInterval;
 use price_chart_wasm::domain::{
     chart::{Chart, ChartType},
     market_data::{Candle, OHLCV, Price, Timestamp, Volume},
@@ -45,35 +47,35 @@ fn sample_chart(count: usize) -> Chart {
 }
 
 #[wasm_bindgen_test(async)]
-async fn fps_degradation_logging() {
-    if !WebGpuRenderer::is_webgpu_supported().await {
-        web_sys::console::log_1(&"Skipping test: WebGPU not supported".into());
-        return;
-    }
+async fn completed_frame_throughput() {
+    price_chart_wasm::app::current_interval().set(TimeInterval::TwoSeconds);
+    assert!(WebGpuRenderer::is_webgpu_supported().await, "WebGPU is required");
     setup_canvas("perf-canvas", 800, 600);
-    let mut renderer = match WebGpuRenderer::new("perf-canvas", 800, 600).await {
-        Ok(r) => r,
-        Err(e) => {
-            web_sys::console::log_1(&format!("Skipping test: {e:?}").into());
-            return;
-        }
-    };
-
-    let performance = web_sys::window().unwrap().performance().unwrap();
+    let mut renderer =
+        WebGpuRenderer::new("perf-canvas", 800, 600).await.expect("benchmark GPU initialization");
     let counts = [1_000usize, 50_000, 1_000_000];
     for &count in &counts {
         let chart = sample_chart(count);
-        let start = performance.now();
-        let _ = renderer.render(&chart);
-        let first_render_ms = performance.now() - start;
-        let fps = renderer.measure_fps(&chart, 30);
-        web_sys::console::log_1(
-            &format!("{count} candles: {first_render_ms:.2} ms first render").into(),
-        );
-        if fps < 30.0 {
-            web_sys::console::log_1(&format!("⚠ {count} candles: {fps:.2} FPS").into());
-        } else {
-            web_sys::console::log_1(&format!("{count} candles: {fps:.2} FPS").into());
+        renderer.measure_fps(&chart, 10).await.expect("warmup frames");
+        for sample in 0..5 {
+            let fps = renderer.measure_fps(&chart, 30).await.expect("measured frames");
+            assert!(fps.is_finite() && fps > 0.0);
+            // Structured output is consumed by parse_perf_log.py. Each dataset
+            // retains its own samples; averaging different workloads hides regressions.
+            console_log!(
+                "PERF_SAMPLE {}",
+                serde_json::json!({"candles": count, "sample": sample, "frames": 30, "fps": fps})
+            );
         }
     }
+}
+
+#[wasm_bindgen_test(async)]
+async fn invalid_benchmark_inputs_fail() {
+    let mut renderer = price_chart_wasm::infrastructure::rendering::renderer::dummy_renderer();
+    assert!(renderer.measure_fps(&sample_chart(10), 30).await.is_err());
+    setup_canvas("invalid-perf-canvas", 800, 600);
+    let mut renderer = WebGpuRenderer::new("invalid-perf-canvas", 800, 600).await.unwrap();
+    assert!(renderer.measure_fps(&sample_chart(10), 0).await.is_err());
+    assert!(renderer.measure_fps(&sample_chart(0), 30).await.is_err());
 }
