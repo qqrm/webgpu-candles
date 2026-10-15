@@ -9,17 +9,34 @@ impl WebGpuRenderer {
         }
         let window = web_sys::window().expect("no window");
         let performance = window.performance().expect("performance not available");
+        // wgpu 25's WebGPU backend does not implement on_submitted_work_done.
+        // A mapped readback after a same-queue buffer clear is a completion fence:
+        // the mapping resolves only after that submission and prior render work.
+        let fence = self.gpu().device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Benchmark completion fence"),
+            size: 4,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
         let start = performance.now();
         for _ in 0..num_frames {
+            let before = self.submitted_frames;
             self.render(chart)?;
-            if self.cached_vertices.is_empty() {
+            if self.submitted_frames == before {
                 return Err(JsValue::from_str("benchmark submitted no chart geometry"));
             }
+            let mut encoder = self.gpu().device.create_command_encoder(&Default::default());
+            encoder.clear_buffer(&fence, 0, None);
+            self.gpu().queue.submit([encoder.finish()]);
             let (done, completed) = futures::channel::oneshot::channel();
-            self.gpu().queue.on_submitted_work_done(move || {
-                let _ = done.send(());
+            fence.slice(..).map_async(wgpu::MapMode::Read, move |result| {
+                let _ = done.send(result);
             });
-            completed.await.map_err(|_| JsValue::from_str("GPU completion callback lost"))?;
+            completed
+                .await
+                .map_err(|_| JsValue::from_str("GPU completion callback lost"))?
+                .map_err(|_| JsValue::from_str("GPU completion readback failed"))?;
+            fence.unmap();
         }
         let end = performance.now();
         let elapsed = (end - start) / 1000.0;

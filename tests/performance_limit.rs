@@ -78,4 +78,11 @@ async fn invalid_benchmark_inputs_fail() {
     let mut renderer = WebGpuRenderer::new("invalid-perf-canvas", 800, 600).await.unwrap();
     assert!(renderer.measure_fps(&sample_chart(10), 0).await.is_err());
     assert!(renderer.measure_fps(&sample_chart(0), 30).await.is_err());
+    price_chart_wasm::app::current_interval().set(TimeInterval::TwoSeconds);
+    let chart = sample_chart(10);
+    renderer.measure_fps(&chart, 1).await.unwrap();
+    // The base series is populated, but the selected derived series is empty.
+    // A previous cached frame must not make a no-op render count as a new frame.
+    price_chart_wasm::app::current_interval().set(TimeInterval::OneMinute);
+    assert!(renderer.measure_fps(&chart, 1).await.is_err());
 }

@@ -261,6 +261,7 @@ impl WebGpuRenderer {
             zoom_level: 1.0,
             pan_offset: 0.0,
             render_time_log: VecDeque::new(),
+            submitted_frames: 0,
             line_visibility: LineVisibility::default(),
         };
 

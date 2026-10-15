@@ -7,7 +7,7 @@ It uses deterministic 1,000 / 50,000 / 1,000,000-candle base datasets, an
 
 Each dataset receives 10 completed warmup frames followed by five samples of
 30 frames. Every frame calls the real renderer and awaits the WebGPU queue
-completion callback. A missing adapter, failed render, empty geometry, missing
+completion via a four-byte readback fence. This includes the fence and mapping overhead; wgpu 25 does not implement its queue-completion callback on WebGPU. A missing adapter, failed render, empty geometry, missing
 sample, duplicate sample, zero, negative or non-finite value fails the job.
 
 This measures serialized, cached-chart throughput including CPU submission,

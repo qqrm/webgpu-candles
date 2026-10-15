@@ -162,6 +162,7 @@ impl WebGpuRenderer {
         }
 
         self.gpu().queue.submit(std::iter::once(encoder.finish()));
+        self.submitted_frames = self.submitted_frames.wrapping_add(1);
 
         if let Some(start) = start_pass
             && let Some(window) = web_sys::window()
