@@ -7,6 +7,19 @@ impl WebGpuRenderer {
         if num_frames == 0 || self.gpu.is_none() || chart.get_candle_count() == 0 {
             return Err(JsValue::from_str("benchmark needs frames, candles and a real GPU"));
         }
+        self.gpu().device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let result = self.measure_completed_frames(chart, num_frames).await;
+        if let Some(error) = self.gpu().device.pop_error_scope().await {
+            return Err(JsValue::from_str(&format!("benchmark GPU validation: {error}")));
+        }
+        result
+    }
+
+    async fn measure_completed_frames(
+        &mut self,
+        chart: &Chart,
+        num_frames: u32,
+    ) -> Result<f64, JsValue> {
         let window = web_sys::window().expect("no window");
         let performance = window.performance().expect("performance not available");
         // wgpu 25's WebGPU backend does not implement on_submitted_work_done.
