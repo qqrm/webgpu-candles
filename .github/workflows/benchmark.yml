@@ -56,10 +56,11 @@ jobs:
           import platform
           import subprocess
           from pathlib import Path
-          path = Path('webdriver-perf.json')
-          config = json.loads(path.read_text())
+          config = json.loads(Path('webdriver-perf.json').read_text())
           config['goog:chromeOptions']['binary'] = os.environ['CHROME_BINARY']
-          path.write_text(json.dumps(config))
+          # The locked wasm-bindgen 0.2.100 runner reads only webdriver.json.
+          # Materialize the dedicated profile in this isolated job checkout.
+          Path('webdriver.json').write_text(json.dumps(config))
           metadata = {
               'tested_sha': os.environ['TESTED_SHA'],
               'tested_head_sha': os.environ['TESTED_HEAD_SHA'],
@@ -80,7 +81,6 @@ jobs:
           CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
           WASM_BINDGEN_TEST_ONLY_WEB: '1'
           WASM_BINDGEN_TEST_TIMEOUT: '180'
-          WASM_BINDGEN_TEST_WEBDRIVER_JSON: webdriver-perf.json
         run: |
           set -o pipefail
           cargo test --release --locked --features performance --test performance_limit -- --nocapture 2>&1 | tee perf.log
