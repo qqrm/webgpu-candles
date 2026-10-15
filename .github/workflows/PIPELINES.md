@@ -25,11 +25,21 @@ fails. This deliberately broad guard detects large regressions on variable
 shared CI hosts; it is not a 5% performance guarantee. The baseline is never
 created or updated automatically, and a fast workload cannot hide a slower one.
 
-Run the same workload with a matching wasm-bindgen runner and ChromeDriver:
+Run the same workload in a disposable checkout with the pinned compiler/browser,
+a matching wasm-bindgen runner and ChromeDriver on PATH. Set `CHROME_BINARY` to
+the browser executable; the preparation replaces only this checkout's profile:
 
 ```bash
+set -o pipefail
+python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+config = json.loads(Path('webdriver-perf.json').read_text())
+config['goog:chromeOptions']['binary'] = os.environ['CHROME_BINARY']
+Path('webdriver.json').write_text(json.dumps(config))
+PY
 WASM_BINDGEN_TEST_ONLY_WEB=1 WASM_BINDGEN_TEST_TIMEOUT=180 \
-WASM_BINDGEN_TEST_WEBDRIVER_JSON=webdriver-perf.json \
 CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner \
 cargo test --release --locked --features performance --test performance_limit -- --nocapture 2>&1 | tee perf.log
 python3 scripts/parse_perf_log.py perf.log benchmark_result.json
