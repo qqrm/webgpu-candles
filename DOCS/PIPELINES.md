@@ -10,4 +10,4 @@ Browser execution runs on hosted CI. The software Vulkan/WebGPU backend validate
 
 ## Measured performance guard
 
-The fixed release-mode workload measures five samples for each of three chart sizes, waiting for GPU completion after every frame. Missing/invalid samples fail closed; medians are compared separately against a reviewed measured baseline with a 30% shared-runner tolerance. This is cached-chart serialized throughput on SwiftShader, not physical-device or display FPS. See [the workload and calibration contract](../.github/workflows/PIPELINES.md).
+The fixed release-mode workload measures five samples for each of three chart sizes, waiting for GPU completion after every frame. Missing/invalid samples fail closed; medians are compared separately against a pinned reference measured on the same runner, with a 30% tolerance. Cross-host calibration values remain historical evidence only. This is cached-chart serialized throughput on SwiftShader, not physical-device or display FPS. See [the workload and calibration contract](../.github/workflows/PIPELINES.md).

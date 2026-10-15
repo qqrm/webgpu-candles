@@ -16,6 +16,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Check out the reviewed measurement reference
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: qqrm/webgpu-candles
+          ref: 1b79e9df3d64542d367a1291273a48dff5ce57a6
+          path: _perf_reference
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
           toolchain: '1.99.0'
@@ -61,6 +68,10 @@ jobs:
           # The locked wasm-bindgen 0.2.100 runner reads only webdriver.json.
           # Materialize the dedicated profile in this isolated job checkout.
           Path('webdriver.json').write_text(json.dumps(config))
+          Path('_perf_reference/webdriver.json').write_text(json.dumps(config))
+          reference_sha = subprocess.check_output(
+              ['git', '-C', '_perf_reference', 'rev-parse', 'HEAD'], text=True).strip()
+          assert reference_sha == '1b79e9df3d64542d367a1291273a48dff5ce57a6'
           metadata = {
               'tested_sha': os.environ['TESTED_SHA'],
               'tested_head_sha': os.environ['TESTED_HEAD_SHA'],
@@ -72,9 +83,22 @@ jobs:
               'cpu': platform.processor(),
               'backend': 'SwiftShader software WebGPU',
               'browser_flags': config['goog:chromeOptions']['args'],
+              'cpu_details': json.loads(subprocess.check_output(['lscpu', '--json'], text=True)),
+              'reference_sha': reference_sha,
+              'comparison': 'candidate versus pinned reference measured on this same runner',
           }
           Path('perf-environment.json').write_text(json.dumps(metadata, indent=2) + '\n')
           PY
+      - name: Measure the pinned reference on this runner
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+          CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
+          WASM_BINDGEN_TEST_ONLY_WEB: '1'
+          WASM_BINDGEN_TEST_TIMEOUT: '180'
+        run: |
+          set -o pipefail
+          (cd _perf_reference && cargo test --release --locked --features performance --test performance_limit -- --nocapture) 2>&1 | tee reference-perf.log
+          python3 scripts/parse_perf_log.py reference-perf.log reference_result.json
       - name: Measure completed frames for each deterministic dataset
         env:
           CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
@@ -86,7 +110,7 @@ jobs:
           cargo test --release --locked --features performance --test performance_limit -- --nocapture 2>&1 | tee perf.log
           python3 scripts/parse_perf_log.py perf.log benchmark_result.json
       - name: Reject per-workload throughput regressions
-        run: python3 scripts/compare_fps.py benchmark_result.json DOCS/perf_baseline.json perf_result.json 30
+        run: python3 scripts/compare_fps.py benchmark_result.json reference_result.json perf_result.json 30
       - name: Preserve measurements and environment, including failures
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -94,6 +118,8 @@ jobs:
           name: completed-frame-performance
           path: |
             perf.log
+            reference-perf.log
+            reference_result.json
             perf-environment.json
             benchmark_result.json
             perf_result.json

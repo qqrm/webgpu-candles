@@ -1,6 +1,8 @@
 # Recorded performance baseline
 
-This is a fixed calibration, not a live production FPS report.
+This is a historical calibration, not a live production FPS report or CI threshold.
+CI measures the pinned reference and candidate on the same runner to avoid
+comparing absolute SwiftShader throughput across different hosted CPUs.
 
 | Source candles | Median completed frames/s |
 | --- | --- |

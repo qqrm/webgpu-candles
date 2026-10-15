@@ -20,12 +20,20 @@ million individual GPU draw calls.
 
 `scripts/parse_perf_log.py` keeps the three workloads separate. The comparator
 requires five positive measurements for every workload in both the result and
-the reviewed baseline. Any workload median more than 30% below its baseline
-fails. This deliberately broad guard detects large regressions on variable
-shared CI hosts; it is not a 5% performance guarantee. The baseline is never
-created or updated automatically, and a fast workload cannot hide a slower one.
+the reference. The reference is pinned to reviewed commit
+`1b79e9df3d64542d367a1291273a48dff5ce57a6` and measured first in a separate
+checkout on the same runner, with the same compiler, browser and profile as the
+candidate. Any workload median more than 30% below that reference fails. Missing
+reference measurements fail too; a fast workload cannot hide a slower one.
 
-Run the same workload in a disposable checkout with the pinned compiler/browser,
+An absolute cross-host baseline was unsuitable: identical renderer code measured
+about 160 and 91-109 completed frames/s on different hosted machines. Paired
+measurements reduce that host variance without increasing the threshold. The
+broad guard still cannot establish a 5% guarantee or eliminate within-run load
+changes. `DOCS/perf_baseline.json` retains the original calibration as historical
+evidence; its absolute numbers are not the CI acceptance threshold.
+
+Run a candidate measurement in a disposable checkout with the pinned compiler/browser,
 a matching wasm-bindgen runner and ChromeDriver on PATH. Set `CHROME_BINARY` to
 the browser executable; the preparation replaces only this checkout's profile:
 
@@ -43,8 +51,11 @@ WASM_BINDGEN_TEST_ONLY_WEB=1 WASM_BINDGEN_TEST_TIMEOUT=180 \
 CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner \
 cargo test --release --locked --features performance --test performance_limit -- --nocapture 2>&1 | tee perf.log
 python3 scripts/parse_perf_log.py perf.log benchmark_result.json
-python3 scripts/compare_fps.py benchmark_result.json DOCS/perf_baseline.json perf_result.json 30
 ```
+
+The reusable workflow performs the complete paired comparison, using
+`reference_result.json` from its same-runner reference measurement. Dispatch that
+workflow to reproduce the CI gate instead of comparing unrelated host results.
 
 `benchmark.yml` is called by CI for every PR and main push; it can also be
 dispatched manually. It always retains raw samples, comparison and environment
@@ -52,10 +63,10 @@ metadata as `completed-frame-performance`. The duplicate unmeasured `perf.yml`
 workflow has been removed. These measurement jobs have read-only permissions
 and no notification credentials.
 
-A baseline update must retain raw samples and link the successful measurement
-run, tested SHA, browser/compiler versions and software backend. Review changes
-to workload or environment before recalibrating; do not copy a regressed result
-into the baseline just to make CI green.
+Changing the pinned reference requires review with raw paired samples, both
+tested SHAs, browser/compiler versions and software backend. Review changes to
+workload or environment before recalibrating; do not advance the reference to
+a regressed implementation just to make CI green.
 
 The dedicated `webdriver-perf.json` selects SwiftShader for both ANGLE and Dawn
 WebGPU/Vulkan. Selecting only ANGLE allowed a browser adapter to be created but
@@ -66,4 +77,6 @@ the locked wasm-bindgen 0.2.100 runner. Other jobs have independent checkouts.
 
 Provenance records both `tested_sha` (the checked-out workflow SHA, a synthetic
 merge commit for pull requests) and `tested_head_sha` (the PR head; identical to
-`tested_sha` for pushes/manual runs). Baseline calibration preserves both.
+`tested_sha` for pushes/manual runs), the pinned reference SHA and CPU details.
+Reference/candidate logs and complete sample sets are retained separately.
+Baseline calibration preserves its original tested workflow SHA and PR head.
