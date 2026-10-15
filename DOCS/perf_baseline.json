@@ -43,11 +43,12 @@
       "--use-vulkan=swiftshader",
       "--enable-unsafe-swiftshader"
     ],
-    "measurement_head": "1b79e9df3d64542d367a1291273a48dff5ce57a6",
     "adapter": {
       "vendor": "google",
       "architecture": "swiftshader"
     },
-    "measurement_status": "2 browser tests and all 15 samples passed; comparator rejected legacy zero baseline"
+    "measurement_status": "2 browser tests and all 15 samples passed; comparator rejected legacy zero baseline",
+    "tested_head_sha": "1b79e9df3d64542d367a1291273a48dff5ce57a6",
+    "event": "pull_request"
   }
 }

@@ -46,6 +46,8 @@ jobs:
         env:
           CHROME_BINARY: ${{ steps.chrome.outputs.chrome-path }}
           TESTED_SHA: ${{ github.sha }}
+          TESTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           python3 - <<'PY'
@@ -60,6 +62,8 @@ jobs:
           path.write_text(json.dumps(config))
           metadata = {
               'tested_sha': os.environ['TESTED_SHA'],
+              'tested_head_sha': os.environ['TESTED_HEAD_SHA'],
+              'event': os.environ['EVENT_NAME'],
               'run_url': os.environ['RUN_URL'],
               'browser': subprocess.check_output([os.environ['CHROME_BINARY'], '--version'], text=True).strip(),
               'rust': subprocess.check_output(['rustc', '--version'], text=True).strip(),

@@ -51,3 +51,7 @@ The dedicated `webdriver-perf.json` selects SwiftShader for both ANGLE and Dawn
 WebGPU/Vulkan. Selecting only ANGLE allowed a browser adapter to be created but
 its device was destroyed before readback. A raw browser preflight now requires
 successful mapping and verifies the SwiftShader adapter before measuring Rust.
+
+Provenance records both `tested_sha` (the checked-out workflow SHA, a synthetic
+merge commit for pull requests) and `tested_head_sha` (the PR head; identical to
+`tested_sha` for pushes/manual runs). Baseline calibration preserves both.
