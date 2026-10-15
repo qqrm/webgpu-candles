@@ -2369,89 +2369,103 @@ mod tests {
         assert!(!cb.checked());
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn zoom_limits_respected_by_visible_range() {
-        let (_, visible_min_zoom) = visible_range(1000, MIN_ZOOM_LEVEL, 0.0);
-        assert_eq!(visible_min_zoom, 1000);
+        crate::test_support::with_app_context(|| {
+            let (_, visible_min_zoom) = visible_range(1000, MIN_ZOOM_LEVEL, 0.0);
+            assert_eq!(visible_min_zoom, 1000);
 
-        let (_, visible_max_zoom) = visible_range(1000, MAX_ZOOM_LEVEL, 0.0);
-        assert_eq!(visible_max_zoom as f64, MIN_VISIBLE_CANDLES);
+            let (_, visible_max_zoom) = visible_range(1000, MAX_ZOOM_LEVEL, 0.0);
+            assert_eq!(visible_max_zoom as f64, MIN_VISIBLE_CANDLES);
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn sparse_live_series_never_builds_an_invalid_viewport_range() {
-        use crate::domain::chart::value_objects::Viewport;
-        use crate::domain::market_data::{OHLCV, Price, Timestamp, Volume};
+        crate::test_support::with_app_context(|| {
+            use crate::domain::chart::value_objects::Viewport;
+            use crate::domain::market_data::{OHLCV, Price, Timestamp, Volume};
 
-        for len in 1..MIN_VISIBLE_CANDLES as usize {
-            let candles = (0..len)
-                .map(|index| {
-                    Candle::new(
-                        Timestamp::from_millis(index as u64 * 1_000),
-                        OHLCV::new(
-                            Price::from(100.0),
-                            Price::from(101.0),
-                            Price::from(99.0),
-                            Price::from(100.5),
-                            Volume::from(1.0),
-                        ),
-                    )
-                })
-                .collect::<VecDeque<_>>();
-            let viewport = Viewport {
-                start_time: 0.0,
-                end_time: (len.saturating_sub(1) as u64 * 1_000) as f64,
-                min_price: 99.0,
-                max_price: 101.0,
-                ..Viewport::default()
-            };
+            for len in 1..MIN_VISIBLE_CANDLES as usize {
+                let candles = (0..len)
+                    .map(|index| {
+                        Candle::new(
+                            Timestamp::from_millis(index as u64 * 1_000),
+                            OHLCV::new(
+                                Price::from(100.0),
+                                Price::from(101.0),
+                                Price::from(99.0),
+                                Price::from(100.5),
+                                Volume::from(1.0),
+                            ),
+                        )
+                    })
+                    .collect::<VecDeque<_>>();
+                let viewport = Viewport {
+                    start_time: 0.0,
+                    end_time: (len.saturating_sub(1) as u64 * 1_000) as f64,
+                    min_price: 99.0,
+                    max_price: 101.0,
+                    ..Viewport::default()
+                };
 
-            let (zoom, pan) = viewport_zoom_pan(&candles, &viewport);
-            assert!(zoom.is_finite());
-            assert_eq!(visible_range(candles.len(), zoom, pan).1, len);
-        }
+                let (zoom, pan) = viewport_zoom_pan(&candles, &viewport);
+                assert!(zoom.is_finite());
+                assert_eq!(visible_range(candles.len(), zoom, pan).1, len);
+            }
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn zoom_label_keeps_extreme_overview_precision() {
-        assert_eq!(format_zoom_level(0.000032), "0.00003×");
-        assert_eq!(format_zoom_level(0.26), "0.3×");
+        crate::test_support::with_app_context(|| {
+            assert_eq!(format_zoom_level(0.000032), "0.00003×");
+            assert_eq!(format_zoom_level(0.26), "0.3×");
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn synthetic_series_is_dense_and_deterministic_shape() {
-        let candles = synthetic_candles(1_000);
-        assert_eq!(candles.len(), 1_000);
-        assert!(candles.iter().all(|candle| !candle.is_empty()));
-        assert!(
-            candles
-                .windows(2)
-                .all(|pair| { pair[1].timestamp.value() - pair[0].timestamp.value() == 2_000 })
-        );
+        crate::test_support::with_app_context(|| {
+            let candles = synthetic_candles(1_000);
+            assert_eq!(candles.len(), 1_000);
+            assert!(candles.iter().all(|candle| !candle.is_empty()));
+            assert!(
+                candles
+                    .windows(2)
+                    .all(|pair| { pair[1].timestamp.value() - pair[0].timestamp.value() == 2_000 })
+            );
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn drag_distance_maps_to_inverted_viewport_fraction() {
-        assert!((pan_ratio_from_pixels(80.0, 800.0) + 0.1).abs() < f32::EPSILON);
-        assert!((pan_ratio_from_pixels(-200.0, 800.0) - 0.25).abs() < f32::EPSILON);
-        assert_eq!(pan_ratio_from_pixels(10.0, 0.0), 0.0);
-        assert_eq!(pan_ratio_from_pixels(f64::NAN, 800.0), 0.0);
+        crate::test_support::with_app_context(|| {
+            assert!((pan_ratio_from_pixels(80.0, 800.0) + 0.1).abs() < f32::EPSILON);
+            assert!((pan_ratio_from_pixels(-200.0, 800.0) - 0.25).abs() < f32::EPSILON);
+            assert_eq!(pan_ratio_from_pixels(10.0, 0.0), 0.0);
+            assert_eq!(pan_ratio_from_pixels(f64::NAN, 800.0), 0.0);
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn sub_bar_drag_accumulates_at_max_zoom() {
-        let mut remainder = 0.0;
-        assert_eq!(accumulate_bar_shift(&mut remainder, 40.0, 800.0, 8), 0);
-        assert_eq!(accumulate_bar_shift(&mut remainder, 60.0, 800.0, 8), -1);
-        assert!(remainder.abs() < f64::EPSILON);
-        assert_eq!(accumulate_bar_shift(&mut remainder, -100.0, 800.0, 8), 1);
+        crate::test_support::with_app_context(|| {
+            let mut remainder = 0.0;
+            assert_eq!(accumulate_bar_shift(&mut remainder, 40.0, 800.0, 8), 0);
+            assert_eq!(accumulate_bar_shift(&mut remainder, 60.0, 800.0, 8), -1);
+            assert!(remainder.abs() < f64::EPSILON);
+            assert_eq!(accumulate_bar_shift(&mut remainder, -100.0, 800.0, 8), 1);
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn chart_axis_uses_whole_dollars_for_large_prices() {
-        assert_eq!(format_axis_price(77_389.86), "77390");
-        assert_eq!(format_axis_price(42.125), "42.12");
-        assert_eq!(format_axis_price(0.12345), "0.1235");
+        crate::test_support::with_app_context(|| {
+            assert_eq!(format_axis_price(77_389.86), "77390");
+            assert_eq!(format_axis_price(42.125), "42.12");
+            assert_eq!(format_axis_price(0.12345), "0.1235");
+        });
     }
 
     #[wasm_bindgen_test]
@@ -2466,6 +2480,35 @@ mod tests {
         find_button(&container, "1d").expect("1d button not found");
         find_button(&container, "1w").expect("1w button not found");
         find_button(&container, "1M").expect("1M button not found");
+    }
+
+    #[wasm_bindgen_test]
+    fn zoom_changes_view_without_resampling_data() {
+        crate::test_support::with_app_context(|| {
+            let mut data = Chart::new("zoom-invariant".into(), ChartType::Candlestick, 300);
+            data.set_historical_data(synthetic_candles(300));
+            let chart = create_rw_signal(data);
+            let before = chart.get_untracked();
+            let view_revision = chart_view_revision().get_untracked();
+
+            // Exercise the real wheel-zoom operation, not an unused spy closure.
+            zoom_chart(chart, 2.0, 0.5);
+
+            let after = chart.get_untracked();
+            assert_ne!(after.viewport, before.viewport);
+            assert_ne!(chart_view_revision().get_untracked(), view_revision);
+            assert_eq!(after.revision(), before.revision());
+            for (interval, series) in &before.series {
+                assert_eq!(after.series[interval].get_candles(), series.get_candles());
+                let old = before.ma_engines[interval].data();
+                let new = after.ma_engines[interval].data();
+                assert_eq!(new.sma_20, old.sma_20);
+                assert_eq!(new.sma_50, old.sma_50);
+                assert_eq!(new.sma_200, old.sma_200);
+                assert_eq!(new.ema_12, old.ema_12);
+                assert_eq!(new.ema_26, old.ema_26);
+            }
+        });
     }
 
     #[wasm_bindgen_test]

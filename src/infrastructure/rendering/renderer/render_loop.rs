@@ -655,73 +655,60 @@ mod tests {
 
     use super::super::dummy_renderer;
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn toggles_visibility() {
-        let mut r = dummy_renderer();
-        assert!(r.line_visibility.sma_20);
-        r.toggle_line_visibility("sma20");
-        assert!(!r.line_visibility.sma_20);
+        crate::test_support::with_app_context(|| {
+            let mut r = dummy_renderer();
+            assert!(r.line_visibility.sma_20);
+            r.toggle_line_visibility("sma20");
+            assert!(!r.line_visibility.sma_20);
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn visibility_signal_updates() {
-        use crate::app::global_line_visibility;
+        crate::test_support::with_app_context(|| {
+            use crate::app::global_line_visibility;
 
-        global_line_visibility().set(LineVisibility::default());
-        let mut r = dummy_renderer();
-        r.toggle_line_visibility("sma20");
-        assert!(!global_line_visibility().get_untracked().sma_20);
-        r.toggle_line_visibility("sma20");
-        assert!(global_line_visibility().get_untracked().sma_20);
+            global_line_visibility().set(LineVisibility::default());
+            let mut r = dummy_renderer();
+            r.toggle_line_visibility("sma20");
+            assert!(!global_line_visibility().get_untracked().sma_20);
+            r.toggle_line_visibility("sma20");
+            assert!(global_line_visibility().get_untracked().sma_20);
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn legend_click_detection() {
-        let r = dummy_renderer();
-        assert_eq!(r.check_legend_checkbox_click(15.0, 15.0), Some("sma20".to_string()));
-        assert_eq!(r.check_legend_checkbox_click(100.0, 100.0), None);
+        crate::test_support::with_app_context(|| {
+            let r = dummy_renderer();
+            assert_eq!(r.check_legend_checkbox_click(15.0, 15.0), Some("sma20".to_string()));
+            assert_eq!(r.check_legend_checkbox_click(100.0, 100.0), None);
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn render_time_ring_buffer() {
-        let mut r = dummy_renderer();
-        for i in 0..65 {
-            r.render_time_log.push_back(i as f64);
-            if r.render_time_log.len() > 60 {
-                r.render_time_log.pop_front();
+        crate::test_support::with_app_context(|| {
+            let mut r = dummy_renderer();
+            for i in 0..65 {
+                r.render_time_log.push_back(i as f64);
+                if r.render_time_log.len() > 60 {
+                    r.render_time_log.pop_front();
+                }
             }
-        }
-        assert_eq!(r.render_time_log.len(), 60);
-        assert_eq!(r.render_time_log.front().copied(), Some(5.0));
+            assert_eq!(r.render_time_log.len(), 60);
+            assert_eq!(r.render_time_log.front().copied(), Some(5.0));
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn cache_generation_advances_on_geometry_upload() {
-        let mut r = dummy_renderer();
-        let verts = vec![CandleVertex::body_vertex(0.0, 0.0, true)];
-        let inst = vec![CandleInstance {
-            x: 0.0,
-            width: 0.1,
-            body_top: 0.5,
-            body_bottom: 0.0,
-            high: 0.6,
-            low: -0.1,
-            bullish: 1.0,
-            _padding: 0.0,
-        }];
-        let uniforms = ChartUniforms::default();
-        assert!(r.update_cached_geometry(verts.clone(), inst.clone(), uniforms));
-        let cached = r.cached_hash;
-        assert!(r.update_cached_geometry(verts, inst, ChartUniforms::default()));
-        assert_eq!(r.cached_hash, cached.wrapping_add(1));
-    }
-
-    #[test]
-    fn instance_count_matches_instances() {
-        let mut r = dummy_renderer();
-        let verts = vec![CandleVertex::body_vertex(0.0, 0.0, true)];
-        let inst = vec![
-            CandleInstance {
+        crate::test_support::with_app_context(|| {
+            let mut r = dummy_renderer();
+            let verts = vec![CandleVertex::body_vertex(0.0, 0.0, true)];
+            let inst = vec![CandleInstance {
                 x: 0.0,
                 width: 0.1,
                 body_top: 0.5,
@@ -730,111 +717,140 @@ mod tests {
                 low: -0.1,
                 bullish: 1.0,
                 _padding: 0.0,
-            },
-            CandleInstance {
-                x: 0.2,
-                width: 0.1,
-                body_top: 0.4,
-                body_bottom: -0.1,
-                high: 0.5,
-                low: -0.2,
-                bullish: 0.0,
-                _padding: 0.0,
-            },
-        ];
-        assert!(r.update_cached_geometry(verts, inst.clone(), ChartUniforms::default()));
+            }];
+            let uniforms = ChartUniforms::default();
+            assert!(r.update_cached_geometry(verts.clone(), inst.clone(), uniforms));
+            let cached = r.cached_hash;
+            assert!(r.update_cached_geometry(verts, inst, ChartUniforms::default()));
+            assert_eq!(r.cached_hash, cached.wrapping_add(1));
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn instance_count_matches_instances() {
+        crate::test_support::with_app_context(|| {
+            let mut r = dummy_renderer();
+            let verts = vec![CandleVertex::body_vertex(0.0, 0.0, true)];
+            let inst = vec![
+                CandleInstance {
+                    x: 0.0,
+                    width: 0.1,
+                    body_top: 0.5,
+                    body_bottom: 0.0,
+                    high: 0.6,
+                    low: -0.1,
+                    bullish: 1.0,
+                    _padding: 0.0,
+                },
+                CandleInstance {
+                    x: 0.2,
+                    width: 0.1,
+                    body_top: 0.4,
+                    body_bottom: -0.1,
+                    high: 0.5,
+                    low: -0.2,
+                    bullish: 0.0,
+                    _padding: 0.0,
+                },
+            ];
+            assert!(r.update_cached_geometry(verts, inst.clone(), ChartUniforms::default()));
+        });
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn geometry_updates_on_data_change() {
-        use crate::domain::chart::{Chart, value_objects::ChartType};
-        use crate::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
+        crate::test_support::with_app_context(|| {
+            use crate::domain::chart::{Chart, value_objects::ChartType};
+            use crate::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 
-        let mut chart = Chart::new("t".to_string(), ChartType::Candlestick, 10);
-        chart.add_candle(Candle::new(
-            Timestamp::from_millis(0),
-            OHLCV::new(
-                Price::from(1.0),
-                Price::from(1.5),
-                Price::from(0.5),
-                Price::from(1.2),
-                Volume::from(1.0),
-            ),
-        ));
-        chart.add_candle(Candle::new(
-            Timestamp::from_millis(60_000),
-            OHLCV::new(
-                Price::from(1.2),
-                Price::from(1.7),
-                Price::from(0.8),
-                Price::from(1.4),
-                Volume::from(1.0),
-            ),
-        ));
+            let mut chart = Chart::new("t".to_string(), ChartType::Candlestick, 10);
+            chart.add_candle(Candle::new(
+                Timestamp::from_millis(0),
+                OHLCV::new(
+                    Price::from(1.0),
+                    Price::from(1.5),
+                    Price::from(0.5),
+                    Price::from(1.2),
+                    Volume::from(1.0),
+                ),
+            ));
+            chart.add_candle(Candle::new(
+                Timestamp::from_millis(60_000),
+                OHLCV::new(
+                    Price::from(1.2),
+                    Price::from(1.7),
+                    Price::from(0.8),
+                    Price::from(1.4),
+                    Volume::from(1.0),
+                ),
+            ));
 
-        let mut r = dummy_renderer();
-        let (inst, verts, uni) = r.create_geometry(&chart);
-        r.update_cached_geometry(verts, inst, uni);
-        r.cached_data_revision = WebGpuRenderer::data_revision(&chart);
-        let old = r.cached_hash;
+            let mut r = dummy_renderer();
+            let (inst, verts, uni) = r.create_geometry(&chart);
+            r.update_cached_geometry(verts, inst, uni);
+            r.cached_data_revision = WebGpuRenderer::data_revision(&chart);
+            let old = r.cached_hash;
 
-        chart.add_candle(Candle::new(
-            Timestamp::from_millis(60_000),
-            OHLCV::new(
-                Price::from(1.2),
-                Price::from(1.9),
-                Price::from(0.8),
-                Price::from(1.6),
-                Volume::from(1.0),
-            ),
-        ));
+            chart.add_candle(Candle::new(
+                Timestamp::from_millis(60_000),
+                OHLCV::new(
+                    Price::from(1.2),
+                    Price::from(1.9),
+                    Price::from(0.8),
+                    Price::from(1.6),
+                    Volume::from(1.0),
+                ),
+            ));
 
-        assert_eq!(chart.get_candle_count(), 2);
-        let new_revision = WebGpuRenderer::data_revision(&chart);
-        assert_ne!(new_revision, r.cached_data_revision);
-        let (inst2, verts2, uni2) = r.create_geometry(&chart);
-        assert!(r.update_cached_geometry(verts2, inst2, uni2));
-        r.cached_data_revision = new_revision;
-        assert_ne!(r.cached_hash, old);
+            assert_eq!(chart.get_candle_count(), 2);
+            let new_revision = WebGpuRenderer::data_revision(&chart);
+            assert_ne!(new_revision, r.cached_data_revision);
+            let (inst2, verts2, uni2) = r.create_geometry(&chart);
+            assert!(r.update_cached_geometry(verts2, inst2, uni2));
+            r.cached_data_revision = new_revision;
+            assert_ne!(r.cached_hash, old);
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn line_visibility_toggle_updates_geometry() {
-        use crate::domain::chart::{Chart, value_objects::ChartType};
-        use crate::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
+        crate::test_support::with_app_context(|| {
+            use crate::domain::chart::{Chart, value_objects::ChartType};
+            use crate::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
 
-        let mut chart = Chart::new("t".to_string(), ChartType::Candlestick, 10);
-        chart.add_candle(Candle::new(
-            Timestamp::from_millis(0),
-            OHLCV::new(
-                Price::from(1.0),
-                Price::from(1.5),
-                Price::from(0.5),
-                Price::from(1.2),
-                Volume::from(1.0),
-            ),
-        ));
-        chart.add_candle(Candle::new(
-            Timestamp::from_millis(60_000),
-            OHLCV::new(
-                Price::from(1.2),
-                Price::from(1.7),
-                Price::from(0.8),
-                Price::from(1.4),
-                Volume::from(1.0),
-            ),
-        ));
+            let mut chart = Chart::new("t".to_string(), ChartType::Candlestick, 10);
+            chart.add_candle(Candle::new(
+                Timestamp::from_millis(0),
+                OHLCV::new(
+                    Price::from(1.0),
+                    Price::from(1.5),
+                    Price::from(0.5),
+                    Price::from(1.2),
+                    Volume::from(1.0),
+                ),
+            ));
+            chart.add_candle(Candle::new(
+                Timestamp::from_millis(60_000),
+                OHLCV::new(
+                    Price::from(1.2),
+                    Price::from(1.7),
+                    Price::from(0.8),
+                    Price::from(1.4),
+                    Volume::from(1.0),
+                ),
+            ));
 
-        let mut r = dummy_renderer();
-        let (inst, verts, uni) = r.create_geometry(&chart);
-        r.update_cached_geometry(verts.clone(), inst.clone(), uni);
-        r.cached_candle_count = chart.get_candle_count();
-        r.cached_zoom_level = r.zoom_level;
-        r.cached_data_revision = WebGpuRenderer::data_revision(&chart);
-        let cached = r.cached_hash;
+            let mut r = dummy_renderer();
+            let (inst, verts, uni) = r.create_geometry(&chart);
+            r.update_cached_geometry(verts.clone(), inst.clone(), uni);
+            r.cached_candle_count = chart.get_candle_count();
+            r.cached_zoom_level = r.zoom_level;
+            r.cached_data_revision = WebGpuRenderer::data_revision(&chart);
+            let cached = r.cached_hash;
 
-        r.toggle_line_visibility("sma20");
-        let _ = r.render(&chart);
-        assert_ne!(r.cached_hash, cached);
+            r.toggle_line_visibility("sma20");
+            let _ = r.render(&chart);
+            assert_ne!(r.cached_hash, cached);
+        });
     }
 }

@@ -313,25 +313,27 @@ mod aggregator_series_tests {
         )
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn aggregates_one_second_data_into_non_empty_two_second_bars() {
-        let source = vec![
-            candle(0, 100.0, 101.0, 2.0),
-            candle(1_000, 101.0, 103.0, 3.0),
-            candle(2_000, 103.0, 103.0, 0.0),
-            candle(3_000, 103.0, 102.0, 4.0),
-        ];
+        crate::test_support::with_app_context(|| {
+            let source = vec![
+                candle(0, 100.0, 101.0, 2.0),
+                candle(1_000, 101.0, 103.0, 3.0),
+                candle(2_000, 103.0, 103.0, 0.0),
+                candle(3_000, 103.0, 102.0, 4.0),
+            ];
 
-        let result = Aggregator::aggregate_series(source, TimeInterval::TwoSeconds);
+            let result = Aggregator::aggregate_series(source, TimeInterval::TwoSeconds);
 
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0].timestamp.value(), 0);
-        assert_eq!(result[0].ohlcv.open.value(), 100.0);
-        assert_eq!(result[0].ohlcv.close.value(), 103.0);
-        assert_eq!(result[0].ohlcv.volume.value(), 5.0);
-        assert_eq!(result[1].timestamp.value(), 2_000);
-        assert_eq!(result[1].ohlcv.volume.value(), 4.0);
-        assert!(result.iter().all(|candle| !candle.is_empty()));
+            assert_eq!(result.len(), 2);
+            assert_eq!(result[0].timestamp.value(), 0);
+            assert_eq!(result[0].ohlcv.open.value(), 100.0);
+            assert_eq!(result[0].ohlcv.close.value(), 103.0);
+            assert_eq!(result[0].ohlcv.volume.value(), 5.0);
+            assert_eq!(result[1].timestamp.value(), 2_000);
+            assert_eq!(result[1].ohlcv.volume.value(), 4.0);
+            assert!(result.iter().all(|candle| !candle.is_empty()));
+        });
     }
 }
 

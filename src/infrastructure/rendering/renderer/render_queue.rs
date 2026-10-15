@@ -67,22 +67,45 @@ pub fn enqueue_render_task(task: RenderTask) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::rendering::renderer::{dummy_renderer, set_global_renderer};
+    use crate::infrastructure::rendering::renderer::{
+        GLOBAL_RENDERER, dummy_renderer, set_global_renderer,
+    };
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    #[test]
-    fn tasks_execute_in_order() {
-        init_render_queue();
-        let renderer = Rc::new(RefCell::new(dummy_renderer()));
-        set_global_renderer(renderer);
+    struct RestoreGlobals {
+        renderer: Option<Rc<RefCell<WebGpuRenderer>>>,
+        queue: Option<UnboundedSender<RenderTask>>,
+    }
 
+    impl Drop for RestoreGlobals {
+        fn drop(&mut self) {
+            RENDER_QUEUE.with(|cell| *cell.borrow_mut() = self.queue.take());
+            GLOBAL_RENDERER.with(|cell| *cell.borrow_mut() = self.renderer.take());
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test(async)]
+    async fn tasks_execute_in_order() {
+        let _restore = RestoreGlobals {
+            renderer: GLOBAL_RENDERER.with(|cell| cell.borrow_mut().take()),
+            queue: RENDER_QUEUE.with(|cell| cell.borrow_mut().take()),
+        };
+        let scope = crate::test_support::AppTestScope::new();
         let result = Rc::new(RefCell::new(Vec::new()));
-        let r1 = result.clone();
-        enqueue_render_task(Box::new(move |_| r1.borrow_mut().push(1)));
-        let r2 = result.clone();
-        enqueue_render_task(Box::new(move |_| r2.borrow_mut().push(2)));
-
+        let (completed, completion) = futures::channel::oneshot::channel();
+        scope.run(|| {
+            set_global_renderer(Rc::new(RefCell::new(dummy_renderer())));
+            init_render_queue();
+            let r1 = result.clone();
+            enqueue_render_task(Box::new(move |_| r1.borrow_mut().push(1)));
+            let r2 = result.clone();
+            enqueue_render_task(Box::new(move |_| r2.borrow_mut().push(2)));
+            enqueue_render_task(Box::new(move |_| completed.send(()).unwrap()));
+        });
+        // The browser schedules spawn_local work on a later microtask. Keep its
+        // owner alive and wait for a trailing queue task instead of sleeping.
+        completion.await.expect("queue completion");
         assert_eq!(*result.borrow(), vec![1, 2]);
     }
 }

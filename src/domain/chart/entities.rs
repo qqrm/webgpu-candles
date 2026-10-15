@@ -404,67 +404,79 @@ mod tests {
         )
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn historical_prepend_preserves_viewport_and_order() {
-        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 10);
-        chart.set_historical_data((3..6).map(candle).collect());
-        chart.viewport.start_time = candle(4).timestamp.value() as f64;
-        chart.viewport.end_time = candle(5).timestamp.value() as f64;
-        let viewport = chart.viewport.clone();
+        crate::test_support::with_app_context(|| {
+            let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 10);
+            chart.set_historical_data((3..6).map(candle).collect());
+            chart.viewport.start_time = candle(4).timestamp.value() as f64;
+            chart.viewport.end_time = candle(5).timestamp.value() as f64;
+            let viewport = chart.viewport.clone();
 
-        let added = chart.prepend_historical_data((0..4).map(candle).collect());
+            let added = chart.prepend_historical_data((0..4).map(candle).collect());
 
-        let series = chart.get_series(TimeInterval::TwoSeconds).unwrap();
-        let timestamps: Vec<_> = series.get_candles().iter().map(|c| c.timestamp.value()).collect();
-        assert_eq!(added, 3);
-        assert_eq!(timestamps, (0..6).map(|m| m * 60_000).collect::<Vec<_>>());
-        assert_eq!(chart.viewport, viewport);
+            let series = chart.get_series(TimeInterval::TwoSeconds).unwrap();
+            let timestamps: Vec<_> =
+                series.get_candles().iter().map(|c| c.timestamp.value()).collect();
+            assert_eq!(added, 3);
+            assert_eq!(timestamps, (0..6).map(|m| m * 60_000).collect::<Vec<_>>());
+            assert_eq!(chart.viewport, viewport);
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn historical_prepend_keeps_nearest_data_when_capacity_is_reached() {
-        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 5);
-        chart.set_historical_data((4..7).map(candle).collect());
+        crate::test_support::with_app_context(|| {
+            let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 5);
+            chart.set_historical_data((4..7).map(candle).collect());
 
-        let added = chart.prepend_historical_data((0..4).map(candle).collect());
+            let added = chart.prepend_historical_data((0..4).map(candle).collect());
 
-        let series = chart.get_series(TimeInterval::TwoSeconds).unwrap();
-        let timestamps: Vec<_> = series.get_candles().iter().map(|c| c.timestamp.value()).collect();
-        assert_eq!(added, 2);
-        assert_eq!(timestamps, (2..7).map(|m| m * 60_000).collect::<Vec<_>>());
+            let series = chart.get_series(TimeInterval::TwoSeconds).unwrap();
+            let timestamps: Vec<_> =
+                series.get_candles().iter().map(|c| c.timestamp.value()).collect();
+            assert_eq!(added, 2);
+            assert_eq!(timestamps, (2..7).map(|m| m * 60_000).collect::<Vec<_>>());
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn revision_changes_without_scanning_candles() {
-        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 10);
-        let initial = chart.revision();
-        chart.add_realtime_candle(candle(1));
-        let after_insert = chart.revision();
-        chart.add_realtime_candle(candle(1));
-        assert_ne!(after_insert, initial);
-        assert_ne!(chart.revision(), after_insert);
+        crate::test_support::with_app_context(|| {
+            let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 10);
+            let initial = chart.revision();
+            chart.add_realtime_candle(candle(1));
+            let after_insert = chart.revision();
+            chart.add_realtime_candle(candle(1));
+            assert_ne!(after_insert, initial);
+            assert_ne!(chart.revision(), after_insert);
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn empty_candles_never_enter_the_chart() {
-        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 10);
-        chart.set_historical_data(vec![candle(1), empty_candle(2), candle(3)]);
-        assert_eq!(chart.get_candle_count(), 2);
+        crate::test_support::with_app_context(|| {
+            let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 10);
+            chart.set_historical_data(vec![candle(1), empty_candle(2), candle(3)]);
+            assert_eq!(chart.get_candle_count(), 2);
 
-        let revision = chart.revision();
-        chart.add_realtime_candle(empty_candle(4));
-        assert_eq!(chart.get_candle_count(), 2);
-        assert_eq!(chart.revision(), revision);
+            let revision = chart.revision();
+            chart.add_realtime_candle(empty_candle(4));
+            assert_eq!(chart.get_candle_count(), 2);
+            assert_eq!(chart.revision(), revision);
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn base_series_bulk_load_skips_derived_timeframes() {
-        let mut chart = Chart::new("stress".to_string(), ChartType::Candlestick, 10);
-        chart.set_base_series((0..10).map(candle).collect());
+        crate::test_support::with_app_context(|| {
+            let mut chart = Chart::new("stress".to_string(), ChartType::Candlestick, 10);
+            chart.set_base_series((0..10).map(candle).collect());
 
-        assert_eq!(chart.get_candle_count(), 10);
-        assert_eq!(chart.get_series(TimeInterval::OneMinute).unwrap().count(), 0);
-        assert_eq!(chart.viewport.start_time, candle(0).timestamp.value() as f64);
-        assert_eq!(chart.viewport.end_time, candle(9).timestamp.value() as f64);
+            assert_eq!(chart.get_candle_count(), 10);
+            assert_eq!(chart.get_series(TimeInterval::OneMinute).unwrap().count(), 0);
+            assert_eq!(chart.viewport.start_time, candle(0).timestamp.value() as f64);
+            assert_eq!(chart.viewport.end_time, candle(9).timestamp.value() as f64);
+        });
     }
 }

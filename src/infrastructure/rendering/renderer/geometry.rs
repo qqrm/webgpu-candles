@@ -395,347 +395,366 @@ mod tests {
         )
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn indicator_vertices_present() {
-        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 300);
-        let candles: Vec<Candle> = (0..210).map(make_candle).collect();
-        chart.set_historical_data(candles);
+        crate::test_support::with_app_context(|| {
+            let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 300);
+            let candles: Vec<Candle> = (0..210).map(make_candle).collect();
+            chart.set_historical_data(candles);
 
-        let renderer = dummy_renderer();
-        let (_, verts, _) = renderer.create_geometry(&chart);
+            let renderer = dummy_renderer();
+            let (_, verts, _) = renderer.create_geometry(&chart);
 
-        assert!(verts.iter().any(|v| (v.color_type - 2.0).abs() < f32::EPSILON));
-        assert!(verts.iter().any(|v| (v.color_type - 3.0).abs() < f32::EPSILON));
-        assert!(verts.iter().any(|v| (v.color_type - 4.0).abs() < f32::EPSILON));
-        assert!(verts.iter().any(|v| (v.color_type - 5.0).abs() < f32::EPSILON));
-        assert!(verts.iter().any(|v| (v.color_type - 6.0).abs() < f32::EPSILON));
+            assert!(verts.iter().any(|v| (v.color_type - 2.0).abs() < f32::EPSILON));
+            assert!(verts.iter().any(|v| (v.color_type - 3.0).abs() < f32::EPSILON));
+            assert!(verts.iter().any(|v| (v.color_type - 4.0).abs() < f32::EPSILON));
+            assert!(verts.iter().any(|v| (v.color_type - 5.0).abs() < f32::EPSILON));
+            assert!(verts.iter().any(|v| (v.color_type - 6.0).abs() < f32::EPSILON));
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn candle_height_and_color() {
-        let candles = vec![
-            Candle::new(
-                Timestamp::from_millis(0),
-                OHLCV::new(
-                    Price::from(100.0),
-                    Price::from(101.0),
-                    Price::from(99.0),
-                    Price::from(101.0),
-                    Volume::from(1.0),
-                ),
-            ),
-            Candle::new(
-                Timestamp::from_millis(60_000),
-                OHLCV::new(
-                    Price::from(101.0),
-                    Price::from(102.0),
-                    Price::from(100.0),
-                    Price::from(100.5),
-                    Volume::from(1.0),
-                ),
-            ),
-            Candle::new(
-                Timestamp::from_millis(120_000),
-                OHLCV::new(
-                    Price::from(100.5),
-                    Price::from(100.6),
-                    Price::from(100.4),
-                    Price::from(100.5),
-                    Volume::from(1.0),
-                ),
-            ),
-        ];
-
-        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 50);
-        chart.set_historical_data(candles);
-
-        let renderer = dummy_renderer();
-        let (instances, verts, _uni) = renderer.create_geometry(&chart);
-
-        assert_eq!(instances.len(), 3);
-        assert!(instances[0].bullish > 0.5);
-        assert!(instances[1].bullish < 0.5);
-        let minimum_ndc_height = renderer.px_to_ndc(MIN_CANDLE_BODY_PX);
-        assert!(
-            instances[2].body_top - instances[2].body_bottom >= minimum_ndc_height - f32::EPSILON
-        );
-        let tiny = instances[2];
-        let body_vertices: Vec<_> = verts
-            .iter()
-            .filter(|vertex| {
-                vertex.element_type == 0.0
-                    && (vertex.position_x - tiny.x).abs() <= tiny.width * 0.5 + f32::EPSILON
-            })
-            .map(|vertex| vertex.position_y)
-            .collect();
-        let body_min = body_vertices.iter().copied().fold(f32::INFINITY, f32::min);
-        let body_max = body_vertices.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-        assert!(body_max - body_min >= minimum_ndc_height - f32::EPSILON);
-    }
-
-    #[test]
-    fn flat_market_still_produces_visible_geometry() {
-        let candles: Vec<Candle> = (0..32)
-            .map(|i| {
+        crate::test_support::with_app_context(|| {
+            let candles = vec![
                 Candle::new(
-                    Timestamp::from_millis(i * 2_000),
+                    Timestamp::from_millis(0),
                     OHLCV::new(
                         Price::from(100.0),
-                        Price::from(100.0),
-                        Price::from(100.0),
-                        Price::from(100.0),
+                        Price::from(101.0),
+                        Price::from(99.0),
+                        Price::from(101.0),
                         Volume::from(1.0),
                     ),
-                )
-            })
-            .collect();
-        let mut chart = Chart::new("flat".to_string(), ChartType::Candlestick, 50);
-        chart.set_historical_data(candles);
+                ),
+                Candle::new(
+                    Timestamp::from_millis(60_000),
+                    OHLCV::new(
+                        Price::from(101.0),
+                        Price::from(102.0),
+                        Price::from(100.0),
+                        Price::from(100.5),
+                        Volume::from(1.0),
+                    ),
+                ),
+                Candle::new(
+                    Timestamp::from_millis(120_000),
+                    OHLCV::new(
+                        Price::from(100.5),
+                        Price::from(100.6),
+                        Price::from(100.4),
+                        Price::from(100.5),
+                        Volume::from(1.0),
+                    ),
+                ),
+            ];
 
-        let renderer = dummy_renderer();
-        let (instances, vertices, uniforms) = renderer.create_geometry(&chart);
+            let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 50);
+            chart.set_historical_data(candles);
 
-        assert_eq!(instances.len(), 32);
-        assert!(!vertices.is_empty());
-        assert!(uniforms.viewport[3] > uniforms.viewport[2]);
-        assert!(instances.iter().all(|instance| {
-            instance.body_top - instance.body_bottom
-                >= renderer.px_to_ndc(MIN_CANDLE_BODY_PX) - f32::EPSILON
-        }));
-    }
+            let renderer = dummy_renderer();
+            let (instances, verts, _uni) = renderer.create_geometry(&chart);
 
-    #[test]
-    fn moving_averages_from_full_data() {
-        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 300);
-        let candles: Vec<Candle> = (0..250).map(make_candle).collect();
-        chart.set_historical_data(candles.clone());
-
-        let renderer = dummy_renderer();
-        let (_, verts, _) = renderer.create_geometry(&chart);
-
-        let (start_index, visible_count) =
-            crate::app::visible_range_by_time(&candles, &chart.viewport, renderer.zoom_level);
-        let visible: Vec<Candle> =
-            candles.iter().skip(start_index).take(visible_count).cloned().collect();
-
-        let mut min_price = f32::INFINITY;
-        let mut max_price = f32::NEG_INFINITY;
-        for c in &visible {
-            min_price = min_price.min(c.ohlcv.low.value() as f32);
-            max_price = max_price.max(c.ohlcv.high.value() as f32);
-        }
-        let pr = max_price - min_price;
-        min_price -= pr * 0.05;
-        max_price += pr * 0.05;
-        let price_norm =
-            |p: f64| -> f32 { ((p as f32 - min_price) / (max_price - min_price)) * 2.0 - 1.0 };
-
-        let engine = chart.ma_engines.get(&TimeInterval::TwoSeconds).unwrap();
-        let mas = engine.data();
-
-        let to_points = |vals: &[Price], period: usize| -> Vec<(f32, f32)> {
-            vals.iter()
-                .enumerate()
-                .filter_map(|(idx, v)| {
-                    let ci = idx + period - 1;
-                    if ci < start_index || ci >= start_index + visible_count {
-                        return None;
-                    }
-                    let x = candle_x_position(ci - start_index, visible_count);
-                    let y = price_norm(v.value());
-                    Some((x, y))
-                })
-                .collect()
-        };
-
-        let line_width = renderer.px_to_ndc(2.0);
-        let checks = [
-            (&mas.sma_20, IndicatorType::SMA20, 2.0, 20usize),
-            (&mas.sma_50, IndicatorType::SMA50, 3.0, 50usize),
-            (&mas.sma_200, IndicatorType::SMA200, 4.0, 200usize),
-            (&mas.ema_12, IndicatorType::EMA12, 5.0, 12usize),
-            (&mas.ema_26, IndicatorType::EMA26, 6.0, 26usize),
-        ];
-
-        for (values, t, color, period) in checks {
-            let pts = to_points(values, period);
-            let expected = CandleGeometry::create_indicator_line_vertices(&pts, t, line_width);
-            let actual: Vec<CandleVertex> = verts
+            assert_eq!(instances.len(), 3);
+            assert!(instances[0].bullish > 0.5);
+            assert!(instances[1].bullish < 0.5);
+            let minimum_ndc_height = renderer.px_to_ndc(MIN_CANDLE_BODY_PX);
+            assert!(
+                instances[2].body_top - instances[2].body_bottom
+                    >= minimum_ndc_height - f32::EPSILON
+            );
+            let tiny = instances[2];
+            let body_vertices: Vec<_> = verts
                 .iter()
-                .filter(|v| (v.color_type - color).abs() < f32::EPSILON)
-                .cloned()
+                .filter(|vertex| {
+                    vertex.element_type == 0.0
+                        && (vertex.position_x - tiny.x).abs() <= tiny.width * 0.5 + f32::EPSILON
+                })
+                .map(|vertex| vertex.position_y)
                 .collect();
-            assert_eq!(actual.len(), expected.len());
-            for (a, e) in actual.iter().zip(expected.iter()) {
-                assert!((a.position_x - e.position_x).abs() < 1e-6);
-                assert!((a.position_y - e.position_y).abs() < 1e-6);
-            }
-        }
+            let body_min = body_vertices.iter().copied().fold(f32::INFINITY, f32::min);
+            let body_max = body_vertices.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+            assert!(body_max - body_min >= minimum_ndc_height - f32::EPSILON);
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn flat_market_still_produces_visible_geometry() {
+        crate::test_support::with_app_context(|| {
+            let candles: Vec<Candle> = (0..32)
+                .map(|i| {
+                    Candle::new(
+                        Timestamp::from_millis(i * 2_000),
+                        OHLCV::new(
+                            Price::from(100.0),
+                            Price::from(100.0),
+                            Price::from(100.0),
+                            Price::from(100.0),
+                            Volume::from(1.0),
+                        ),
+                    )
+                })
+                .collect();
+            let mut chart = Chart::new("flat".to_string(), ChartType::Candlestick, 50);
+            chart.set_historical_data(candles);
+
+            let renderer = dummy_renderer();
+            let (instances, vertices, uniforms) = renderer.create_geometry(&chart);
+
+            assert_eq!(instances.len(), 32);
+            assert!(!vertices.is_empty());
+            assert!(uniforms.viewport[3] > uniforms.viewport[2]);
+            assert!(instances.iter().all(|instance| {
+                instance.body_top - instance.body_bottom
+                    >= renderer.px_to_ndc(MIN_CANDLE_BODY_PX) - f32::EPSILON
+            }));
+        });
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn moving_averages_from_full_data() {
+        crate::test_support::with_app_context(|| {
+            let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 300);
+            let candles: Vec<Candle> = (0..250).map(make_candle).collect();
+            chart.set_historical_data(candles.clone());
+
+            let renderer = dummy_renderer();
+            let (_, verts, _) = renderer.create_geometry(&chart);
+
+            let (start_index, visible_count) =
+                crate::app::visible_range_by_time(&candles, &chart.viewport, renderer.zoom_level);
+            let visible: Vec<Candle> =
+                candles.iter().skip(start_index).take(visible_count).cloned().collect();
+
+            let mut min_price = f32::INFINITY;
+            let mut max_price = f32::NEG_INFINITY;
+            for c in &visible {
+                min_price = min_price.min(c.ohlcv.low.value() as f32);
+                max_price = max_price.max(c.ohlcv.high.value() as f32);
+            }
+            let pr = max_price - min_price;
+            min_price -= pr * 0.05;
+            max_price += pr * 0.05;
+            let price_norm =
+                |p: f64| -> f32 { ((p as f32 - min_price) / (max_price - min_price)) * 2.0 - 1.0 };
+
+            let engine = chart.ma_engines.get(&TimeInterval::TwoSeconds).unwrap();
+            let mas = engine.data();
+
+            let to_points = |vals: &[Price], period: usize| -> Vec<(f32, f32)> {
+                vals.iter()
+                    .enumerate()
+                    .filter_map(|(idx, v)| {
+                        let ci = idx + period - 1;
+                        if ci < start_index || ci >= start_index + visible_count {
+                            return None;
+                        }
+                        let x = candle_x_position(ci - start_index, visible_count);
+                        let y = price_norm(v.value());
+                        Some((x, y))
+                    })
+                    .collect()
+            };
+
+            let line_width = renderer.px_to_ndc(2.0);
+            let checks = [
+                (&mas.sma_20, IndicatorType::SMA20, 2.0, 20usize),
+                (&mas.sma_50, IndicatorType::SMA50, 3.0, 50usize),
+                (&mas.sma_200, IndicatorType::SMA200, 4.0, 200usize),
+                (&mas.ema_12, IndicatorType::EMA12, 5.0, 12usize),
+                (&mas.ema_26, IndicatorType::EMA26, 6.0, 26usize),
+            ];
+
+            for (values, t, color, period) in checks {
+                let pts = to_points(values, period);
+                let expected = CandleGeometry::create_indicator_line_vertices(&pts, t, line_width);
+                let actual: Vec<CandleVertex> = verts
+                    .iter()
+                    .filter(|v| (v.color_type - color).abs() < f32::EPSILON)
+                    .cloned()
+                    .collect();
+                assert_eq!(actual.len(), expected.len());
+                for (a, e) in actual.iter().zip(expected.iter()) {
+                    assert!((a.position_x - e.position_x).abs() < 1e-6);
+                    assert!((a.position_y - e.position_y).abs() < 1e-6);
+                }
+            }
+        });
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn price_normalization_range() {
-        let candles = vec![
-            Candle::new(
-                Timestamp::from_millis(0),
-                OHLCV::new(
-                    Price::from(100.0),
-                    Price::from(110.0),
-                    Price::from(90.0),
-                    Price::from(105.0),
-                    Volume::from(1.0),
-                ),
-            ),
-            Candle::new(
-                Timestamp::from_millis(60_000),
-                OHLCV::new(
-                    Price::from(105.0),
-                    Price::from(108.0),
-                    Price::from(100.0),
-                    Price::from(107.0),
-                    Volume::from(1.0),
-                ),
-            ),
-            Candle::new(
-                Timestamp::from_millis(120_000),
-                OHLCV::new(
-                    Price::from(107.0),
-                    Price::from(109.0),
-                    Price::from(106.0),
-                    Price::from(108.0),
-                    Volume::from(1.0),
-                ),
-            ),
-        ];
-
-        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 50);
-        chart.set_historical_data(candles);
-
-        let renderer = dummy_renderer();
-        let (instances, _verts, _uni) = renderer.create_geometry(&chart);
-
-        assert_eq!(instances.len(), 3);
-
-        let mut min_v = f32::INFINITY;
-        let mut max_v = f32::NEG_INFINITY;
-        for inst in &instances {
-            for v in [inst.high, inst.low, inst.body_top, inst.body_bottom] {
-                assert!((-1.0..=1.0).contains(&v));
-                if v < min_v {
-                    min_v = v;
-                }
-                if v > max_v {
-                    max_v = v;
-                }
-            }
-        }
-
-        assert!((min_v + 1.0).abs() < 0.1);
-        assert!((max_v - 1.0).abs() < 0.1);
-    }
-
-    #[test]
-    fn indicator_visibility_does_not_change_price_scale() {
-        // 30 candles: first 20 around 100, last 10 around 200
-        let candles: Vec<Candle> = (0..30)
-            .map(|i| {
-                let base = if i < 20 { 100.0 } else { 200.0 };
+        crate::test_support::with_app_context(|| {
+            let candles = vec![
                 Candle::new(
-                    Timestamp::from_millis(i as u64 * 60_000),
+                    Timestamp::from_millis(0),
                     OHLCV::new(
-                        Price::from(base),
-                        Price::from(base + 1.0),
-                        Price::from(base - 1.0),
-                        Price::from(base),
+                        Price::from(100.0),
+                        Price::from(110.0),
+                        Price::from(90.0),
+                        Price::from(105.0),
                         Volume::from(1.0),
                     ),
-                )
-            })
-            .collect();
+                ),
+                Candle::new(
+                    Timestamp::from_millis(60_000),
+                    OHLCV::new(
+                        Price::from(105.0),
+                        Price::from(108.0),
+                        Price::from(100.0),
+                        Price::from(107.0),
+                        Volume::from(1.0),
+                    ),
+                ),
+                Candle::new(
+                    Timestamp::from_millis(120_000),
+                    OHLCV::new(
+                        Price::from(107.0),
+                        Price::from(109.0),
+                        Price::from(106.0),
+                        Price::from(108.0),
+                        Volume::from(1.0),
+                    ),
+                ),
+            ];
 
-        let mut chart = Chart::new("t".to_string(), ChartType::Candlestick, 300);
-        chart.set_historical_data(candles.clone());
+            let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 50);
+            chart.set_historical_data(candles);
 
-        let mut renderer = dummy_renderer();
-        renderer.zoom_level = 3.0; // show only last ~10 candles
-        let (_, _, with_indicators) = renderer.create_geometry(&chart);
-        renderer.line_visibility = LineVisibility {
-            sma_20: false,
-            sma_50: false,
-            sma_200: false,
-            ema_12: false,
-            ema_26: false,
-        };
-        let (_, _, without_indicators) = renderer.create_geometry(&chart);
+            let renderer = dummy_renderer();
+            let (instances, _verts, _uni) = renderer.create_geometry(&chart);
 
-        assert_eq!(with_indicators.viewport[2..4], without_indicators.viewport[2..4]);
+            assert_eq!(instances.len(), 3);
+
+            let mut min_v = f32::INFINITY;
+            let mut max_v = f32::NEG_INFINITY;
+            for inst in &instances {
+                for v in [inst.high, inst.low, inst.body_top, inst.body_bottom] {
+                    assert!((-1.0..=1.0).contains(&v));
+                    if v < min_v {
+                        min_v = v;
+                    }
+                    if v > max_v {
+                        max_v = v;
+                    }
+                }
+            }
+
+            assert!((min_v + 1.0).abs() < 0.1);
+            assert!((max_v - 1.0).abs() < 0.1);
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn indicator_visibility_does_not_change_price_scale() {
+        crate::test_support::with_app_context(|| {
+            // 30 candles: first 20 around 100, last 10 around 200
+            let candles: Vec<Candle> = (0..30)
+                .map(|i| {
+                    let base = if i < 20 { 100.0 } else { 200.0 };
+                    Candle::new(
+                        Timestamp::from_millis(i as u64 * 60_000),
+                        OHLCV::new(
+                            Price::from(base),
+                            Price::from(base + 1.0),
+                            Price::from(base - 1.0),
+                            Price::from(base),
+                            Volume::from(1.0),
+                        ),
+                    )
+                })
+                .collect();
+
+            let mut chart = Chart::new("t".to_string(), ChartType::Candlestick, 300);
+            chart.set_historical_data(candles.clone());
+
+            let mut renderer = dummy_renderer();
+            renderer.zoom_level = 3.0; // show only last ~10 candles
+            let (_, _, with_indicators) = renderer.create_geometry(&chart);
+            renderer.line_visibility = LineVisibility {
+                sma_20: false,
+                sma_50: false,
+                sma_200: false,
+                ema_12: false,
+                ema_26: false,
+            };
+            let (_, _, without_indicators) = renderer.create_geometry(&chart);
+
+            assert_eq!(with_indicators.viewport[2..4], without_indicators.viewport[2..4]);
+        });
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn max_zoom_keeps_candles_dense() {
-        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 100);
-        chart.set_historical_data((0..100).map(make_candle).collect());
-        let mut renderer = dummy_renderer();
-        renderer.zoom_level = crate::app::MAX_ZOOM_LEVEL;
+        crate::test_support::with_app_context(|| {
+            let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 100);
+            chart.set_historical_data((0..100).map(make_candle).collect());
+            let mut renderer = dummy_renderer();
+            renderer.zoom_level = crate::app::MAX_ZOOM_LEVEL;
 
-        let (instances, _, _) = renderer.create_geometry(&chart);
+            let (instances, _, _) = renderer.create_geometry(&chart);
 
-        assert_eq!(instances.len(), crate::app::MIN_VISIBLE_CANDLES as usize);
-        assert!(instances.iter().all(|instance| instance.width >= 0.2));
+            assert_eq!(instances.len(), crate::app::MIN_VISIBLE_CANDLES as usize);
+            assert!(instances.iter().all(|instance| instance.width >= 0.2));
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn lod_caps_geometry_and_preserves_bucket_extremes() {
-        let mut candles: VecDeque<Candle> = (0..10_000).map(make_candle).collect();
-        candles[4_999].ohlcv.high = Price::from(50_000.0);
-        candles[5_000].ohlcv.low = Price::from(1.0);
+        crate::test_support::with_app_context(|| {
+            let mut candles: VecDeque<Candle> = (0..10_000).map(make_candle).collect();
+            candles[4_999].ohlcv.high = Price::from(50_000.0);
+            candles[5_000].ohlcv.low = Price::from(1.0);
 
-        let rendered = build_render_candles(&candles, 0, candles.len(), 1600);
+            let rendered = build_render_candles(&candles, 0, candles.len(), 1600);
 
-        assert_eq!(rendered.len(), 800);
-        assert_eq!(rendered.first().unwrap().candle.ohlcv.open, candles[0].ohlcv.open);
-        assert_eq!(rendered.last().unwrap().candle.ohlcv.close, candles[9_999].ohlcv.close);
-        assert!(rendered.iter().any(|item| item.candle.ohlcv.high.value() == 50_000.0));
-        assert!(rendered.iter().any(|item| item.candle.ohlcv.low.value() == 1.0));
+            assert_eq!(rendered.len(), 800);
+            assert_eq!(rendered.first().unwrap().candle.ohlcv.open, candles[0].ohlcv.open);
+            assert_eq!(rendered.last().unwrap().candle.ohlcv.close, candles[9_999].ohlcv.close);
+            assert!(rendered.iter().any(|item| item.candle.ohlcv.high.value() == 50_000.0));
+            assert!(rendered.iter().any(|item| item.candle.ohlcv.low.value() == 1.0));
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn current_price_line_uses_signal() {
-        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 50);
-        let candles: Vec<Candle> = (0..10).map(make_candle).collect();
-        chart.set_historical_data(candles.clone());
+        crate::test_support::with_app_context(|| {
+            let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 50);
+            let candles: Vec<Candle> = (0..10).map(make_candle).collect();
+            chart.set_historical_data(candles.clone());
 
-        let new_price = candles.last().unwrap().ohlcv.close.value() + 5.0;
-        crate::app::global_current_price().set(new_price);
+            let new_price = candles.last().unwrap().ohlcv.close.value() + 5.0;
+            crate::app::global_current_price().set(new_price);
 
-        let renderer = dummy_renderer();
-        let (_, verts, _) = renderer.create_geometry(&chart);
+            let renderer = dummy_renderer();
+            let (_, verts, _) = renderer.create_geometry(&chart);
 
-        let (start_index, visible_count) =
-            crate::app::visible_range_by_time(&candles, &chart.viewport, renderer.zoom_level);
-        let visible: Vec<Candle> =
-            candles.iter().skip(start_index).take(visible_count).cloned().collect();
+            let (start_index, visible_count) =
+                crate::app::visible_range_by_time(&candles, &chart.viewport, renderer.zoom_level);
+            let visible: Vec<Candle> =
+                candles.iter().skip(start_index).take(visible_count).cloned().collect();
 
-        let mut min_price = f32::INFINITY;
-        let mut max_price = f32::NEG_INFINITY;
-        for c in &visible {
-            min_price = min_price.min(c.ohlcv.low.value() as f32);
-            max_price = max_price.max(c.ohlcv.high.value() as f32);
-        }
-        let pr = (max_price - min_price).abs().max(1e-6);
-        min_price -= pr * 0.05;
-        max_price += pr * 0.05;
-        let price_range = max_price - min_price;
-        let expected_y = ((new_price as f32 - min_price) / price_range) * 2.0 - 1.0;
+            let mut min_price = f32::INFINITY;
+            let mut max_price = f32::NEG_INFINITY;
+            for c in &visible {
+                min_price = min_price.min(c.ohlcv.low.value() as f32);
+                max_price = max_price.max(c.ohlcv.high.value() as f32);
+            }
+            let pr = (max_price - min_price).abs().max(1e-6);
+            min_price -= pr * 0.05;
+            max_price += pr * 0.05;
+            let price_range = max_price - min_price;
+            let expected_y = ((new_price as f32 - min_price) / price_range) * 2.0 - 1.0;
 
-        let mut min_y = f32::INFINITY;
-        let mut max_y = f32::NEG_INFINITY;
-        for v in verts.iter().filter(|v| (v.color_type - 7.0).abs() < f32::EPSILON) {
-            min_y = min_y.min(v.position_y);
-            max_y = max_y.max(v.position_y);
-        }
-        let mid_y = (min_y + max_y) * 0.5;
+            let mut min_y = f32::INFINITY;
+            let mut max_y = f32::NEG_INFINITY;
+            for v in verts.iter().filter(|v| (v.color_type - 7.0).abs() < f32::EPSILON) {
+                min_y = min_y.min(v.position_y);
+                max_y = max_y.max(v.position_y);
+            }
+            let mid_y = (min_y + max_y) * 0.5;
 
-        assert!((mid_y - expected_y).abs() < 1e-6);
+            assert!((mid_y - expected_y).abs() < 1e-6);
+        });
     }
 }

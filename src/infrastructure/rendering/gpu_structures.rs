@@ -709,12 +709,14 @@ impl CandleGeometry {
 mod tests {
     use super::*;
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn moving_average_colors_are_distinct() {
-        let colors = [SMA20_COLOR, SMA50_COLOR, SMA200_COLOR, EMA12_COLOR, EMA26_COLOR];
-        for (index, color) in colors.iter().enumerate() {
-            assert!(!colors[..index].contains(color));
-        }
-        assert!(!colors.contains(&CURRENT_PRICE_COLOR));
+        crate::test_support::with_app_context(|| {
+            let colors = [SMA20_COLOR, SMA50_COLOR, SMA200_COLOR, EMA12_COLOR, EMA26_COLOR];
+            for (index, color) in colors.iter().enumerate() {
+                assert!(!colors[..index].contains(color));
+            }
+            assert!(!colors.contains(&CURRENT_PRICE_COLOR));
+        });
     }
 }
