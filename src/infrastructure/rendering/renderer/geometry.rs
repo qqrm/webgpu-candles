@@ -418,11 +418,12 @@ mod tests {
             chart.set_historical_data(candles);
 
             // Include the SMA200 warmup in this geometry fixture. The default
-            // renderer zoom displays only the first 32 candles.
+            // renderer zoom displays only the first 32 candles. This exact
+            // binary zoom requests 256 bars and clamps to all 210 fixture bars.
             let base = chart.get_series(TimeInterval::TwoSeconds).unwrap().get_candles();
-            let (zoom, pan) = crate::app::viewport_zoom_pan(base, &chart.viewport);
+            let zoom = 0.125;
             let mut renderer = dummy_renderer();
-            renderer.set_zoom_params(zoom, pan);
+            renderer.set_zoom_params(zoom, 0.0);
             assert_eq!(
                 crate::app::visible_range_by_time_deque(base, &chart.viewport, zoom),
                 (0, 210)
