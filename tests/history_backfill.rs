@@ -1,4 +1,6 @@
 #![cfg(feature = "render")]
+mod support;
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 use price_chart_wasm::domain::{
     chart::{Chart, value_objects::ChartType},
     market_data::{Candle, OHLCV, Price, TimeInterval, Timestamp, Volume},
@@ -25,21 +27,23 @@ fn merge_batch(chart: &mut Chart, mut batch: Vec<Candle>) {
     }
 }
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn backfill_three_batches() {
-    let mut chart = Chart::new("TST".to_string(), ChartType::Candlestick, 100);
-    for ts in 1000..=1002 {
-        chart.add_candle(make_candle(ts));
-    }
+    support::with_app_context(|| {
+        let mut chart = Chart::new("TST".to_string(), ChartType::Candlestick, 100);
+        for ts in 1000..=1002 {
+            chart.add_candle(make_candle(ts));
+        }
 
-    merge_batch(&mut chart, (997..=999).map(make_candle).collect());
-    merge_batch(&mut chart, (994..=996).map(make_candle).collect());
-    merge_batch(&mut chart, (991..=993).map(make_candle).collect());
+        merge_batch(&mut chart, (997..=999).map(make_candle).collect());
+        merge_batch(&mut chart, (994..=996).map(make_candle).collect());
+        merge_batch(&mut chart, (991..=993).map(make_candle).collect());
 
-    let series = chart.get_series(TimeInterval::TwoSeconds).unwrap();
-    let candles = series.get_candles();
-    assert_eq!(candles.len(), 12);
-    for (i, c) in candles.iter().enumerate() {
-        assert_eq!(c.timestamp.value(), 991 + i as u64);
-    }
+        let series = chart.get_series(TimeInterval::TwoSeconds).unwrap();
+        let candles = series.get_candles();
+        assert_eq!(candles.len(), 12);
+        for (i, c) in candles.iter().enumerate() {
+            assert_eq!(c.timestamp.value(), 991 + i as u64);
+        }
+    });
 }

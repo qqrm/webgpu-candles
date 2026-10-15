@@ -51,27 +51,31 @@ mod tests {
     use js_sys::Date;
     use wasm_bindgen::JsValue;
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn format_consistent_with_utc() {
-        let ts = 0u64;
-        let date = Date::new(&JsValue::from_f64(ts as f64));
-        assert_eq!(
-            format_time_label(ts, 2.0),
-            format!("{:02}:{:02}", date.get_utc_hours(), date.get_utc_minutes())
-        );
-        assert_eq!(
-            format_time_label(ts, 1.5),
-            format!("{:02}.{:02}", date.get_utc_date(), date.get_utc_month() + 1)
-        );
-        assert_eq!(
-            format_time_label(ts, 0.5),
-            format!("{:02}.{}", date.get_utc_month() + 1, date.get_utc_full_year())
-        );
+        crate::test_support::with_app_context(|| {
+            let ts = 0u64;
+            let date = Date::new(&JsValue::from_f64(ts as f64));
+            assert_eq!(
+                format_time_label(ts, 2.0),
+                format!("{:02}:{:02}", date.get_utc_hours(), date.get_utc_minutes())
+            );
+            assert_eq!(
+                format_time_label(ts, 1.5),
+                format!("{:02}.{:02}", date.get_utc_date(), date.get_utc_month() + 1)
+            );
+            assert_eq!(
+                format_time_label(ts, 0.5),
+                format!("{:02}.{}", date.get_utc_month() + 1, date.get_utc_full_year())
+            );
+        });
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn visible_span_selects_intraday_labels() {
-        assert_eq!(format_time_label_for_span(0, 60 * 60 * 1000), "00:00");
-        assert_eq!(format_timestamp_utc(0), "1970-01-01 00:00 UTC");
+        crate::test_support::with_app_context(|| {
+            assert_eq!(format_time_label_for_span(0, 60 * 60 * 1000), "00:00");
+            assert_eq!(format_timestamp_utc(0), "1970-01-01 00:00 UTC");
+        });
     }
 }

@@ -17,6 +17,12 @@ pub mod time_utils;
 pub mod ui_state;
 pub mod view_state;
 
+#[cfg(test)]
+extern crate self as price_chart_wasm;
+#[cfg(test)]
+#[path = "../tests/support/mod.rs"]
+mod test_support;
+
 // === WASM EXPORTS ===
 use futures::lock::Mutex;
 use leptos::*;

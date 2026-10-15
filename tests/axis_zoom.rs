@@ -1,4 +1,5 @@
 #![cfg(feature = "render")]
+mod support;
 use price_chart_wasm::app::{price_levels, visible_range, visible_range_by_time};
 use price_chart_wasm::domain::chart::value_objects::Viewport;
 use price_chart_wasm::domain::market_data::{Candle, OHLCV, Price, Timestamp, Volume};
@@ -60,9 +61,11 @@ fn time_axis_respects_zoom() {
     assert_eq!(count_after, 16);
 }
 
-#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 fn visible_range_updates_with_new_candles() {
-    assert_eq!(visible_range(60, 1.0, 0.0), (28, 32));
-    assert_eq!(visible_range(70, 1.0, 0.0), (38, 32));
-    assert_eq!(visible_range(70, 2.0, 0.0), (54, 16));
+    support::with_app_context(|| {
+        assert_eq!(visible_range(60, 1.0, 0.0), (28, 32));
+        assert_eq!(visible_range(70, 1.0, 0.0), (38, 32));
+        assert_eq!(visible_range(70, 2.0, 0.0), (54, 16));
+    });
 }

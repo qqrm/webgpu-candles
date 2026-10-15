@@ -127,13 +127,15 @@ mod tests {
     use super::*;
     use crate::domain::market_data::TimeInterval;
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_ui_klines_url_before() {
-        let client = BinanceRestClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
-        let url = client.ui_klines_url_before(12345, 1000);
-        assert_eq!(
-            url,
-            "https://api.binance.com/api/v3/uiKlines?symbol=BTCUSDT&interval=1m&endTime=12345&limit=1000"
-        );
+        crate::test_support::with_app_context(|| {
+            let client = BinanceRestClient::new(Symbol::from("BTCUSDT"), TimeInterval::OneMinute);
+            let url = client.ui_klines_url_before(12345, 1000);
+            assert_eq!(
+                url,
+                "https://api.binance.com/api/v3/uiKlines?symbol=BTCUSDT&interval=1m&endTime=12345&limit=1000"
+            );
+        });
     }
 }
