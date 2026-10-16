@@ -113,7 +113,7 @@ impl OHLCV {
 
 /// Value Object - Trading symbol with generated helpers
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deref, DerefMut, Display, Serialize, Deserialize)]
-#[display(fmt = "Symbol({})", _0)]
+#[display("Symbol({})", _0)]
 pub struct Symbol(String);
 
 impl Symbol {

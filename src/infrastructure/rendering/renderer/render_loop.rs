@@ -3,10 +3,18 @@ use crate::domain::logging::LogComponent;
 use crate::domain::market_data::TimeInterval;
 #[cfg(debug_assertions)]
 use crate::log_info;
-use leptos::{SignalGetUntracked, SignalSet};
+use leptos::prelude::{GetUntracked, Set};
 use serde_json;
 
 impl WebGpuRenderer {
+    fn current_surface_texture(&self) -> Result<wgpu::SurfaceTexture, JsValue> {
+        match self.gpu().surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(texture)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => Ok(texture),
+            error => Err(JsValue::from_str(&format!("Surface error: {error:?}"))),
+        }
+    }
+
     pub fn data_revision(chart: &Chart) -> u64 {
         chart.revision()
     }
@@ -119,11 +127,7 @@ impl WebGpuRenderer {
         let num_vertices = self.template_vertices;
 
         // Get surface texture and start rendering
-        let output = self.gpu().surface.get_current_texture().map_err(|e| {
-            let error_msg = format!("Failed to get surface texture: {:?}", e);
-            get_logger().error(LogComponent::Infrastructure("WebGpuRenderer"), &error_msg);
-            JsValue::from_str(&error_msg)
-        })?;
+        let output = self.current_surface_texture()?;
 
         let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -140,6 +144,7 @@ impl WebGpuRenderer {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &self.gpu().msaa_view,
                     resolve_target: Some(&surface_view),
+                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.145,
@@ -153,6 +158,7 @@ impl WebGpuRenderer {
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
                 timestamp_writes: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.gpu().render_pipeline);
@@ -177,7 +183,7 @@ impl WebGpuRenderer {
             crate::app::global_render_time_ms().set(duration);
         }
 
-        output.present();
+        self.gpu().queue.present(output);
 
         Ok(())
     }
@@ -299,11 +305,7 @@ impl WebGpuRenderer {
             "🌈 CLEAR-ONLY: Testing surface with bright yellow clear color...",
         );
 
-        let output = self
-            .gpu()
-            .surface
-            .get_current_texture()
-            .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
+        let output = self.current_surface_texture()?;
 
         let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder =
@@ -317,6 +319,7 @@ impl WebGpuRenderer {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &self.gpu().msaa_view,
                     resolve_target: Some(&surface_view),
+                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 1.0,
@@ -330,6 +333,7 @@ impl WebGpuRenderer {
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
                 timestamp_writes: None,
+                multiview_mask: None,
             });
 
             // Do not draw any geometry - clear only!
@@ -340,7 +344,7 @@ impl WebGpuRenderer {
         }
 
         self.gpu().queue.submit(std::iter::once(encoder.finish()));
-        output.present();
+        self.gpu().queue.present(output);
 
         get_logger()
             .info(LogComponent::Infrastructure("WebGpuRenderer"), "✅ CLEAR-ONLY TEST COMPLETED!");
@@ -412,11 +416,7 @@ impl WebGpuRenderer {
             bytemuck::cast_slice(&[test_uniforms]),
         );
 
-        let output = self
-            .gpu()
-            .surface
-            .get_current_texture()
-            .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
+        let output = self.current_surface_texture()?;
 
         let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder =
@@ -430,6 +430,7 @@ impl WebGpuRenderer {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &self.gpu().msaa_view,
                     resolve_target: Some(&surface_view),
+                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.2,
@@ -443,6 +444,7 @@ impl WebGpuRenderer {
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
                 timestamp_writes: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.gpu().render_pipeline);
@@ -457,7 +459,7 @@ impl WebGpuRenderer {
         }
 
         self.gpu().queue.submit(std::iter::once(encoder.finish()));
-        output.present();
+        self.gpu().queue.present(output);
 
         get_logger()
             .info(LogComponent::Infrastructure("WebGpuRenderer"), "✅ ULTRA-SIMPLE QUAD RENDERED!");
@@ -504,11 +506,7 @@ impl WebGpuRenderer {
             bytemuck::cast_slice(&[test_uniforms]),
         );
 
-        let output = self
-            .gpu()
-            .surface
-            .get_current_texture()
-            .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
+        let output = self.current_surface_texture()?;
 
         let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder =
@@ -522,6 +520,7 @@ impl WebGpuRenderer {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &self.gpu().msaa_view,
                     resolve_target: Some(&surface_view),
+                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.1,
@@ -535,6 +534,7 @@ impl WebGpuRenderer {
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
                 timestamp_writes: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.gpu().render_pipeline);
@@ -549,7 +549,7 @@ impl WebGpuRenderer {
         }
 
         self.gpu().queue.submit(std::iter::once(encoder.finish()));
-        output.present();
+        self.gpu().queue.present(output);
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),
@@ -593,11 +593,7 @@ impl WebGpuRenderer {
             bytemuck::cast_slice(&[test_uniforms]),
         );
 
-        let output = self
-            .gpu()
-            .surface
-            .get_current_texture()
-            .map_err(|e| JsValue::from_str(&format!("Surface error: {:?}", e)))?;
+        let output = self.current_surface_texture()?;
 
         let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder =
@@ -611,6 +607,7 @@ impl WebGpuRenderer {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &self.gpu().msaa_view,
                     resolve_target: Some(&surface_view),
+                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.0,
@@ -624,6 +621,7 @@ impl WebGpuRenderer {
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
                 timestamp_writes: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.gpu().render_pipeline);
@@ -638,7 +636,7 @@ impl WebGpuRenderer {
         }
 
         self.gpu().queue.submit(std::iter::once(encoder.finish()));
-        output.present();
+        self.gpu().queue.present(output);
 
         get_logger().info(
             LogComponent::Infrastructure("WebGpuRenderer"),

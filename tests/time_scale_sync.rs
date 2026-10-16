@@ -51,21 +51,24 @@ fn time_labels(chart: &Chart, zoom: f64) -> Vec<String> {
 
 #[wasm_bindgen_test]
 fn time_scale_updates_on_zoom_and_pan() {
-    let candles: Vec<Candle> = (0..120).map(make_candle).collect();
-    let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 200);
-    chart.set_historical_data(candles);
+    let owner = leptos::prelude::Owner::new();
+    owner.with(|| {
+        let candles: Vec<Candle> = (0..120).map(make_candle).collect();
+        let mut chart = Chart::new("test".to_string(), ChartType::Candlestick, 200);
+        chart.set_historical_data(candles);
 
-    let mut zoom = 1.0f64;
+        let mut zoom = 1.0f64;
 
-    let labels_before = time_labels(&chart, zoom);
+        let labels_before = time_labels(&chart, zoom);
 
-    chart.zoom(2.0, 0.5);
-    zoom *= 2.0;
-    let labels_after_zoom = time_labels(&chart, zoom);
-    assert_ne!(labels_before, labels_after_zoom);
+        chart.zoom(2.0, 0.5);
+        zoom *= 2.0;
+        let labels_after_zoom = time_labels(&chart, zoom);
+        assert_ne!(labels_before, labels_after_zoom);
 
-    chart.pan(-0.1, 0.0);
-    let labels_after_pan = time_labels(&chart, zoom);
-    assert_ne!(labels_after_zoom, labels_after_pan);
-    assert_eq!(labels_after_pan.len(), 5);
+        chart.pan(-0.1, 0.0);
+        let labels_after_pan = time_labels(&chart, zoom);
+        assert_ne!(labels_after_zoom, labels_after_pan);
+        assert_eq!(labels_after_pan.len(), 5);
+    });
 }

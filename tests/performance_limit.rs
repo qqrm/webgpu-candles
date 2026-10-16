@@ -1,6 +1,6 @@
 #![cfg(feature = "performance")]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-use leptos::SignalSet;
+mod performance_context;
 use price_chart_wasm::domain::market_data::TimeInterval;
 use price_chart_wasm::domain::{
     chart::{Chart, ChartType},
@@ -100,10 +100,11 @@ fn sample_chart(count: usize) -> Chart {
 
 #[wasm_bindgen_test(async)]
 async fn completed_frame_throughput() {
+    performance_context::run(async {
     trace_map_errors();
     let adapter = verify_browser_gpu().await.expect("browser GPU readback preflight");
     console_log!("PERF_ADAPTER {:?}", adapter);
-    price_chart_wasm::app::current_interval().set(TimeInterval::TwoSeconds);
+    performance_context::set_interval(TimeInterval::TwoSeconds);
     assert!(WebGpuRenderer::is_webgpu_supported().await, "WebGPU is required");
     setup_canvas("perf-canvas", 800, 600);
     let mut renderer =
@@ -126,25 +127,28 @@ async fn completed_frame_throughput() {
             );
         }
     }
+    }).await;
 }
 
 #[wasm_bindgen_test(async)]
 async fn invalid_benchmark_inputs_fail() {
-    trace_map_errors();
-    let mut renderer = price_chart_wasm::infrastructure::rendering::renderer::dummy_renderer();
-    assert!(renderer.measure_fps(&sample_chart(10), 30).await.is_err());
-    setup_canvas("invalid-perf-canvas", 800, 600);
-    let mut renderer = WebGpuRenderer::new("invalid-perf-canvas", 800, 600).await.unwrap();
-    assert!(renderer.measure_fps(&sample_chart(10), 0).await.is_err());
-    assert!(renderer.measure_fps(&sample_chart(0), 30).await.is_err());
-    price_chart_wasm::app::current_interval().set(TimeInterval::TwoSeconds);
-    let chart = sample_chart(10);
-    renderer
-        .measure_fps(&chart, 1)
-        .await
-        .unwrap_or_else(|error| panic!("positive control: {error:?}; browser: {}", map_errors()));
-    // The base series is populated, but the selected derived series is empty.
-    // A previous cached frame must not make a no-op render count as a new frame.
-    price_chart_wasm::app::current_interval().set(TimeInterval::OneMinute);
-    assert!(renderer.measure_fps(&chart, 1).await.is_err());
+    performance_context::run(async {
+        trace_map_errors();
+        let mut renderer = price_chart_wasm::infrastructure::rendering::renderer::dummy_renderer();
+        assert!(renderer.measure_fps(&sample_chart(10), 30).await.is_err());
+        setup_canvas("invalid-perf-canvas", 800, 600);
+        let mut renderer = WebGpuRenderer::new("invalid-perf-canvas", 800, 600).await.unwrap();
+        assert!(renderer.measure_fps(&sample_chart(10), 0).await.is_err());
+        assert!(renderer.measure_fps(&sample_chart(0), 30).await.is_err());
+        performance_context::set_interval(TimeInterval::TwoSeconds);
+        let chart = sample_chart(10);
+        renderer.measure_fps(&chart, 1).await.unwrap_or_else(|error| {
+            panic!("positive control: {error:?}; browser: {}", map_errors())
+        });
+        // The base series is populated, but the selected derived series is empty.
+        // A previous cached frame must not make a no-op render count as a new frame.
+        performance_context::set_interval(TimeInterval::OneMinute);
+        assert!(renderer.measure_fps(&chart, 1).await.is_err());
+    })
+    .await;
 }

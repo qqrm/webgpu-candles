@@ -1,6 +1,6 @@
 use crate::domain::chart::{Chart, value_objects::Viewport};
 use crate::domain::market_data::Candle;
-use leptos::RwSignal;
+use leptos::prelude::RwSignal;
 
 /// ECS component containing a reactive trading chart.
 #[derive(Debug, Clone, Copy)]

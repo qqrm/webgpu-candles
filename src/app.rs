@@ -5,9 +5,10 @@
 
 use futures::{future::join_all, lock::Mutex};
 use js_sys;
-use leptos::html::Canvas;
-use leptos::spawn_local_with_current_owner;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::reactive::computed::ScopedFuture;
+use leptos::task::spawn_local_scoped_with_cancellation;
+use leptos::{ev, html::Canvas};
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
@@ -327,7 +328,7 @@ fn fetch_more_history(set_status: WriteSignal<String>) {
 
     loading_more().set(true);
 
-    let _ = spawn_local_with_current_owner(async move {
+    spawn_local_scoped_with_cancellation(async move {
         let client = BinanceRestClient::new(symbol.clone(), interval);
         let result = client.fetch_historical_before(end_time, HISTORY_FETCH_LIMIT).await;
         if request_connection_id != connection_id().get_untracked()
@@ -381,10 +382,12 @@ pub use crate::ui_state::TooltipData;
 /// 🦀 Main Crypto Chart component built with Leptos
 #[component]
 pub fn app() -> impl IntoView {
-    run_as_child(|| {
+    let owner = Owner::new();
+    let view = owner.with(|| {
         crate::app_context::AppContext::provide();
         app_view()
-    })
+    });
+    leptos::tachys::reactive_graph::OwnedView::new_with_owner(view, owner)
 }
 
 fn app_view() -> impl IntoView {
@@ -1273,7 +1276,7 @@ async fn activate_stress_mode(chart: RwSignal<Chart>, set_status: WriteSignal<St
     let mut stress_chart =
         Chart::new(symbol.value().to_string(), ChartType::Candlestick, STRESS_CANDLE_COUNT);
     stress_chart.set_base_series(candles);
-    chart.set_untracked(stress_chart);
+    chart.update_untracked(|current| *current = stress_chart);
     current_interval().set(TimeInterval::TwoSeconds);
     global_current_price().set(latest_price);
     let source_candles = chart.with_untracked(Chart::get_candle_count);
@@ -1305,11 +1308,10 @@ async fn restore_live_mode(chart: RwSignal<Chart>, set_status: WriteSignal<Strin
     stress_mode().set(false);
     set_status.set("Restoring live markets…".to_string());
     let symbol = current_symbol().get_untracked();
-    chart.set_untracked(Chart::new(
-        symbol.value().to_string(),
-        ChartType::Candlestick,
-        LIVE_CHART_CAPACITY,
-    ));
+    chart.update_untracked(|current| {
+        *current =
+            Chart::new(symbol.value().to_string(), ChartType::Candlestick, LIVE_CHART_CAPACITY)
+    });
     start_all_websocket_streams(set_status).await;
     stress_running().set(false);
 }
@@ -1350,30 +1352,32 @@ fn BenchmarkStrip() -> impl IntoView {
 #[component]
 fn ChartContainer() -> impl IntoView {
     ensure_chart(&current_symbol().get_untracked());
-    let chart_memo = create_memo(move |_| {
+    let chart_memo = Memo::new(move |_| {
         let sym = current_symbol().get();
         get_chart_signal(&sym).unwrap_or_else(|| ensure_chart(&sym))
     });
     let chart = move || chart_memo.get_untracked();
-    let (_renderer, set_renderer) = create_signal::<Option<Rc<RefCell<WebGpuRenderer>>>>(None);
-    let (status, set_status) = create_signal("Initializing...".to_string());
-    let pan_remainder = create_rw_signal(0.0f64);
+    let (_renderer, set_renderer) = signal_local::<Option<Rc<RefCell<WebGpuRenderer>>>>(None);
+    let (status, set_status) = signal("Initializing...".to_string());
+    let pan_remainder = RwSignal::new(0.0f64);
 
     // Reference to the canvas element
-    let canvas_ref = create_node_ref::<Canvas>();
-    let (initialized, set_initialized) = create_signal(false);
+    let canvas_ref = NodeRef::<Canvas>::new();
+    // A reactive guard would rerun this effect and cancel its initialization task.
+    let initialized = Cell::new(false);
 
     // Initialize WebGPU once the canvas is available
-    create_effect(move |_| {
+    Effect::new(move |_| {
         if initialized.get() {
             return;
         }
 
         if let Some(canvas) = canvas_ref.get() {
             let canvas_id = std::ops::Deref::deref(&canvas).id();
-            let (render_width, render_height) = canvas_pixel_size(std::ops::Deref::deref(&canvas));
-            set_initialized.set(true);
-            let _ = spawn_local_with_current_owner(async move {
+            let (render_width, render_height) = canvas_pixel_size(&canvas);
+            initialized.set(true);
+            // Market-state reads must not subscribe the canvas effect to live ticks.
+            let initialize = ScopedFuture::new_untracked(async move {
                 web_sys::console::log_1(&"🔍 Canvas found, starting WebGPU init...".into());
                 set_status.set("🚀 Initializing WebGPU renderer...".to_string());
 
@@ -1458,6 +1462,7 @@ fn ChartContainer() -> impl IntoView {
                     }
                 }
             });
+            spawn_local_scoped_with_cancellation(initialize);
         }
     });
 
@@ -1628,7 +1633,12 @@ fn ChartContainer() -> impl IntoView {
         &EventOptions { passive: false, capture: false, once: false },
         handle_wheel,
     );
-    on_cleanup(move || wheel_listener.remove());
+    let wheel_listener = StoredValue::new_local(wheel_listener);
+    on_cleanup(move || {
+        if let Some(listener) = wheel_listener.into_inner() {
+            listener.remove();
+        }
+    });
 
     // Reset dragging state when the mouse is released anywhere
     let mouseup_listener =
@@ -1636,7 +1646,12 @@ fn ChartContainer() -> impl IntoView {
             is_dragging().set(false);
             pan_remainder.set(0.0);
         });
-    on_cleanup(move || mouseup_listener.remove());
+    let mouseup_listener = StoredValue::new_local(mouseup_listener);
+    on_cleanup(move || {
+        if let Some(listener) = mouseup_listener.into_inner() {
+            listener.remove();
+        }
+    });
 
     let resize_canvas_ref = canvas_ref;
     let resize_chart_memo = chart_memo;
@@ -1645,7 +1660,7 @@ fn ChartContainer() -> impl IntoView {
             let Some(canvas) = resize_canvas_ref.get() else {
                 return;
             };
-            let (width, height) = canvas_pixel_size(std::ops::Deref::deref(&canvas));
+            let (width, height) = canvas_pixel_size(&canvas);
             let chart_signal = resize_chart_memo.get_untracked();
             chart_signal.with_untracked(|current| {
                 let _ = with_global_renderer(|renderer| {
@@ -1655,7 +1670,12 @@ fn ChartContainer() -> impl IntoView {
             });
             chart_view_revision().update(|revision| *revision = revision.wrapping_add(1));
         });
-    on_cleanup(move || resize_listener.remove());
+    let resize_listener = StoredValue::new_local(resize_listener);
+    on_cleanup(move || {
+        if let Some(listener) = resize_listener.into_inner() {
+            listener.remove();
+        }
+    });
 
     let handle_zoom_in = move |_| {
         let _ = zoom_chart(chart(), ZOOM_STEP, 0.5);
@@ -1670,7 +1690,7 @@ fn ChartContainer() -> impl IntoView {
             return;
         }
         let chart_signal = chart();
-        let _ = spawn_local_with_current_owner(async move {
+        spawn_local_scoped_with_cancellation(async move {
             if stress_mode().get_untracked() {
                 restore_live_mode(chart_signal, set_status).await;
             } else {
@@ -1931,7 +1951,7 @@ fn TimeframeSelector(set_status: WriteSignal<String>) -> impl IntoView {
                                 }
                                 current_interval().set(interval);
                                 let status = status_signal;
-                                let _ = spawn_local_with_current_owner(async move {
+                                spawn_local_scoped_with_cancellation(async move {
                                     start_all_websocket_streams(status).await;
                                 });
                             })
@@ -2220,7 +2240,7 @@ async fn start_market_stream(
         abort_reg,
     );
 
-    let _ = spawn_local_with_current_owner(async move {
+    spawn_local_scoped_with_cancellation(async move {
         let _ = fut.await;
     });
 }
@@ -2296,77 +2316,99 @@ mod tests {
 
     #[wasm_bindgen_test(async)]
     async fn timeframe_buttons_update_interval() {
-        use gloo_timers::future::sleep;
-        use std::time::Duration;
+        let owner = Owner::new();
+        owner
+            .with(|| {
+                leptos::reactive::computed::ScopedFuture::new(async {
+                    crate::app_context::AppContext::provide();
+                    use gloo_timers::future::sleep;
+                    use std::time::Duration;
 
-        let container = setup_container();
-        let (_, set_status) = create_signal(String::new());
-        leptos::mount_to(
-            container.clone(),
-            move || view! { <TimeframeSelector set_status=set_status /> },
-        );
+                    let container = setup_container();
+                    let (_, set_status) = signal(String::new());
+                    let _mount = leptos::mount::mount_to(
+                        container.clone(),
+                        move || view! { <TimeframeSelector set_status=set_status /> },
+                    );
 
-        let two_sec = find_button(&container, "2s").expect("2s button not found");
-        two_sec.click();
-        sleep(Duration::from_millis(10)).await;
-        abort_all_streams();
-        assert_eq!(current_interval().get(), TimeInterval::TwoSeconds);
+                    let two_sec = find_button(&container, "2s").expect("2s button not found");
+                    two_sec.click();
+                    sleep(Duration::from_millis(10)).await;
+                    abort_all_streams();
+                    assert_eq!(current_interval().get(), TimeInterval::TwoSeconds);
 
-        let five = find_button(&container, "5m").expect("5m button not found");
-        five.click();
-        sleep(Duration::from_millis(10)).await;
-        abort_all_streams();
-        assert_eq!(current_interval().get(), TimeInterval::FiveMinutes);
+                    let five = find_button(&container, "5m").expect("5m button not found");
+                    five.click();
+                    sleep(Duration::from_millis(10)).await;
+                    abort_all_streams();
+                    assert_eq!(current_interval().get(), TimeInterval::FiveMinutes);
 
-        let fifteen = find_button(&container, "15m").expect("15m button not found");
-        fifteen.click();
-        sleep(Duration::from_millis(10)).await;
-        abort_all_streams();
-        assert_eq!(current_interval().get(), TimeInterval::FifteenMinutes);
+                    let fifteen = find_button(&container, "15m").expect("15m button not found");
+                    fifteen.click();
+                    sleep(Duration::from_millis(10)).await;
+                    abort_all_streams();
+                    assert_eq!(current_interval().get(), TimeInterval::FifteenMinutes);
 
-        let one_hour = find_button(&container, "1h").expect("1h button not found");
-        one_hour.click();
-        sleep(Duration::from_millis(10)).await;
-        abort_all_streams();
-        assert_eq!(current_interval().get(), TimeInterval::OneHour);
+                    let one_hour = find_button(&container, "1h").expect("1h button not found");
+                    one_hour.click();
+                    sleep(Duration::from_millis(10)).await;
+                    abort_all_streams();
+                    assert_eq!(current_interval().get(), TimeInterval::OneHour);
+                })
+            })
+            .await;
     }
 
     #[wasm_bindgen_test]
     fn legend_checkbox_toggles_visibility() {
-        use crate::infrastructure::rendering::renderer::{dummy_renderer, set_global_renderer};
-        use std::cell::RefCell;
-        use std::rc::Rc;
+        let owner = Owner::new();
+        owner.with(|| {
+            use crate::infrastructure::rendering::renderer::{dummy_renderer, set_global_renderer};
+            use std::cell::RefCell;
+            use std::rc::Rc;
 
-        let container = setup_container();
-        let renderer = Rc::new(RefCell::new(dummy_renderer()));
+            let container = setup_container();
+            let renderer = Rc::new(RefCell::new(dummy_renderer()));
 
-        set_global_renderer(renderer.clone());
-        leptos::mount_to(container.clone(), move || view! { <Legend /> });
+            set_global_renderer(renderer.clone());
+            let _mount = leptos::mount::mount_to(container.clone(), move || view! { <Legend /> });
 
-        let cb = find_checkbox(&container, "sma20").expect("sma20 checkbox not found");
-        cb.click();
+            let cb = find_checkbox(&container, "sma20").expect("sma20 checkbox not found");
+            cb.click();
 
-        assert!(!renderer.borrow().line_visibility().sma_20);
+            assert!(!renderer.borrow().line_visibility().sma_20);
+        });
     }
 
-    #[wasm_bindgen_test]
-    fn legend_checkbox_updates_on_renderer_change() {
-        use crate::infrastructure::rendering::renderer::{dummy_renderer, set_global_renderer};
-        use std::cell::RefCell;
-        use std::rc::Rc;
+    #[wasm_bindgen_test(async)]
+    async fn legend_checkbox_updates_on_renderer_change() {
+        let owner = Owner::new();
+        owner
+            .with(|| {
+                leptos::reactive::computed::ScopedFuture::new(async {
+                    use crate::infrastructure::rendering::renderer::{
+                        dummy_renderer, set_global_renderer,
+                    };
+                    use std::cell::RefCell;
+                    use std::rc::Rc;
 
-        let container = setup_container();
-        let renderer = Rc::new(RefCell::new(dummy_renderer()));
+                    let container = setup_container();
+                    let renderer = Rc::new(RefCell::new(dummy_renderer()));
 
-        set_global_renderer(renderer.clone());
-        leptos::mount_to(container.clone(), move || view! { <Legend /> });
+                    set_global_renderer(renderer.clone());
+                    let _mount =
+                        leptos::mount::mount_to(container.clone(), move || view! { <Legend /> });
 
-        let cb = find_checkbox(&container, "sma20").expect("sma20 checkbox not found");
-        assert!(cb.checked());
+                    let cb = find_checkbox(&container, "sma20").expect("sma20 checkbox not found");
+                    assert!(cb.checked());
 
-        renderer.borrow_mut().toggle_line_visibility("sma20");
+                    renderer.borrow_mut().toggle_line_visibility("sma20");
+                    leptos::task::tick().await;
 
-        assert!(!cb.checked());
+                    assert!(!cb.checked());
+                })
+            })
+            .await;
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -2470,16 +2512,20 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn timeframe_selector_exposes_long_ranges() {
-        let container = setup_container();
-        let (_, set_status) = create_signal(String::new());
-        leptos::mount_to(
-            container.clone(),
-            move || view! { <TimeframeSelector set_status=set_status /> },
-        );
+        let owner = Owner::new();
+        owner.with(|| {
+            crate::app_context::AppContext::provide();
+            let container = setup_container();
+            let (_, set_status) = signal(String::new());
+            let _mount = leptos::mount::mount_to(
+                container.clone(),
+                move || view! { <TimeframeSelector set_status=set_status /> },
+            );
 
-        find_button(&container, "1d").expect("1d button not found");
-        find_button(&container, "1w").expect("1w button not found");
-        find_button(&container, "1M").expect("1M button not found");
+            find_button(&container, "1d").expect("1d button not found");
+            find_button(&container, "1w").expect("1w button not found");
+            find_button(&container, "1M").expect("1M button not found");
+        });
     }
 
     #[wasm_bindgen_test]
@@ -2487,7 +2533,7 @@ mod tests {
         crate::test_support::with_app_context(|| {
             let mut data = Chart::new("zoom-invariant".into(), ChartType::Candlestick, 300);
             data.set_historical_data(synthetic_candles(300));
-            let chart = create_rw_signal(data);
+            let chart = RwSignal::new(data);
             let before = chart.get_untracked();
             let view_revision = chart_view_revision().get_untracked();
 
@@ -2513,19 +2559,23 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn asset_buttons_update_current_symbol() {
-        let container = setup_container();
-        let (_status, set_status) = create_signal(String::new());
-        leptos::mount_to(
-            container.clone(),
-            move || view! { <AssetSelector set_status=set_status /> },
-        );
+        let owner = Owner::new();
+        owner.with(|| {
+            crate::app_context::AppContext::provide();
+            let container = setup_container();
+            let (_status, set_status) = signal(String::new());
+            let _mount = leptos::mount::mount_to(
+                container.clone(),
+                move || view! { <AssetSelector set_status=set_status /> },
+            );
 
-        let eth_btn = find_button(&container, "ETHUSDT").expect("ETHUSDT button not found");
-        eth_btn.click();
-        assert_eq!(current_symbol().get(), Symbol::from("ETHUSDT"));
+            let eth_btn = find_button(&container, "ETHUSDT").expect("ETHUSDT button not found");
+            eth_btn.click();
+            assert_eq!(current_symbol().get(), Symbol::from("ETHUSDT"));
 
-        let btc_btn = find_button(&container, "BTCUSDT").expect("BTCUSDT button not found");
-        btc_btn.click();
-        assert_eq!(current_symbol().get(), Symbol::from("BTCUSDT"));
+            let btc_btn = find_button(&container, "BTCUSDT").expect("BTCUSDT button not found");
+            btc_btn.click();
+            assert_eq!(current_symbol().get(), Symbol::from("BTCUSDT"));
+        });
     }
 }
