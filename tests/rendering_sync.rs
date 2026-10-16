@@ -35,19 +35,22 @@ fn sample_chart() -> Chart {
 
 #[wasm_bindgen_test]
 fn body_positions_within_bounds() {
-    let chart = sample_chart();
-    let renderer = dummy_renderer();
-    let (_instances, vertices, _uniforms) = renderer.create_geometry_for_test(&chart);
+    let owner = leptos::prelude::Owner::new();
+    owner.with(|| {
+        let chart = sample_chart();
+        let renderer = dummy_renderer();
+        let (_instances, vertices, _uniforms) = renderer.create_geometry_for_test(&chart);
 
-    let body: Vec<_> = vertices.iter().filter(|v| v.element_type == 0.0).collect();
+        let body: Vec<_> = vertices.iter().filter(|v| v.element_type == 0.0).collect();
 
-    assert!(body.len() >= 36); // two candles * 18 vertices each
+        assert!(body.len() >= 36); // two candles * 18 vertices each
 
-    let first_body_x = body[0].position_x;
-    let second_body_x = body[18].position_x;
+        let first_body_x = body[0].position_x;
+        let second_body_x = body[18].position_x;
 
-    assert_ne!(first_body_x, second_body_x);
-    for &x in &[first_body_x, second_body_x] {
-        assert!((-1.0..=1.0).contains(&x));
-    }
+        assert_ne!(first_body_x, second_body_x);
+        for &x in &[first_body_x, second_body_x] {
+            assert!((-1.0..=1.0).contains(&x));
+        }
+    });
 }

@@ -20,30 +20,42 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: qqrm/webgpu-candles
-          ref: 1b79e9df3d64542d367a1291273a48dff5ce57a6
+          ref: a7fdf26716e5874a353e0ca164eb8306cb240b16
           path: _perf_reference
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: '1.99.0'
           targets: wasm32-unknown-unknown
-      - name: Read the locked WASM runner version
+      - name: Read both locked WASM runner versions
         id: bindgen
         run: |
           python3 - <<'PY'
           import os
+          import re
           import tomllib
           from pathlib import Path
-          packages = tomllib.loads(Path('Cargo.lock').read_text())['package']
-          versions = {p['version'] for p in packages if p['name'] == 'wasm-bindgen'}
-          assert len(versions) == 1, versions
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write(f'version={versions.pop()}\n')
+              for label, root in [('reference', '_perf_reference'), ('candidate', '.')]:
+                  packages = tomllib.loads((Path(root) / 'Cargo.lock').read_text())['package']
+                  versions = {p['version'] for p in packages if p['name'] == 'wasm-bindgen'}
+                  assert len(versions) == 1, versions
+                  version = versions.pop()
+                  assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version), version
+                  output.write(f'{label}={version}\n')
           PY
       - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
-          tool: wasm-bindgen@${{ steps.bindgen.outputs.version }}
+          tool: wasm-bindgen@${{ steps.bindgen.outputs.reference }}
           fallback: none
+      - name: Preserve the reference runner before installing the candidate version
+        run: install -m 755 "$(command -v wasm-bindgen-test-runner)" "$RUNNER_TEMP/reference-wasm-bindgen-test-runner"
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        with:
+          tool: wasm-bindgen@${{ steps.bindgen.outputs.candidate }}
+          fallback: none
+      - name: Preserve the candidate runner
+        run: install -m 755 "$(command -v wasm-bindgen-test-runner)" "$RUNNER_TEMP/candidate-wasm-bindgen-test-runner"
       - uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2
         id: chrome
         with:
@@ -52,6 +64,8 @@ jobs:
       - name: Select fixed software WebGPU browser and record environment
         env:
           CHROME_BINARY: ${{ steps.chrome.outputs.chrome-path }}
+          REFERENCE_BINDGEN: ${{ steps.bindgen.outputs.reference }}
+          CANDIDATE_BINDGEN: ${{ steps.bindgen.outputs.candidate }}
           TESTED_SHA: ${{ github.sha }}
           TESTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           EVENT_NAME: ${{ github.event_name }}
@@ -67,6 +81,9 @@ jobs:
           harness = Path('tests/performance_limit.rs').read_bytes()
           reference_harness = Path('_perf_reference/tests/performance_limit.rs').read_bytes()
           assert harness == reference_harness, 'Workload changed: review and update the pinned measurement reference'
+          # Only the reviewed lifecycle adapters differ across the reactive API versions.
+          assert hashlib.sha256(Path('tests/performance_context/mod.rs').read_bytes()).hexdigest() == 'aeba625e37fb7749388aed4035ba10c948a3b9db5aae2e8455de6aa87fde4b8b', 'Candidate adapter changed: review required'
+          assert hashlib.sha256(Path('_perf_reference/tests/performance_context/mod.rs').read_bytes()).hexdigest() == '8dcece705cc7bf14ce86282d7c0d08b097d2615eec6971620cb6aceaecc54b84', 'Reference adapter changed: review required'
           config = json.loads(Path('webdriver-perf.json').read_text())
           config['goog:chromeOptions']['binary'] = os.environ['CHROME_BINARY']
           profile = json.dumps(config)
@@ -76,7 +93,7 @@ jobs:
           Path('_perf_reference/webdriver.json').write_text(profile)
           reference_sha = subprocess.check_output(
               ['git', '-C', '_perf_reference', 'rev-parse', 'HEAD'], text=True).strip()
-          assert reference_sha == '1b79e9df3d64542d367a1291273a48dff5ce57a6'
+          assert reference_sha == 'a7fdf26716e5874a353e0ca164eb8306cb240b16'
           metadata = {
               'tested_sha': os.environ['TESTED_SHA'],
               'tested_head_sha': os.environ['TESTED_HEAD_SHA'],
@@ -92,13 +109,17 @@ jobs:
               'reference_sha': reference_sha,
               'harness_sha256': hashlib.sha256(harness).hexdigest(),
               'browser_profile_sha256': hashlib.sha256(profile.encode()).hexdigest(),
+              'wasm_bindgen_reference': os.environ['REFERENCE_BINDGEN'],
+              'wasm_bindgen_candidate': os.environ['CANDIDATE_BINDGEN'],
+              'reference_context_sha256': hashlib.sha256(Path('_perf_reference/tests/performance_context/mod.rs').read_bytes()).hexdigest(),
+              'candidate_context_sha256': hashlib.sha256(Path('tests/performance_context/mod.rs').read_bytes()).hexdigest(),
               'comparison': 'candidate versus pinned reference measured on this same runner',
           }
           Path('perf-environment.json').write_text(json.dumps(metadata, indent=2) + '\n')
           PY
       - name: Measure the pinned reference on this runner
         env:
-          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: ${{ runner.temp }}/reference-wasm-bindgen-test-runner
           CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
           WASM_BINDGEN_TEST_ONLY_WEB: '1'
           WASM_BINDGEN_TEST_TIMEOUT: '180'
@@ -108,7 +129,7 @@ jobs:
           python3 scripts/parse_perf_log.py reference-perf.log reference_result.json
       - name: Measure completed frames for each deterministic dataset
         env:
-          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: ${{ runner.temp }}/candidate-wasm-bindgen-test-runner
           CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
           WASM_BINDGEN_TEST_ONLY_WEB: '1'
           WASM_BINDGEN_TEST_TIMEOUT: '180'

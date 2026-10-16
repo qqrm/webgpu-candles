@@ -49,3 +49,16 @@ The zoom QuickCheck property runs at least 256 successful finite-input cases plu
 One separate native-only case, `tests/indicator_perf.rs::update_under_half_ms`, remains excluded from WASM. It asserts an absolute 0.5 ms indicator-update budget using `std::time::Instant`. The existing relative cached-frame benchmark cannot replace that contract: it measures different work and compares a ratio, not that absolute latency. A direct native-target check currently fails at `src/infrastructure/rendering/renderer/initialization.rs:58`: the library unconditionally constructs `wgpu::SurfaceTarget::Canvas`, which wgpu exposes only on browser backends. Therefore adding a native CI command alone is insufficient; a portable domain build boundary is needed before this latency test can run unchanged. The renderer now aligns indicator histories with the retained closed candles after eviction, and dense EMA values no longer receive an SMA warmup offset. Overflow tests check all five indicator lines against independent numeric references, including the final closed aggregate bucket. Performance thresholds are unchanged.
 
 The incremental engine retains its first-close EMA seed; the batch analysis service retains its SMA-period seed. These existing APIs have different warmup lengths and values. The engine/service test checks both EMA12/26 sequences against separate closed-form references and preserves shared SMA20/50/200 equality; it does not assert false EMA equivalence.
+
+
+Dependency migration (Leptos 0.8 / wgpu 30): reactive tests own and dispose their
+Leptos owners explicitly; callback handles are weak and invalidated by cleanup.
+The performance reference a7fdf26716e5874a353e0ca164eb8306cb240b16 retains the exact
+product source and lockfile from 1b79e9df3d64542d367a1291273a48dff5ce57a6. Its only
+changes are the common performance harness and the Leptos 0.6 lifetime adapter.
+Candidate and reference use their own locked wasm-bindgen runners with the same
+Rust compiler, Chrome binary, software GPU profile, release profile and workload.
+CI requires byte-identical measurement code and the reviewed hashes of both
+version-specific lifecycle adapters. Samples, GPU readback fence and the 30%
+relative regression limit are unchanged. Adapter hashes and runner versions are
+included in the archived environment provenance.

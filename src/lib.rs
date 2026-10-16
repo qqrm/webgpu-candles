@@ -25,7 +25,7 @@ mod test_support;
 
 // === WASM EXPORTS ===
 use futures::lock::Mutex;
-use leptos::*;
+use leptos::view;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 
@@ -64,7 +64,7 @@ pub fn start_app() {
         let _ = loading_div.set_attribute("style", "display: none;");
     }
 
-    leptos::mount_to_body(|| view! { <crate::app::App/> });
+    leptos::mount::mount_to_body(|| view! { <crate::app::App/> });
 
     web_sys::console::log_1(&"✅ Leptos app mounted!".into());
 }

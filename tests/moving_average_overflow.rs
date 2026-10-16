@@ -125,7 +125,7 @@ fn moving_averages_continue_after_capacity_overflow() {
 
         // The retained aggregate series also overflowed, but its final bucket
         // is still open. No committed MA value may be shifted onto that candle.
-        use leptos::SignalSet;
+        use leptos::prelude::Set;
         price_chart_wasm::app::current_interval().set(TimeInterval::OneMinute);
         chart.update_viewport_for_series(TimeInterval::OneMinute);
         let minutes = chart.get_series(TimeInterval::OneMinute).unwrap().get_candles();

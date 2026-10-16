@@ -19,10 +19,10 @@ impl EcsWorld {
     /// Spawn a new chart entity with its component.
     pub fn spawn_chart(&mut self, chart: crate::domain::chart::Chart) -> hecs::Entity {
         use crate::ecs::components::{ChartComponent, ViewportComponent};
-        use leptos::create_rw_signal;
+        use leptos::prelude::RwSignal;
 
         let viewport = chart.viewport.clone();
-        let signal = create_rw_signal(chart);
+        let signal = RwSignal::new(chart);
         self.world.spawn((ChartComponent(signal), ViewportComponent(viewport)))
     }
 
