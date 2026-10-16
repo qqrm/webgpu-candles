@@ -8,10 +8,7 @@ on: # zizmor: ignore[dangerous-triggers]
     types: [completed]
 
 # Metadata only: never check out PR code or consume its artifacts here.
-permissions:
-  contents: write
-  pull-requests: write
-  checks: read
+permissions: {}
 
 concurrency:
   group: dependabot-automerge-${{ github.event.workflow_run.head_branch }}
@@ -19,6 +16,11 @@ concurrency:
 
 jobs:
   automerge:
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+      actions: read
     if: >-
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success' &&
@@ -26,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Enable native auto-merge for the checked Dependabot commit
+      - name: Merge the checked Dependabot commit
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -38,17 +40,43 @@ jobs:
             echo 'No associated pull request; nothing to merge.'
             exit 0
           fi
-          info="$(gh pr view "$pr" --repo "$REPO" --json author,isCrossRepository,headRefOid,baseRefName,isDraft,state,statusCheckRollup)"
+          info="$(gh pr view "$pr" --repo "$REPO" --json author,isCrossRepository,headRefOid,baseRefName,isDraft,state,mergeStateStatus,statusCheckRollup)"
           if ! jq -e --arg sha "$CHECKED_SHA" '
             (.author.login == "app/dependabot" or .author.login == "dependabot[bot]") and
             .isCrossRepository == false and .baseRefName == "main" and
             .state == "OPEN" and .isDraft == false and .headRefOid == $sha and
+            .mergeStateStatus == "CLEAN" and
             (["ci-gate", "workflow-security-gate"] -
-              [.statusCheckRollup[] | select(.status == "COMPLETED" and .conclusion == "SUCCESS") | .name] | length == 0)
+              [.statusCheckRollup[] | select(.status == "COMPLETED" and .conclusion == "SUCCESS") | .name] | length == 0) and
+            all(.statusCheckRollup[];
+              if .__typename == "CheckRun" then
+                .status == "COMPLETED" and
+                (.conclusion == "SUCCESS" or .conclusion == "NEUTRAL" or .conclusion == "SKIPPED")
+              elif .__typename == "StatusContext" then .state == "SUCCESS"
+              else false end)
           ' <<< "$info" >/dev/null; then
             echo 'The current Dependabot commit has not passed both required gates.'
             exit 0
           fi
-          # Native protection enforces checks and an up-to-date branch, without reviews.
-          gh pr merge "$pr" --repo "$REPO" --auto --squash \
+          # Metadata only: an owner may adopt the PR, but only bot commits auto-merge.
+          commits="$(gh api "repos/$REPO/pulls/$pr/commits?per_page=100" --paginate --slurp)"
+          if ! jq -e --arg sha "$CHECKED_SHA" '
+            add | length > 0 and .[-1].sha == $sha and
+            all(.[]; .author.login == "dependabot[bot]" and
+              .committer.login == "web-flow" and .commit.verification.verified == true and
+              .commit.verification.reason == "valid")
+          ' <<< "$commits" >/dev/null; then
+            echo 'This batch is not exclusively signed by Dependabot; no automatic merge.'
+            exit 0
+          fi
+          base_sha="$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)"
+          comparison="$(gh api "repos/$REPO/compare/$base_sha...$CHECKED_SHA")"
+          if ! jq -e --arg base "$base_sha" '
+            .behind_by == 0 and .merge_base_commit.sha == $base
+          ' <<< "$comparison" >/dev/null; then
+            echo 'The batch must refresh after main changed; no merge.'
+            exit 0
+          fi
+          # Native protection rechecks gates and current base at the merge boundary.
+          gh pr merge "$pr" --repo "$REPO" --squash \
             --match-head-commit "$CHECKED_SHA"

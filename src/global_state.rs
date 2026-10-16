@@ -11,7 +11,7 @@ use crate::domain::{
 use crate::ecs::EcsWorld;
 use crate::view_state::ViewState;
 use futures::future::AbortHandle;
-use leptos::*;
+use leptos::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 

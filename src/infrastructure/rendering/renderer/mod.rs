@@ -12,7 +12,7 @@ use crate::infrastructure::rendering::gpu_structures::{
 };
 use gloo::utils::document;
 use js_sys;
-use leptos::SignalSet;
+use leptos::prelude::Set;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;

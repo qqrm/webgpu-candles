@@ -24,7 +24,7 @@ fn spawn_async<F>(fut: F)
 where
     F: std::future::Future<Output = ()> + 'static,
 {
-    leptos::spawn_local(fut);
+    wasm_bindgen_futures::spawn_local(fut);
 }
 
 pub fn init_render_queue() {
@@ -49,10 +49,10 @@ pub fn init_render_queue() {
 }
 
 pub fn enqueue_render_task(task: RenderTask) {
-    let owner = leptos::Owner::current();
+    let owner = crate::app_context::CallbackOwner::capture();
     let task: RenderTask = Box::new(move |renderer| {
-        if let Some(owner) = owner {
-            let _ = leptos::try_with_owner(owner, || task(renderer));
+        if let Some(owner) = &owner {
+            let _ = owner.run(|| task(renderer));
         } else {
             task(renderer);
         }
