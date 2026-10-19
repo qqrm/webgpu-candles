@@ -44,13 +44,13 @@ jobs:
                   assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version), version
                   output.write(f'{label}={version}\n')
           PY
-      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: wasm-bindgen@${{ steps.bindgen.outputs.reference }}
           fallback: none
       - name: Preserve the reference runner before installing the candidate version
         run: install -m 755 "$(command -v wasm-bindgen-test-runner)" "$RUNNER_TEMP/reference-wasm-bindgen-test-runner"
-      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: wasm-bindgen@${{ steps.bindgen.outputs.candidate }}
           fallback: none
